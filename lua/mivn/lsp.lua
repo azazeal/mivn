@@ -44,14 +44,14 @@ local servers = {
 -- The personal knobs that do not belong in a public config. lua/mivn/local.lua
 -- is optional, gitignored, and returns a table. The keys so far:
 --
---   go_import_prefixes   a map from directory to the import prefixes that
---                        count as ours underneath it: each earns a gci block
---                        of its own, between everything-else and this module,
---                        in the order listed. Keys go through
---                        vim.fs.normalize, so "~" works, and the longest
---                        directory containing the file wins. With no file, or
---                        for a file under none of the directories, imports
---                        group as standard / everything else / this module.
+--   go_import_prefixes   the Go import prefixes that count as ours, as a
+--                        list: each earns a gci block of its own, between
+--                        everything-else and this module, in the order
+--                        listed, and gopls' `local` gets the same set. Empty
+--                        or absent, imports group as standard / everything
+--                        else / this module. Different checkouts want
+--                        different prefixes, so this key usually lives under
+--                        `projects`, which scopes it by where Neovim started.
 --
 --   lsp_servers          changes to the server table above, nvim-lspconfig
 --                        name to binary. A new pair adds a server, a different
@@ -68,38 +68,11 @@ local servers = {
 -- and local.example.lua shows every shape.
 local overrides = require("mivn.overrides")
 
--- Longest directory first, so the first one that matches is the winner.
-local prefix_dirs = {}
-for dir, prefixes in pairs(overrides.go_import_prefixes or {}) do
-  prefix_dirs[#prefix_dirs + 1] = { dir = vim.fs.normalize(dir), prefixes = prefixes }
-end
-table.sort(prefix_dirs, function(a, b)
-  return #a.dir > #b.dir
-end)
-
--- Every prefix from every directory. Only gopls gets this flattened view; see
--- its `local` setting below for why it can afford the imprecision.
-local all_import_prefixes = {}
-for _, entry in ipairs(prefix_dirs) do
-  vim.list_extend(all_import_prefixes, entry.prefixes)
-end
-
---- The import prefixes that count as ours for a file, by where it lives.
----
---- Empty for a file under none of the directories, which leaves it grouped as
---- standard / everything else / its own module.
-local function import_prefixes_for(path)
-  path = vim.fs.normalize(path)
-  for _, entry in ipairs(prefix_dirs) do
-    -- relpath, not a string compare on the front of the path: it is the one
-    -- that knows ~/projects/azazeal does not contain ~/projects/azazeal-fork.
-    if vim.fs.relpath(entry.dir, path) then
-      return entry.prefixes
-    end
-  end
-
-  return {}
-end
+-- One list for the whole session, like every other override: `projects` in
+-- local.lua is the scoping mechanism, resolved by where Neovim started. The
+-- cost is deliberate and small: a file from another workspace edited in this
+-- session gets this workspace's blocks.
+local import_prefixes = overrides.go_import_prefixes or {}
 
 for server, binary in pairs(overrides.lsp_servers or {}) do
   servers[server] = binary ~= false and binary or nil
@@ -109,18 +82,14 @@ end
 
 -- The codelenses are the ones I use.
 --
--- `local` gets every prefix, not the ones for the file being saved, because
--- one gopls serves a whole workspace and this setting is fixed when it
--- starts. It costs nothing: gopls only sorts these into one block ahead of
--- the module's own, and gci re-splits the file afterwards and owns the final
--- layout. The one case it matters is with gci missing, where a prefix from
--- another directory lands an import a block too early rather than among the
--- third-party ones.
+-- `local` groups our prefixes into one block ahead of the module's own; gci
+-- re-splits the file afterwards and owns the final layout, so this mostly
+-- matters when gci is not installed.
 vim.lsp.config("gopls", {
   settings = {
     gopls = {
       -- Quoted because `local` is a Lua keyword and cannot be a bare key.
-      ["local"] = table.concat(all_import_prefixes, ","),
+      ["local"] = table.concat(import_prefixes, ","),
       codelenses = {
         generate = true,
         regenerate_cgo = true,
@@ -291,20 +260,11 @@ local group = vim.api.nvim_create_augroup("mivn.lsp.format", { clear = true })
 -- gci's import blocks, in output order: standard library, everything else, a
 -- block per prefix from the local overrides, then this module's own packages
 -- (`localmodule` reads that from go.mod). gopls runs first, gci owns the end.
---- gci's block list for a file, in output order.
----
---- Built per file, not once: which prefixes are ours depends on the directory
---- the file sits in, so the same import is a third-party one in one project
---- and ours in the next.
-local function gci_sections_for(path)
-  local sections = { "standard", "default" }
-  for _, prefix in ipairs(import_prefixes_for(path)) do
-    sections[#sections + 1] = ("Prefix(%s)"):format(prefix)
-  end
-  sections[#sections + 1] = "localmodule"
-
-  return sections
+local gci_sections = { "standard", "default" }
+for _, prefix in ipairs(import_prefixes) do
+  gci_sections[#gci_sections + 1] = ("Prefix(%s)"):format(prefix)
 end
+gci_sections[#gci_sections + 1] = "localmodule"
 
 --- Re-split a saved Go file's imports with gci, in place.
 ---
@@ -319,7 +279,7 @@ local function gci_format(buf)
 
   local path = vim.api.nvim_buf_get_name(buf)
   local cmd = { "gci", "write", "--skip-generated", "--custom-order" }
-  for _, section in ipairs(gci_sections_for(path)) do
+  for _, section in ipairs(gci_sections) do
     cmd[#cmd + 1] = "-s"
     cmd[#cmd + 1] = section
   end
