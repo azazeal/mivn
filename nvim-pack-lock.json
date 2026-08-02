@@ -1,10 +1,5 @@
 {
   "plugins": {
-    "SchemaStore.nvim": {
-      "rev": "3d2c297f7152208daf4a382ea7123f9e4ebf9da1",
-      "src": "https://github.com/b0o/SchemaStore.nvim",
-      "version": "'3d2c297f7152208daf4a382ea7123f9e4ebf9da1'"
-    },
     "mini.diff": {
       "rev": "626b8a5b93874c4d05ca25aedec56cfff0b378fb",
       "src": "https://github.com/echasnovski/mini.diff",

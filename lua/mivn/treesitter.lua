@@ -98,6 +98,22 @@ end, { desc = "Update every installed tree-sitter grammar" })
 -- `jsonc` has no grammar of its own and the json parser accepts the comments.
 vim.treesitter.language.register("json", "jsonc")
 
+-- Compose files earn a filetype of their own, because that is the name the
+-- Docker language server (lua/mivn/lsp.lua) claims them by; nothing else
+-- produces it, so it is declared here. The yaml grammar keeps highlighting
+-- them: the dotted name means "yaml, then more specific", and the register
+-- call is what tells tree-sitter that.
+vim.treesitter.language.register("yaml", "yaml.docker-compose")
+
+vim.filetype.add({
+  filename = {
+    ["docker-compose.yml"] = "yaml.docker-compose",
+    ["docker-compose.yaml"] = "yaml.docker-compose",
+    ["compose.yml"] = "yaml.docker-compose",
+    ["compose.yaml"] = "yaml.docker-compose",
+  },
+})
+
 --- The language a template is a template *of*, or nil when the name does not
 --- say, the file type has no grammar, or that grammar is not installed.
 ---

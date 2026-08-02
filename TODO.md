@@ -21,25 +21,19 @@ checked off; git remembers them.
     in-house parser, since the coverprofile format is one line per range
     (`file.go:12.2,15.9 3 1`) and extmarks do the rest. Decide in a monthly
     batch, not now.
+
 ## Languages
 
-- [ ] The servers still missing are the npm ones: `bashls`, `jsonls`, `cssls`,
-    `html`, `ts_ls`, `dockerls`. Node is on asdf here with 24.16.0 installed
-    but **no global version set**, so `npm i -g` has nowhere to go. Decide
-    whether to `asdf set -u nodejs 24.16.0` or leave those languages to
-    tree-sitter. JSON is the only one that stings, and `jq` already formats
-    it; what is lost is schema validation from SchemaStore.
-- [ ] `lemminx` (XML) and `jsonnet-language-server` are not in Homebrew.
-    `xmllint` covers XML formatting in the meantime.
 - [ ] Verify `expert` attaches on a real Elixir project. It is installed but
     has not been exercised.
 - [ ] Check whether treesitter indentation beats the built-in ftplugins for
     any of these. It is off right now on the assumption it does not.
 - [ ] Markdown: decide the writing set. Three things are missing today.
     Formatting: marksman does not format, and the formatter table has no
-    markdown entry, so tables stay as typed; `prettier` formats pipe tables
-    but needs the npm decision above, `mdformat` (Python) and `deno fmt` are
-    the other candidates. Preview and mermaid: nothing renders inside the
+    markdown entry, so tables stay as typed; `deno fmt` (deno is already
+    here as the TypeScript server) and `mdformat` (Python) are the
+    candidates, `prettier` would drag node in. Preview and mermaid: nothing
+    renders inside the
     terminal or Neovide; peek.nvim (deno) and markdown-preview.nvim (node)
     both preview in the browser with mermaid support. In-buffer polish:
     render-markdown.nvim prettifies headings and tables in place but renders

@@ -16,9 +16,12 @@ local M = {}
 local PROBES = {
   ["gopls"] = { "version" },
   ["templ"] = { "version" },
+
+  -- Not --version: superhtml prints "unrecognized subcommand" for it and
+  -- still exits 0, which would read as its version line.
+  ["superhtml"] = { "version" },
+
   ["expert"] = false,
-  ["nil"] = false,
-  ["jsonnet-language-server"] = false,
   ["golangci-lint-langserver"] = false,
 }
 
