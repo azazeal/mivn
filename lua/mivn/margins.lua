@@ -49,4 +49,4 @@ vim.api.nvim_create_autocmd({ "BufWinEnter", "WinNew" }, {
 -- while the code beside it does not.
 vim.keymap.set("n", "<leader>w", function()
   vim.wo.wrap = not vim.wo.wrap
-end, { desc = "Wrap long lines in this window" })
+end, { desc = "Toggle wrapping of long lines" })
