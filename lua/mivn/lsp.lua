@@ -3,7 +3,8 @@
 -- Neovim ships the LSP client; nvim-lspconfig only supplies each server's
 -- connection details. A server whose binary is not installed is skipped
 -- quietly, and that must never become an error: no server means no LSP for
--- that language while tree-sitter carries on. `:MivnServers` lists both.
+-- that language while tree-sitter carries on. `:MivnLsp` (defined in
+-- lua/mivn/lsp/managed.lua) lists everything, on and off.
 --
 -- Format on save lives here because most of it *is* the language server:
 -- organize imports, then format. Completion is in lua/mivn/complete.lua.
@@ -13,8 +14,12 @@
 -- Keys are nvim-lspconfig's names. Values are the executable to look for,
 -- which is usually but not always the same string. Everything here installs
 -- from Homebrew as a plain binary; servers that would drag a Node runtime in
--- (bashls, yamlls, jsonls and friends) are out on purpose, and `lsp_servers`
--- below is the hatch for anyone who wants one anyway.
+-- (bashls, yamlls, jsonls and friends) are out on purpose, and the `lsp`
+-- overrides below are the hatch for anyone who wants one anyway.
+--
+-- Python is absent on purpose: ty and ruff come from the store
+-- (lua/mivn/store.lua), which installs them itself. Servers migrate from
+-- this table to the store's manifest over time, not the other way.
 local servers = {
   gopls = "gopls",
   golangci_lint_ls = "golangci-lint-langserver", -- lint diagnostics beside gopls
@@ -26,9 +31,7 @@ local servers = {
   denols = "deno", -- TypeScript and JavaScript
   docker_language_server = "docker-language-server", -- Dockerfile and Compose
   marksman = "marksman", -- Markdown
-  pyright = "pyright-langserver",
   ruby_lsp = "ruby-lsp",
-  ruff = "ruff", -- Python linting and formatting, beside pyright
   superhtml = "superhtml", -- HTML
   taplo = "taplo", -- TOML
   templ = "templ",
@@ -40,24 +43,16 @@ local servers = {
 -- The personal knobs that do not belong in a public config. lua/mivn/local.lua
 -- is optional, gitignored, and returns a table. The keys so far:
 --
---   go_import_prefixes   the Go import prefixes that count as ours, as a
---                        list: each earns a gci block of its own, between
---                        everything-else and this module, in the order
---                        listed, and gopls' `local` gets the same set. Empty
---                        or absent, imports group as standard / everything
---                        else / this module. Different checkouts want
---                        different prefixes, so this key usually lives under
---                        `projects`, which scopes it by where Neovim started.
---
---   lsp_servers          changes to the server table above, nvim-lspconfig
---                        name to binary. A new pair adds a server, a different
---                        binary re-points one, and `false` drops one.
---
---   lsp_settings         per-server settings, deep-merged over the defaults
---                        this file ships, so a key here wins.
---
---   lsp_probes           how :checkhealth mivn (lua/mivn/health.lua) asks a
---                        binary for its version; see local.example.lua.
+--   lsp                  per-server tuning, one entry per nvim-lspconfig
+--                        name. `false` turns a server off; anything else
+--                        declared also pre-gives install consent for a
+--                        store server (`true` says just that). A table
+--                        carries the finer knobs: `path` (an executable of
+--                        your own), `config` (handed to vim.lsp.config(),
+--                        deep-merged over the defaults here), `probe` (how
+--                        :checkhealth mivn asks for a version), and gopls'
+--                        `prefixes` (the Go import prefixes that count as
+--                        ours). local.example.lua documents them all.
 --
 -- Any key can also be scoped to a directory through local.lua's `projects`
 -- table; lua/mivn/overrides.lua resolves that against the startup directory,
@@ -67,11 +62,23 @@ local overrides = require("mivn.overrides")
 -- One list for the whole session, like every other override: `projects` in
 -- local.lua is the scoping mechanism, resolved by where Neovim started. The
 -- cost is deliberate and small: a file from another workspace edited in this
--- session gets this workspace's blocks.
-local import_prefixes = overrides.go_import_prefixes or {}
+-- session gets this workspace's blocks. The list rides gopls' entry in the
+-- `lsp` overrides because both consumers are Go plumbing: gopls' `local`
+-- setting, and the gci run this module drives itself on save.
+local gopls_overrides = (overrides.lsp or {}).gopls
+local import_prefixes = type(gopls_overrides) == "table" and gopls_overrides.prefixes or {}
 
-for server, binary in pairs(overrides.lsp_servers or {}) do
-  servers[server] = binary ~= false and binary or nil
+-- The store's servers stay out of this table whatever the overrides say:
+-- lua/mivn/lsp/managed.lua reads the same key and handles them itself.
+local managed = require("mivn.store").manifest
+for server, o in pairs(overrides.lsp or {}) do
+  if not managed[server] then
+    if o == false then
+      servers[server] = nil
+    elseif type(o) == "table" and o.path then
+      servers[server] = o.path
+    end
+  end
 end
 
 --- Per-server settings -------------------------------------------------------
@@ -134,10 +141,14 @@ vim.lsp.config("lua_ls", {
   },
 })
 
--- Personal settings last, so they win: vim.lsp.config() merges repeated
+-- Personal configuration last, so it wins: vim.lsp.config() merges repeated
 -- calls, later ones taking precedence, which is the whole implementation.
-for server, settings in pairs(overrides.lsp_settings or {}) do
-  vim.lsp.config(server, { settings = settings })
+-- `config` is the full vim.lsp.config shape, not just `settings`, because
+-- servers differ in where they read from (ruff wants `init_options`).
+for server, o in pairs(overrides.lsp or {}) do
+  if type(o) == "table" and o.config then
+    vim.lsp.config(server, o.config)
+  end
 end
 
 --- Start whatever is actually installed --------------------------------------
@@ -177,15 +188,6 @@ for server, binary in pairs(servers) do
 end
 table.sort(enabled)
 vim.lsp.enable(enabled)
-
-vim.api.nvim_create_user_command("MivnServers", function()
-  local lines = {}
-  for server, binary in vim.spairs(servers) do
-    local mark = vim.fn.executable(binary) == 1 and "on " or "off"
-    lines[#lines + 1] = ("  %s %-16s %s"):format(mark, server, binary)
-  end
-  vim.notify("Language servers\n" .. table.concat(lines, "\n"))
-end, { desc = "Show which language servers are installed and which are missing" })
 
 --- Inlay hints ----------------------------------------------------------------
 

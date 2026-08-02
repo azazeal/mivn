@@ -206,6 +206,7 @@ vim.cmd.colorscheme("basalt")
 require("mivn.plugins") -- vim.pack, and it must come first
 require("mivn.treesitter") -- grammars, highlighting, injections
 require("mivn.lsp") -- language servers, diagnostics, format on save
+require("mivn.lsp.managed") -- the server store's wiring, dialog, and :MivnLsp
 require("mivn.complete") -- the Insert-mode completion menu
 require("mivn.pairs") -- auto-closing pairs; complete.lua's Enter calls into it
 require("mivn.diff") -- git changes in the gutter

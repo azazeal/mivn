@@ -873,6 +873,13 @@ exact version.
 than on the bottom bar, prefilled and preselected: typing replaces the old
 name, Enter applies the rename, `Esc` backs out with nothing changed.
 
+Some servers install themselves _(mivn)_: for the languages the store covers
+(Python so far), opening a file with no server installed asks once, Yes / No /
+Ask me later, then downloads the pinned binary and attaches it to the file
+that asked. The answer is remembered per machine. `:MivnLsp` reviews and
+reverses all of it, and lists the servers still expected on `PATH` beside the
+managed ones.
+
 ## Folding
 
 | Key | Does |

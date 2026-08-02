@@ -6,6 +6,12 @@
 -- longest (most specific) directory wins. Resolved once, against the startup
 -- working directory: one Neovim is one project.
 --
+-- Merging goes exactly two levels: a top-level key (lsp,
+-- treesitter_grammars) merges per entry, and an entry replaces its
+-- predecessor whole. No deep merge on purpose: a deep merge can only add,
+-- so a more specific scope could never say "exactly this and nothing else"
+-- for a server. What a project states is what applies.
+--
 -- Deliberately no per-project files of its own: 'exrc' is on (init.lua), so
 -- a project that wants to carry editor config does it the standard way, in a
 -- .nvim.lua that runs after this config and tweaks Neovim directly
@@ -18,6 +24,19 @@ end
 
 local resolved = vim.deepcopy(raw)
 resolved.projects = nil
+
+--- Merge `values` over `resolved`, per the two-level rule above.
+local function merge(values)
+  for key, value in pairs(values) do
+    if type(value) == "table" and type(resolved[key]) == "table" then
+      for name, entry in pairs(value) do
+        resolved[key][name] = vim.deepcopy(entry)
+      end
+    else
+      resolved[key] = vim.deepcopy(value)
+    end
+  end
+end
 
 -- Shortest first, so later (longer, more specific) merges win.
 local scoped = {}
@@ -32,7 +51,7 @@ local cwd = vim.fs.normalize(vim.fn.getcwd())
 for _, entry in ipairs(scoped) do
   -- relpath, not a prefix compare: it knows ~/x does not contain ~/x-fork.
   if vim.fs.relpath(entry.dir, cwd) then
-    resolved = vim.tbl_deep_extend("force", resolved, entry.values)
+    merge(entry.values)
   end
 end
 

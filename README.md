@@ -49,12 +49,14 @@ What has to be on the system:
 - **ripgrep** (or **fd**), optionally: `<Space>f` and `<Space>/` use whichever
   is installed, and fall back to slower built-ins otherwise.
 
-Language servers and formatters are deliberately not bundled or managed:
-a server starts when its binary is on `PATH` and stays off otherwise, so
-install the ones you want with your package manager (`:MivnServers` lists
-what the config knows and what it found). The same goes for the external
-formatters (`stylua`, `shfmt`, `jq`, `taplo`, `xmllint`) and `gci` for Go
-imports.
+Language servers come two ways. Python's (`ty` and `ruff`) are managed:
+opening a Python file offers to install them, pinned and checksum-verified,
+into Neovim's data directory, and no Python needs to exist on the machine;
+more servers migrate to that store over time (`lua/mivn/store.lua`). The
+rest start when their binary is on `PATH` and stay off otherwise, so
+install the ones you want with your package manager. `:MivnLsp` lists both
+kinds and what was found. The external formatters (`stylua`, `shfmt`, `jq`,
+`taplo`, `xmllint`) and `gci` for Go imports are `PATH` tools too.
 
 This is a plain Neovim configuration: clone it where Neovim looks and run
 `nvim`.
@@ -105,14 +107,14 @@ heard of.
 
 `lua/mivn/local.lua` is optional, gitignored, and returns a table of personal
 settings the config reads when the file exists;
-`lua/mivn/local.example.lua` is the committed template to copy from. Two keys
-today: `go_import_prefixes`, the import prefixes that count as yours when
-grouping Go imports, keyed by the directory they apply under (so different
-clients can group differently), and `lsp_servers`, edits to the
-language-server table (add a server, re-point a binary, or drop one with
-`false`). Without the file, Go imports group as standard library / everything
-else / the current module, and the server table ships as
-`lua/mivn/lsp.lua` writes it.
+`lua/mivn/local.example.lua` is the committed template to copy from, and it
+documents every key. Two kinds today: `lsp`, per-server tuning (turn one
+off, point one at an executable of your own, add settings, set a health
+probe, and for gopls the import prefixes that count as yours), and
+`treesitter_grammars`, additions and drops to the grammar list. Any key can
+be scoped to a directory through `projects`, so
+different clients can carry different values. Without the file, everything
+runs on the defaults the repo ships.
 
 ## Layout
 

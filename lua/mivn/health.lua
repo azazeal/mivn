@@ -11,8 +11,8 @@ local M = {}
 -- How to ask each binary for its version. Most take --version; the ones
 -- that differ are named, and `false` means the binary has no harmless
 -- one-shot flag at all, so it is only looked up, never run. This table only
--- knows the servers the config ships; local.lua's `lsp_probes` merges over
--- it, so a server added there can bring its own flag (or a `false`) along.
+-- knows the servers the config ships; a `probe` field under the `lsp`
+-- overrides in local.lua wins over it for that server.
 local PROBES = {
   ["gopls"] = { "version" },
   ["templ"] = { "version" },
@@ -39,10 +39,19 @@ local function first_line(...)
   return ""
 end
 
-local probes = vim.tbl_extend("force", PROBES, require("mivn.overrides").lsp_probes or {})
+--- The probe for `server` running as `binary`: the override's `probe`
+--- field when it is set, the built-in table otherwise.
+local function probe_for(server, binary)
+  local o = (require("mivn.overrides").lsp or {})[server]
+  if type(o) == "table" and o.probe ~= nil then
+    return o.probe
+  end
+
+  return PROBES[binary]
+end
 
 --- Probe one binary; report through vim.health.
-local function check_binary(label, binary)
+local function check_binary(label, binary, probe)
   local health = vim.health
 
   local path = vim.fn.exepath(binary)
@@ -51,7 +60,6 @@ local function check_binary(label, binary)
     return
   end
 
-  local probe = probes[binary]
   if probe == false then
     health.ok(("%s: %s (found; it has no version flag to probe)"):format(label, path))
     return
@@ -89,10 +97,34 @@ end
 function M.check()
   local health = vim.health
   local lsp = require("mivn.lsp")
+  local store = require("mivn.store")
+  local managed = require("mivn.lsp.managed")
 
-  health.start("language servers")
+  health.start("managed language servers")
+  local target, why = store.supported()
+  if not target then
+    health.warn("this host is unsupported: " .. why, "the `path` escape hatch under `lsp` in local.lua still works")
+  else
+    health.ok("platform " .. target)
+    for _, tool in ipairs({ "curl", "tar" }) do
+      if vim.fn.executable(tool) ~= 1 then
+        health.error(("%s is missing, and installs need it"):format(tool))
+      end
+    end
+  end
+
+  for name in vim.spairs(store.manifest) do
+    local cmd = store.resolve(name)
+    if cmd then
+      check_binary(name, cmd[1], probe_for(name, cmd[1]))
+    else
+      health.info(("%s: %s"):format(name, managed.state(name)))
+    end
+  end
+
+  health.start("language servers on PATH")
   for server, binary in vim.spairs(lsp.servers) do
-    check_binary(server, binary)
+    check_binary(server, binary, probe_for(server, binary))
   end
 
   health.start("clients in this session")
@@ -114,10 +146,12 @@ function M.check()
     local binary = spec and spec[1]
     if binary and not seen[binary] then
       seen[binary] = true
-      check_binary(ft, binary)
+      check_binary(ft, binary, PROBES[binary])
     end
   end
-  check_binary("go imports", "gci")
+  -- gci is additional, not essential: gopls already formats and organizes
+  -- imports, gci only re-groups them into the configured blocks.
+  check_binary("gci", "gci", PROBES["gci"])
 end
 
 return M

@@ -69,8 +69,8 @@ local grammars = {
   "zig",
 }
 
--- The same hatch lsp.lua's `lsp_servers` gives: `treesitter_grammars` in the
--- local overrides maps a grammar name to true (add) or false (drop).
+-- The same kind of hatch lsp.lua's `lsp` overrides give: `treesitter_grammars`
+-- in the local overrides maps a grammar name to true (add) or false (drop).
 local overrides = require("mivn.overrides")
 for name, wanted in pairs(overrides.treesitter_grammars or {}) do
   if wanted == false then
