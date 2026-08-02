@@ -61,6 +61,9 @@ local servers = {
 --   lsp_settings         per-server settings, deep-merged over the defaults
 --                        this file ships, so a key here wins.
 --
+--   lsp_probes           how :checkhealth mivn (lua/mivn/health.lua) asks a
+--                        binary for its version; see local.example.lua.
+--
 -- Any key can also be scoped to a directory through local.lua's `projects`
 -- table; lua/mivn/overrides.lua resolves that against the startup directory,
 -- and local.example.lua shows every shape.

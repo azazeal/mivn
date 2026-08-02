@@ -10,7 +10,9 @@ local M = {}
 
 -- How to ask each binary for its version. Most take --version; the ones
 -- that differ are named, and `false` means the binary has no harmless
--- one-shot flag at all, so it is only looked up, never run.
+-- one-shot flag at all, so it is only looked up, never run. This table only
+-- knows the servers the config ships; local.lua's `lsp_probes` merges over
+-- it, so a server added there can bring its own flag (or a `false`) along.
 local PROBES = {
   ["gopls"] = { "version" },
   ["templ"] = { "version" },
@@ -35,6 +37,8 @@ local function first_line(...)
   return ""
 end
 
+local probes = vim.tbl_extend("force", PROBES, require("mivn.overrides").lsp_probes or {})
+
 --- Probe one binary; report through vim.health.
 local function check_binary(label, binary)
   local health = vim.health
@@ -45,7 +49,7 @@ local function check_binary(label, binary)
     return
   end
 
-  local probe = PROBES[binary]
+  local probe = probes[binary]
   if probe == false then
     health.ok(("%s: %s (found; it has no version flag to probe)"):format(label, path))
     return

@@ -43,6 +43,19 @@ return {
   --   },
   lsp_settings = {},
 
+  -- How :checkhealth mivn asks a server binary for its version, keyed by
+  -- binary name (not server name): the extra arguments as a list, or false
+  -- for a binary with no harmless one-shot flag, which is then only looked
+  -- up and never run. Merges over the built-in table, which already covers
+  -- the servers the config ships; this mostly matters for servers added
+  -- through `lsp_servers` above. For example:
+  --
+  --   lsp_probes = {
+  --     ["my-language-server"] = { "-v" },
+  --     ["starts-serving-when-run"] = false,
+  --   },
+  lsp_probes = {},
+
   -- Changes to the tree-sitter grammar list in lua/mivn/treesitter.lua:
   -- grammar name to true (add) or false (drop). Takes effect on the next
   -- :MivnInstallGrammars run. For example:
