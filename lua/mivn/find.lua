@@ -17,6 +17,22 @@ pick.setup({
   mappings = {
     -- Esc closes; the rest of the picker's keys are its own defaults.
     stop = "<Esc>",
+
+    -- Up and Down walk the list like Ctrl+P and Ctrl+N, which stay too. A
+    -- custom mapping's func runs inside the picker's own key loop, so feeding
+    -- the default key through nvim_input is the supported way to alias one.
+    move_down_arrow = {
+      char = "<Down>",
+      func = function()
+        vim.api.nvim_input("<C-n>")
+      end,
+    },
+    move_up_arrow = {
+      char = "<Up>",
+      func = function()
+        vim.api.nvim_input("<C-p>")
+      end,
+    },
   },
   options = {
     -- Match on the whole path, so "lua/lsp" narrows the way I expect.

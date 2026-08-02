@@ -429,9 +429,9 @@ vim.api.nvim_create_autocmd("BufWritePre", {
     -- is about to lay out. A server that does not offer it no-ops.
     for _, client in ipairs(clients) do
       if client:supports_method("textDocument/codeAction") then
-        local params = vim.lsp.util.make_range_params(0, client.offset_encoding)
-        ---@cast params lsp.CodeActionParams
-        params.context = { only = { "source.organizeImports" }, diagnostics = {} }
+        local params = vim.tbl_extend("force", vim.lsp.util.make_range_params(0, client.offset_encoding), {
+          context = { only = { "source.organizeImports" }, diagnostics = {} },
+        })
 
         local responses = client:request_sync("textDocument/codeAction", params, 1000, ev.buf)
         for _, action in pairs((responses or {}).result or {}) do
