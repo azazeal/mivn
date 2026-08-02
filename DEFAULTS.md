@@ -795,6 +795,20 @@ in the way rather than in help.
 | `:q!` | Quit, discarding changes |
 | `:wa` / `:qa` | Write all / quit all |
 | `:qa!` | Quit everything, discarding everything |
+| `:cq` | Quit with an error code, so the tool that launched the editor cancels |
+
+`:cq` is the one to remember when something else is waiting on the editor: in a
+`git commit` or `git rebase -i`, it is the difference between "run this" and
+"abort", and it works the same on every machine.
+
+Two deviations _(mivn)_, one rule: `:bd` closes a buffer, the `:q` family
+closes the session. Closing the last file with `:bd` normally leaves a blank
+buffer behind; in a session started with no file arguments the dashboard shows
+instead, and in a session started on a file the editor quits, the way Zed and
+VS Code end their `--wait` when the last tab closes, so `git commit` finishes
+on `:bd`. And `:q` or `:x` on the last file window quits even while the tree
+is open, instead of Vim's answer of leaving you in the one window that cannot
+show a file. Unsaved changes still block every one of these paths.
 
 One key is not on that list and looks like it belongs there: `Ctrl+Z`, which is
 `:suspend`. It stops Neovim and hands you back the shell that started it, a real

@@ -270,7 +270,8 @@ require("nvim-tree").setup({
 --
 -- Narrow on purpose: a count (`:2bd`) names a real buffer and runs untouched,
 -- and so does anything scripted through nvim_cmd or <Cmd>, which the event
--- does not fire for. The WinClosed heal below keeps those recoverable.
+-- does not fire for. Those land on the old annoying-but-recoverable
+-- behavior, and the layout invariant below keeps the aftermath survivable.
 --
 -- Not a command-line abbreviation, the classic tool here: measured, its bang
 -- trigger was flaky, with `:bd!` right after an expanded `:bd` sailing through
@@ -307,25 +308,34 @@ vim.api.nvim_create_autocmd("CmdlineLeavePre", {
 -- tree is one I cannot type my way out of, and `:q` on the last file window is
 -- enough to land there.
 --
--- So the layout heals: an editing window goes back beside the tree, holding
--- the file I was last in, or the landing buffer when there is nothing to
--- return to. `:q` therefore never quits mivn while the tree is up; `:qa` does.
+-- A quit that leaves the tree alone meant quit, though: the `:q` family and
+-- `Ctrl+W c` are how a window is closed on purpose, and with the tree as the
+-- only survivor there is nothing left to be in. So the session ends, the same
+-- answer stock Vim gives `:q` on its last window. Only when Vim refuses the
+-- quit (unsaved work in some buffer) does the layout heal instead: an editing
+-- window comes back beside the tree holding the file I was last in, so the
+-- unsaved work has somewhere to be seen. `:bd` is the other half of the
+-- story and never lands here, since deleting a buffer closes no window; that
+-- path belongs to the dashboard's own hook.
 
 local TREE_WIDTH = 32
 
 --- The buffer to put back in front of me, or nil for the landing buffer.
 ---
---- Most recently used wins, which is the one `:q` just took away.
+--- Unsaved first: this only runs after a quit was refused over unsaved work,
+--- so that work is what the window is for. Most recently used breaks the tie.
 local function last_real_buffer()
-  local best, best_used = nil, -1
+  local best, best_key = nil, -1
 
   for _, info in ipairs(vim.fn.getbufinfo({ buflisted = 1 })) do
+    local modified = vim.bo[info.bufnr].modified
     local ok = vim.api.nvim_buf_is_valid(info.bufnr)
       and vim.bo[info.bufnr].buftype == ""
-      and (info.name ~= "" or vim.bo[info.bufnr].modified)
+      and (info.name ~= "" or modified)
 
-    if ok and info.lastused > best_used then
-      best, best_used = info.bufnr, info.lastused
+    local key = info.lastused + (modified and 2 ^ 40 or 0)
+    if ok and key > best_key then
+      best, best_key = info.bufnr, key
     end
   end
 
@@ -348,6 +358,12 @@ local function heal()
 
   local tree = windows[1]
   if vim.bo[vim.api.nvim_win_get_buf(tree)].filetype ~= "NvimTree" then
+    return
+  end
+
+  -- No bang: unsaved work anywhere makes this throw, and the rescue below
+  -- runs instead. On success nothing after this line happens.
+  if pcall(vim.cmd.quitall) then
     return
   end
 

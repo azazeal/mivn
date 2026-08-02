@@ -142,8 +142,16 @@ local function nothing_to_edit()
   vim.notify("Nothing to edit here. <Space>f opens a file.")
 end
 
+--- Whether the banner has claimed this session: it opened at startup, or I
+--- summoned it with :MivnDashboard. A session it never claimed is an editor
+--- session (`git commit`, `nvim file.txt`), and those end when the last file
+--- closes instead of falling back here; see the BufEnter hook below.
+local claimed = false
+
 --- Show the landing buffer in the current window.
 function M.open()
+  claimed = true
+
   local buf = vim.api.nvim_create_buf(false, true)
 
   vim.bo[buf].buftype = "nofile"
@@ -257,6 +265,11 @@ local group = vim.api.nvim_create_augroup("mivn.dashboard", { clear = true })
 -- instead.
 vim.api.nvim_create_autocmd("VimEnter", {
   group = group,
+  -- nested, because M.open swaps the window's buffer, and without it that
+  -- swap fires no BufWinEnter: whatever hooked the startup buffer (the width
+  -- markers, window-local as matches are) would silently stay behind on the
+  -- banner.
+  nested = true,
   callback = function()
     if vim.fn.argc() > 1 then
       return
@@ -284,7 +297,13 @@ vim.api.nvim_create_autocmd("VimEnter", {
 })
 
 -- And again on the blank buffer Neovim leaves behind, which is where `:bd` on
--- the last file puts me.
+-- the last file puts me. Only in sessions the banner claimed, though: a
+-- session that started on a file (`git commit`, `nvim file.txt`) has no home
+-- screen to fall back to, so closing the last file quits Neovim instead,
+-- which is what the tool waiting on $EDITOR needs. No bang on the quit, ever:
+-- unsaved work keeps blocking it, and `:bd` refuses a modified buffer anyway,
+-- so this path is only reachable after a deliberate write or a deliberate
+-- `!`.
 --
 -- Keyed on arriving at a buffer rather than on one being deleted: the delete
 -- events fire while the window is still on its way somewhere, so a deferred
@@ -315,9 +334,18 @@ vim.api.nvim_create_autocmd("BufEnter", {
     end
 
     vim.schedule(function()
-      if vim.api.nvim_get_current_buf() == ev.buf and is_blank(ev.buf) then
-        M.open()
+      if vim.api.nvim_get_current_buf() ~= ev.buf or not is_blank(ev.buf) then
+        return
       end
+
+      if claimed then
+        M.open()
+        return
+      end
+
+      -- quitall, not quit: the tree or a split may still be open, and closing
+      -- one window would leave the session hanging on the rest.
+      vim.cmd.quitall()
     end)
   end,
 })
