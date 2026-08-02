@@ -211,6 +211,7 @@ require("mivn.pairs") -- auto-closing pairs; complete.lua's Enter calls into it
 require("mivn.diff") -- git changes in the gutter
 require("mivn.page") -- PageUp and PageDown, over the file and over the menu
 require("mivn.cua") -- the CUA edit keys that are mappings rather than options
+require("mivn.restart") -- :restart, refused when the window is remote
 require("mivn.terminal") -- the terminal panel and its toggle
 require("mivn.margins") -- the 80/100/120 width markers
 require("mivn.find") -- fuzzy finding, and the few keys Vim has no default for
