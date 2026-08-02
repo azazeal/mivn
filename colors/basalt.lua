@@ -450,6 +450,11 @@ hl({
   MiniPickNormal = { link = "NormalFloat" },
   MiniPickBorder = { link = "FloatBorder" },
   MiniPickBorderText = { link = "FloatTitle" },
+
+  -- The busy border needs its own bg: mini.pick's default link lands on a
+  -- group with none, so the border also flashed transparent while a live
+  -- grep was searching.
+  MiniPickBorderBusy = { fg = c.yellow, bg = c.bg3 },
   MiniPickPrompt = { fg = c.blue, bold = true },
   MiniPickMatchCurrent = { bg = c.bg5, bold = true },
   MiniPickMatchRanges = { fg = c.yellow, bold = true },

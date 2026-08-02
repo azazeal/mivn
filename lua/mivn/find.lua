@@ -25,6 +25,23 @@ local function alias(char, target)
   }
 end
 
+--- The centered float every picker draws. `rows` caps how tall it may get,
+--- for lists short enough that the standard height would be mostly empty air;
+--- the width never varies, so every float keeps the same left and right edge.
+local function float_config(rows)
+  local height = math.max(1, math.min(rows, math.floor(vim.o.lines * 0.6)))
+  local width = math.floor(vim.o.columns * 0.7)
+
+  return {
+    border = "rounded",
+    anchor = "NW",
+    height = height,
+    width = width,
+    row = math.floor((vim.o.lines - height) / 2),
+    col = math.floor((vim.o.columns - width) / 2),
+  }
+end
+
 pick.setup({
   mappings = {
     -- Esc closes; the rest of the picker's keys are its own defaults.
@@ -50,19 +67,24 @@ pick.setup({
   },
   window = {
     config = function()
-      local height = math.floor(vim.o.lines * 0.6)
-      local width = math.floor(vim.o.columns * 0.7)
-      return {
-        border = "rounded",
-        anchor = "NW",
-        height = height,
-        width = width,
-        row = math.floor((vim.o.lines - height) / 2),
-        col = math.floor((vim.o.columns - width) / 2),
-      }
+      return float_config(math.huge)
     end,
   },
 })
+
+-- mini.pick's setup() has already pointed vim.ui.select at itself, which is
+-- what sends `gra` code actions and every other "pick one of these" through
+-- the picker. This wrapper only sizes the float to the list: three code
+-- actions in a full-height window is mostly empty air.
+vim.ui.select = function(items, opts, on_choice)
+  pick.ui_select(items, opts, on_choice, {
+    window = {
+      config = function()
+        return float_config(#items)
+      end,
+    },
+  })
+end
 
 --- The bindings ---------------------------------------------------------------
 
