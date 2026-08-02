@@ -474,7 +474,7 @@ hl({
 -- One column each, past 80, 100 and 120, escalating. Colored as a background
 -- because a single character has to be seen out of the corner of an eye.
 hl({
-  MivnMargin80 = { fg = c.bg, bg = c.yellow, bold = true },
+  MivnMargin80 = { fg = c.bg, bg = c.green, bold = true },
   MivnMargin100 = { fg = c.bg, bg = c.orange, bold = true },
   MivnMargin120 = { fg = c.bg, bg = c.red, bold = true },
 })

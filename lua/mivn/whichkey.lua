@@ -41,6 +41,7 @@ wk.setup({
     { "<leader>d", desc = "Diagnostics" },
     { "<leader>t", desc = "Show or hide the file tree", icon = { icon = "󰙅", color = "blue" } },
     { "<leader>`", desc = "Show or hide the terminal" },
+    { "<leader>w", desc = "Wrap long lines in this window" },
 
     -- Names for the prefixes Vim ships, so the panel explains itself instead
     -- of listing bare letters.

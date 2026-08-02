@@ -270,12 +270,20 @@ what it acts on.
 A *word* stops at punctuation; a *WORD* is whitespace-delimited. In
 `foo.bar_baz`, `w` moves to `.` and `W` skips the whole thing.
 
+One deviation to know before the table: long lines do not wrap here _(mivn)_.
+Vim wraps by default; with the width markers saying when a line is too long,
+a line is one screen row and runs off the right edge instead. `Space w` turns
+wrapping back on for the window you are in, per window, so prose can wrap
+beside code that does not; while it is on, lines break between words
+(`'linebreak'`), and `gj` / `gk` walk the screen lines.
+
 ### Across the file
 
 | Key | Moves to |
 |---|---|
 | `j` `k` or `↓` `↑` | Down / up |
 | `gj` `gk` | Down / up by screen line, when text is wrapped |
+| `Space w` | Wrap long lines in this window, off by default _(mivn)_ |
 | `{` / `}` | Previous / next blank line (paragraph) |
 | `(` / `)` | Previous / next sentence |
 | `gg` / `G` | First / last line |

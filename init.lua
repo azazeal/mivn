@@ -40,6 +40,13 @@ vim.opt.signcolumn = "yes" -- always reserved, so text never shifts sideways
 vim.opt.list = true
 vim.opt.listchars = { tab = "» ", trail = "·", nbsp = "␣" }
 
+-- Long lines run off the right edge instead of wrapping, so a line is one
+-- screen row and the width markers (lua/mivn/margins.lua) tell me when it is
+-- too long; <Space>w brings wrapping back per window. 'linebreak' only
+-- matters while wrapping is on: break between words, not mid-word.
+vim.opt.wrap = false
+vim.opt.linebreak = true
+
 vim.opt.ignorecase = true
 vim.opt.smartcase = true -- ...unless the search itself contains a capital
 
