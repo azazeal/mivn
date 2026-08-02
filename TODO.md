@@ -2,7 +2,6 @@
 
 <!--toc:start-->
 - [TODO](#todo)
-  - [Plugins](#plugins)
   - [UI](#ui)
   - [Languages](#languages)
   - [Dashboard](#dashboard)
@@ -12,20 +11,6 @@
 
 Ordered roughly by what blocks daily use. Done items are deleted, not
 checked off; git remembers them.
-
-## Plugins
-
-- [ ] Freeze every plugin at an explicit commit SHA, and write the tag or
-    release that SHA belongs to next to it as a comment, so the pin is
-    readable. Right now `plugins.lua` names only the source (and a branch,
-    for nvim-treesitter), and the actual revisions live in
-    `nvim-pack-lock.json`, which is generated. That means the file a person
-    reads does not say what is installed, and a fresh clone depends on the
-    lock file being in step. Pinning in `plugins.lua` itself makes the source
-    the source of truth and the lock file merely a cache. `vim.pack.add`
-    takes `version` as a SHA, a tag, or a branch, so this is a per-entry
-    change; `vim.pack.update()` is what moves a pin forward, and the tag
-    comment has to be updated with it.
 
 ## UI
 

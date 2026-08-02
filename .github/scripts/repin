@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+#
+# Rewrites the version pins in lua/mivn/plugins.lua, so that file stays the
+# source of truth and nvim-pack-lock.json stays a cache of it.
+#
+#   repin strip   Replace every commit pin with the branch it tracks, so
+#                 `vim.pack.update()` can move past it.
+#   repin write   Pin every entry to the revision in nvim-pack-lock.json and
+#                 refresh its comment with the nearest tag and commit date.
+#
+# Moving pins forward is these two around one update:
+#
+#   repin strip
+#   nvim --headless "+lua vim.pack.update(nil, { force = true })" +qa
+#   repin write
+#
+# The weekly workflow runs exactly that. Each entry's own comment sits on the
+# line directly above it and ends in a parenthesized pin description; that
+# closing parenthesis is how this script tells an entry comment from a group
+# comment, so keep it there.
+
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+PLUGINS=lua/mivn/plugins.lua
+LOCK=nvim-pack-lock.json
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}/${NVIM_APPNAME:-nvim}/site/pack/core/opt"
+
+# The branch a plugin tracks when its default branch is the wrong one.
+branch_for() {
+  case "$1" in
+  nvim-treesitter) echo "main" ;;
+  *) echo "" ;;
+  esac
+}
+
+# The pin description for a plugin at the revision it is locked to: the
+# nearest tag plus how far past it, and the commit date. Falls back to the
+# short revision when the clone (or any tag) is missing.
+describe() {
+  local name="$1" rev="$2" dir="$DATA/$1" tag date
+
+  if [[ -d $dir ]]; then
+    tag=$(git -C "$dir" describe --tags "$rev" 2>/dev/null || true)
+    date=$(git -C "$dir" show -s --format=%cs "$rev" 2>/dev/null || true)
+  fi
+
+  # v0.18.0-4-g626b8a5 reads better as v0.18.0+4.
+  tag=$(sed -E 's/-([0-9]+)-g[0-9a-f]+$/+\1/' <<<"${tag:-}")
+
+  if [[ -n ${tag:-} && -n ${date:-} ]]; then
+    echo "$tag, $date"
+  elif [[ -n ${date:-} ]]; then
+    echo "$date"
+  else
+    echo "${rev:0:7}"
+  fi
+}
+
+mode="${1:?usage: repin strip|write}"
+
+# name -> rev, straight from the lock file.
+declare -A revs
+while read -r name rev; do
+  revs["$name"]="$rev"
+done < <(jq -r '.plugins | to_entries[] | "\(.key) \(.value.rev)"' "$LOCK")
+
+out=$(mktemp)
+pending_comment=""
+
+flush() {
+  [[ -n $pending_comment ]] && printf '%s\n' "$pending_comment" >>"$out"
+  pending_comment=""
+}
+
+while IFS= read -r line; do
+  # Hold each comment line back until the next line says whether it is the
+  # comment of the entry below it.
+  if [[ $line =~ ^([[:space:]]*)--[[:space:]] ]]; then
+    flush
+    pending_comment="$line"
+    continue
+  fi
+
+  if [[ $line =~ \{[[:space:]]*src[[:space:]]*=[[:space:]]*\"([^\"]+)\" ]]; then
+    src="${BASH_REMATCH[1]}"
+    name=$(basename "$src")
+    rev="${revs[$name]:-}"
+    indent="${line%%\{*}"
+
+    if [[ -z $rev ]]; then
+      echo "repin: $name is not in $LOCK" >&2
+      exit 1
+    fi
+
+    if [[ $mode == strip ]]; then
+      flush
+      branch=$(branch_for "$name")
+      if [[ -n $branch ]]; then
+        printf '%s{ src = "%s", version = "%s" },\n' "$indent" "$src" "$branch" >>"$out"
+      else
+        printf '%s{ src = "%s" },\n' "$indent" "$src" >>"$out"
+      fi
+      continue
+    fi
+
+    # write: refresh the pin, and the entry comment's trailing "(...)".
+    if [[ $pending_comment =~ ^([[:space:]]*--[[:space:]].*[^[:space:]])[[:space:]]*\([^\(\)]*\)[[:space:]]*$ ]]; then
+      pending_comment="${BASH_REMATCH[1]} ($(describe "$name" "$rev"))"
+    elif [[ -n $pending_comment ]]; then
+      pending_comment="$pending_comment ($(describe "$name" "$rev"))"
+    fi
+    flush
+    printf '%s{ src = "%s", version = "%s" },\n' "$indent" "$src" "$rev" >>"$out"
+    continue
+  fi
+
+  flush
+  printf '%s\n' "$line" >>"$out"
+done <"$PLUGINS"
+flush
+
+mv "$out" "$PLUGINS"

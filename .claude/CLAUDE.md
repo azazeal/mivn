@@ -22,9 +22,11 @@ direnv are up to the executing environment and not this repo.
 - This is a tool, not a project. New friction becomes a TODO.md entry and is
   fixed in monthly batches; do not add plugins, options, or mappings beyond
   what a task strictly needs.
-- Plugins: prefer the mini.* family and zero-dependency plugins. Everything is
-  pinned through the committed `nvim-pack-lock.json`; `plugins.lua` keeps one
-  short trailing comment per plugin.
+- Plugins: prefer the mini.* family and zero-dependency plugins. Every plugin
+  is pinned to a commit in `plugins.lua` itself, with a one-line comment above
+  each entry (purpose, then the pin in parentheses); `nvim-pack-lock.json` is
+  a cache of the same pins. `.github/scripts/repin` maintains both the pins
+  and the parentheses; edit the purpose text freely, keep the shape.
 
 ## Conventions
 
