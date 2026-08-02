@@ -9,16 +9,13 @@
 -- this config and can tweak Neovim directly; vim.lsp.config() calls there
 -- merge over the defaults lua/mivn/lsp.lua ships.
 return {
-  -- Import prefixes that count as "ours" when formatting Go, keyed by the
-  -- directory they apply under (longest match wins; "~" works). Each prefix
-  -- earns a gci block of its own, in list order, plus gopls' `local`
-  -- treatment. An empty table (or no key at all) means no extra blocks
-  -- anywhere. For example:
+  -- Import prefixes that count as "ours" when formatting Go, as a list. Each
+  -- prefix earns a gci block of its own, in list order, plus gopls' `local`
+  -- treatment. An empty table (or no key at all) means no extra blocks.
+  -- Different checkouts want different prefixes, so this key usually lives
+  -- under `projects` below rather than here. For example:
   --
-  --   go_import_prefixes = {
-  --     ["~/projects/my-org"] = { "github.com/my-org/" },
-  --     ["~/work"] = { "github.com/employer/", "go.employer.dev/" },
-  --   },
+  --   go_import_prefixes = { "github.com/my-org/" },
   go_import_prefixes = {},
 
   -- Changes to the language-server table in lua/mivn/lsp.lua, nvim-lspconfig
@@ -68,11 +65,14 @@ return {
 
   -- Everything above is global. `projects` scopes any of the same keys to a
   -- directory: when Neovim starts inside one, that directory's values merge
-  -- over the globals, and the longest matching directory wins. One client's
-  -- checkouts can run a different Elixir server, for example:
+  -- over the globals, and the longest matching directory wins. A list value
+  -- (go_import_prefixes, a probe's arguments) replaces the global one whole
+  -- rather than merging into it. One client's checkouts can carry their own
+  -- import prefixes and a different Elixir server, for example:
   --
   --   projects = {
   --     ["~/work/client-a"] = {
+  --       go_import_prefixes = { "github.com/client-a/" },
   --       lsp_servers = { expert = false, elixirls = "elixir-ls" },
   --     },
   --   },
