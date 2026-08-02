@@ -242,7 +242,21 @@ require("nvim-tree").setup({
   },
 
   actions = {
-    open_file = { resize_window = false },
+    open_file = {
+      resize_window = false,
+
+      -- The default picker refuses nofile windows, and the banner is one:
+      -- opening from the tree (Enter or double click) with only the banner up
+      -- used to split a new window beside it instead of replacing it. With
+      -- nofile allowed, the banner window is an ordinary target, the file
+      -- lands in it, and the banner buffer wipes itself.
+      window_picker = {
+        exclude = {
+          filetype = { "notify", "qf", "diff" },
+          buftype = { "terminal", "help", "prompt" },
+        },
+      },
+    },
   },
 })
 
