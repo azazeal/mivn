@@ -14,9 +14,6 @@ checked off; git remembers them.
 
 ## UI
 
-- [ ] Decide bracket pair coloring (Zed's `colorize_brackets`). Nothing built
-    in does it; rainbow-delimiters.nvim is the plugin. A looks question as
-    much as a plugin question, so it waits for a monthly batch.
 - [ ] Test coverage in the gutter, the way Zed shows it for Go. Nothing live
     exists here: coverage comes from a `go test -coverprofile=...` run, and
     neither the language server nor mini.diff reads the profile. Two routes:
@@ -41,9 +38,6 @@ checked off; git remembers them.
     `xmllint` covers XML formatting in the meantime.
 - [ ] Verify `expert` attaches on a real Elixir project. It is installed but
     has not been exercised.
-- [ ] `sqls` needs a connection configured before it does anything useful.
-    Worth deciding whether it earns its place at all, given the SQL that
-    matters here is embedded in Go.
 - [ ] Check whether treesitter indentation beats the built-in ftplugins for
     any of these. It is off right now on the assumption it does not.
 - [ ] Markdown: decide the writing set. Three things are missing today.
