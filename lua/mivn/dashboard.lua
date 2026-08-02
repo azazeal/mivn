@@ -314,6 +314,14 @@ vim.api.nvim_create_autocmd("BufEnter", {
     if vim.v.exiting ~= vim.NIL then
       return
     end
+    -- UI sessions only. A headless run is automation, and this hook firing
+    -- there is not hypothetical: vim.pack.update() pumps the event loop
+    -- mid-command (vim.wait under the hood), this callback saw a blank
+    -- unclaimed session and quitall'd nvim from inside the update. That is
+    -- how the weekly plugin-update job went green while updating nothing.
+    if #vim.api.nvim_list_uis() == 0 then
+      return
+    end
     -- Already here. Without this the landing buffer re-triggers itself.
     if vim.bo[ev.buf].filetype == FILETYPE then
       return
