@@ -9,49 +9,78 @@
 -- this config and can tweak Neovim directly; vim.lsp.config() calls there
 -- merge over the defaults lua/mivn/lsp.lua ships.
 return {
-  -- Import prefixes that count as "ours" when formatting Go, as a list. Each
-  -- prefix earns a gci block of its own, in list order, plus gopls' `local`
-  -- treatment. An empty table (or no key at all) means no extra blocks.
-  -- Different checkouts want different prefixes, so this key usually lives
-  -- under `projects` below rather than here. For example:
+  -- Per-server tuning, one entry per nvim-lspconfig name. The value takes
+  -- three shapes, and declaring a server at all is consent: for the servers
+  -- the store manages (lua/mivn/store.lua), any entry but `false` means "I
+  -- want this", so there is no install dialog and an old No given there is
+  -- outranked. `false` turns the server off; for a store server that is
+  -- also what keeps the dialog from ever offering it, and for a `PATH`
+  -- server it matters when the binary is installed for other reasons and
+  -- keeps attaching. `true` gives the consent and says nothing more. A
+  -- table carries the finer knobs, all optional:
   --
-  --   go_import_prefixes = { "github.com/my-org/" },
-  go_import_prefixes = {},
-
-  -- Changes to the language-server table in lua/mivn/lsp.lua, nvim-lspconfig
-  -- name to the binary that proves it is installed. A new pair adds a server,
-  -- a different binary re-points one, and `false` drops one entirely.
-  -- :MivnServers shows the merged result. For example:
+  --   path      an executable of your own. For a store server this is the
+  --             escape hatch: mivn stops managing it and runs yours,
+  --             resolved in your environment, runtime and all. For any
+  --             other server it is the binary that proves it is installed;
+  --             naming a server lua/mivn/lsp.lua's table does not carry
+  --             adds it.
   --
-  --   lsp_servers = {
-  --     basedpyright = "basedpyright",
-  --     ruby_lsp = false,
+  --   config    handed to vim.lsp.config(<name>, ...) and deep-merged over
+  --             the defaults the config ships, so a key here wins and
+  --             everything else keeps its default. This is the full config
+  --             shape (settings, init_options, cmd_env, ...), because
+  --             servers differ in where they read configuration from. Note
+  --             the nesting under `settings` follows each server's own
+  --             schema, and the section name in there is the server's, not
+  --             mivn's: gopls reads settings.gopls, lua_ls reads
+  --             settings.Lua.
+  --
+  --   probe     how :checkhealth mivn asks this server's binary for its
+  --             version: the extra arguments as a list, or false for a
+  --             binary with no harmless one-shot flag, which is then only
+  --             looked up and never run.
+  --
+  --   prefixes  gopls only: the Go import prefixes that count as "ours",
+  --             as a list. Each prefix earns a gci block of its own, in
+  --             list order, plus gopls' `local` treatment. Different
+  --             checkouts want different prefixes, so this one usually
+  --             lives under `projects` below.
+  --
+  -- This file is machine-side: `false` here turns a server off everywhere.
+  -- Per-project exceptions are the project's own business, and its trusted
+  -- .nvim.lua makes them the stock way, after this config has run. Off in
+  -- one project:
+  --
+  --   vim.lsp.enable("gopls", false)
+  --
+  -- Or the other direction: on in one project, with the project's own
+  -- config and binary, even for a server this file turned off or one mivn
+  -- never knew:
+  --
+  --   vim.lsp.config("ty", { cmd = { "/opt/ty/bin/ty", "server" } })
+  --   vim.lsp.enable("ty")
+  --
+  -- Leave the cmd out and the binary resolves from PATH as stock Neovim
+  -- would. One caveat: a store server turned off here has its files swept
+  -- eventually, so a project re-enabling one brings its own binary rather
+  -- than pointing into the store.
+  --
+  -- :MivnLsp shows the merged result. For example:
+  --
+  --   lsp = {
+  --     denols = false,   -- deno is here for other work; no LSP wanted
+  --     ruff = true,
+  --     ty = { path = "/some/path/ty" },    -- my own ty, not the store's
+  --     basedpyright = { path = "basedpyright", probe = { "--version" } },
+  --     gopls = {
+  --       prefixes = { "github.com/my-org/" },
+  --       config = {
+  --         settings = { gopls = { buildFlags = { "-tags=integration" } } },
+  --       },
+  --     },
   --   },
-  lsp_servers = {},
-
-  -- Per-server settings, deep-merged over the defaults lua/mivn/lsp.lua
-  -- ships, so a key here wins and everything else keeps its default. The
-  -- nesting mirrors the server's own settings sections. Most useful inside
-  -- `projects` below, where one client's checkouts can want different
-  -- settings. For example:
-  --
-  --   lsp_settings = {
-  --     gopls = { gopls = { buildFlags = { "-tags=integration" } } },
-  --   },
-  lsp_settings = {},
-
-  -- How :checkhealth mivn asks a server binary for its version, keyed by
-  -- binary name (not server name): the extra arguments as a list, or false
-  -- for a binary with no harmless one-shot flag, which is then only looked
-  -- up and never run. Merges over the built-in table, which already covers
-  -- the servers the config ships; this mostly matters for servers added
-  -- through `lsp_servers` above. For example:
-  --
-  --   lsp_probes = {
-  --     ["my-language-server"] = { "-v" },
-  --     ["starts-serving-when-run"] = false,
-  --   },
-  lsp_probes = {},
+  lsp = {},
 
   -- Changes to the tree-sitter grammar list in lua/mivn/treesitter.lua:
   -- grammar name to true (add) or false (drop). Takes effect on the next
@@ -65,15 +94,20 @@ return {
 
   -- Everything above is global. `projects` scopes any of the same keys to a
   -- directory: when Neovim starts inside one, that directory's values merge
-  -- over the globals, and the longest matching directory wins. A list value
-  -- (go_import_prefixes, a probe's arguments) replaces the global one whole
-  -- rather than merging into it. One client's checkouts can carry their own
-  -- import prefixes and a different Elixir server, for example:
+  -- over the globals, and the longest matching directory wins. Merging goes
+  -- per key and then per entry (per server, per grammar), and there it
+  -- stops: a server's entry here replaces the global one whole rather than
+  -- deep-merging into it, so what a project states is exactly what applies.
+  -- One client's checkouts can carry their own import prefixes and a
+  -- different Elixir server, for example:
   --
   --   projects = {
   --     ["~/work/client-a"] = {
-  --       go_import_prefixes = { "github.com/client-a/" },
-  --       lsp_servers = { expert = false, elixirls = "elixir-ls" },
+  --       lsp = {
+  --         gopls = { prefixes = { "github.com/client-a/" } },
+  --         expert = false,
+  --         elixirls = { path = "elixir-ls" },
+  --       },
   --     },
   --   },
   projects = {},

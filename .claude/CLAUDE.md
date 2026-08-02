@@ -43,7 +43,7 @@ direnv are up to the executing environment and not this repo.
 
 ## Verify before calling anything done
 
-- `stylua --check init.lua lua/mivn/*.lua colors/*.lua`
+- `stylua --check .` (covers init.lua, lua/ recursively, and colors/)
 - `timeout 60 env NVIM_APPNAME=mivn nvim --headless "+lua io.write('ok\n')" +qa`
   must print `ok` with no errors (needs the `~/.config/mivn` symlink above).
   Headless boot does not exercise UI paths; drive them with `:normal` or
