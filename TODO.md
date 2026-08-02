@@ -21,11 +21,6 @@ checked off; git remembers them.
     in-house parser, since the coverprofile format is one line per range
     (`file.go:12.2,15.9 3 1`) and extmarks do the rest. Decide in a monthly
     batch, not now.
-- [ ] Centered, unmissable prompts instead of the bottom bar, via
-    `vim.ui.input` / `vim.ui.select` overrides. Open question: whether they
-    should be dismissable with Esc. They should; a prompt you cannot escape
-    traps you the first time you open one by mistyping.
-
 ## Languages
 
 - [ ] The servers still missing are the npm ones: `bashls`, `jsonls`, `cssls`,

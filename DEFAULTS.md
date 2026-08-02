@@ -649,6 +649,12 @@ A right click on a row _(mivn)_ opens a menu with the file actions: new,
 rename, delete, cut, copy, paste. The same actions the keys above cover, for
 the hand already on the mouse.
 
+The questions these actions ask (a name, a yes/no before a delete) open in a
+one-line float _(mivn)_ instead of on the bottom bar. Enter answers, `Esc` or
+`Ctrl+C` cancels unrun, and `Tab` completes a path where one is being typed.
+Rename floats at the cursor with the stem preselected: typing replaces it,
+an arrow drops the selection to edit the extension too.
+
 Two of its defaults are removed _(mivn)_: `-` and `Ctrl+]` used to **re-root
 the tree**, one to the parent directory and one to the directory under the
 cursor. The tree is rooted at the project and stays there, so the two keys
@@ -862,6 +868,10 @@ Go-to-definition has no default binding, the one obvious gap in the stock
 list, so mivn binds `gd` over the stock file-local declaration search when a
 server attaches. `:h lsp-defaults` is the authority on the rest for your
 exact version.
+
+`grn` asks for the new name in a one-line float at the symbol _(mivn)_ rather
+than on the bottom bar, prefilled and preselected: typing replaces the old
+name, Enter applies the rename, `Esc` backs out with nothing changed.
 
 ## Folding
 

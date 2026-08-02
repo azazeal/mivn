@@ -78,13 +78,13 @@ end
 -- inside the tree, Neovim's own text items everywhere else. Disabled entries
 -- stay visible, grayed.
 
---- The F2 rename: a one-line float holding the full name, with the stem (the
---- name minus its last extension) preselected in Select mode. Typing replaces
---- the stem, an arrow drops the selection and edits anything, extension
---- included. Enter accepts, Esc cancels. nvim-tree's own rename does the
+--- The F2 rename: the floating prompt (lua/mivn/prompt.lua) holding the full
+--- name, with the stem (the name minus its last extension) preselected in
+--- Select mode. Typing replaces the stem, an arrow drops the selection and
+--- edits anything, extension included. nvim-tree's own rename does the
 --- actual work (buffer renames and tree refresh included), fed the new name
---- through a one-shot vim.ui.input override. A plain prompt cannot do this:
---- cmdline input can prefill text but has no selection.
+--- through a one-shot vim.ui.input override; the save/restore keeps the
+--- prompt module's global intact.
 local function rename()
   local api = require("nvim-tree.api")
   local node = api.tree.get_node_under_cursor()
@@ -95,31 +95,13 @@ local function rename()
   local name = node.name
   local stem = name:match("^(.+)%.[^.]+$") or name
 
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.bo[buf].bufhidden = "wipe"
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { name })
-
-  local win = vim.api.nvim_open_win(buf, true, {
-    relative = "cursor",
-    row = 1,
-    col = 0,
-    width = math.max(#name + 8, 24),
-    height = 1,
-    style = "minimal",
-    border = "rounded",
-    title = " Rename ",
-    title_pos = "center",
-  })
-
-  local function close()
-    if vim.api.nvim_win_is_valid(win) then
-      vim.api.nvim_win_close(win, true)
-    end
-  end
-
-  local function accept()
-    local typed = vim.trim(vim.api.nvim_buf_get_lines(buf, 0, 1, false)[1] or "")
-    close()
+  require("mivn.prompt").input({
+    prompt = "Rename",
+    default = name,
+    scope = "cursor",
+    select = { 0, #stem },
+  }, function(typed)
+    typed = vim.trim(typed or "")
     if typed == "" or typed == name then
       return
     end
@@ -130,19 +112,7 @@ local function rename()
       on_confirm(typed)
     end
     api.fs.rename(node)
-  end
-
-  vim.keymap.set({ "n", "i", "s" }, "<CR>", accept, { buffer = buf })
-  vim.keymap.set({ "n", "i", "s" }, "<Esc>", close, { buffer = buf })
-
-  -- Charwise Select over the stem alone. 'selection' is exclusive (init.lua),
-  -- so the endpoint is the character after the stem: the dot, or one past the
-  -- end for a name with no extension, which 'virtualedit' makes reachable.
-  vim.wo[win].virtualedit = "onemore"
-  vim.api.nvim_win_set_cursor(win, { 1, 0 })
-  vim.cmd("normal! v")
-  vim.api.nvim_win_set_cursor(win, { 1, #stem })
-  vim.cmd("normal! " .. vim.keycode("<C-g>"))
+  end)
 end
 
 -- Distinct names on purpose: the stock menu already has Cut, Copy, Paste and
