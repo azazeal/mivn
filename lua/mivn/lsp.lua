@@ -11,7 +11,10 @@
 --- Which server handles what, and what binary proves it is installed ---------
 
 -- Keys are nvim-lspconfig's names. Values are the executable to look for,
--- which is usually but not always the same string.
+-- which is usually but not always the same string. Everything here installs
+-- from Homebrew as a plain binary; servers that would drag a Node runtime in
+-- (bashls, yamlls, jsonls and friends) are out on purpose, and `lsp_servers`
+-- below is the hatch for anyone who wants one anyway.
 local servers = {
   gopls = "gopls",
   golangci_lint_ls = "golangci-lint-langserver", -- lint diagnostics beside gopls
@@ -19,24 +22,17 @@ local servers = {
   expert = "expert", -- Elixir
   lua_ls = "lua-language-server",
 
-  jsonls = "vscode-json-language-server",
-  jsonnet_ls = "jsonnet-language-server",
-  yamlls = "yaml-language-server",
-  lemminx = "lemminx", -- XML
-  taplo = "taplo", -- TOML
-
-  bashls = "bash-language-server",
   buf_ls = "buf", -- Protocol Buffers
-  cssls = "vscode-css-language-server",
-  dockerls = "docker-langserver",
-  html = "vscode-html-language-server",
+  denols = "deno", -- TypeScript and JavaScript
+  docker_language_server = "docker-language-server", -- Dockerfile and Compose
   marksman = "marksman", -- Markdown
-  nil_ls = "nil", -- Nix
   pyright = "pyright-langserver",
   ruby_lsp = "ruby-lsp",
+  ruff = "ruff", -- Python linting and formatting, beside pyright
+  superhtml = "superhtml", -- HTML
+  taplo = "taplo", -- TOML
   templ = "templ",
   terraformls = "terraform-ls",
-  ts_ls = "typescript-language-server",
 }
 
 --- Local overrides ------------------------------------------------------------
@@ -124,29 +120,6 @@ vim.lsp.config("rust_analyzer", {
     },
   },
 })
-
--- schemastore.org's catalog, so .golangci.yml or package.json is validated
--- with nothing declared by hand. yamlls' own downloader is turned off.
-local ok_schemastore, schemastore = pcall(require, "schemastore")
-if ok_schemastore then
-  vim.lsp.config("jsonls", {
-    settings = {
-      json = {
-        schemas = schemastore.json.schemas(),
-        validate = { enable = true },
-      },
-    },
-  })
-
-  vim.lsp.config("yamlls", {
-    settings = {
-      yaml = {
-        schemaStore = { enable = false, url = "" },
-        schemas = schemastore.yaml.schemas(),
-      },
-    },
-  })
-end
 
 vim.lsp.config("lua_ls", {
   settings = {

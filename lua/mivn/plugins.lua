@@ -14,8 +14,6 @@ vim.pack.add({
   { src = "https://github.com/nvim-treesitter/nvim-treesitter", version = "61df84986b4b4ec469ee745a182e433d49f8c27e" },
   -- per-server configs, not a client (v2.11.0+9, 2026-07-26)
   { src = "https://github.com/neovim/nvim-lspconfig", version = "7ab79bb1b57160a537f427ac8a6026102f12b701" },
-  -- schemas for JSON and YAML validation (2026-07-22)
-  { src = "https://github.com/b0o/SchemaStore.nvim", version = "3d2c297f7152208daf4a382ea7123f9e4ebf9da1" },
   -- the file tree (v1+5, 2026-07-16)
   { src = "https://github.com/nvim-tree/nvim-tree.lua", version = "4213bd6eabac38b16dd6615002b6243b23cf3bf6" },
   -- what can follow the key I just pressed (stable+8, 2025-10-28)
