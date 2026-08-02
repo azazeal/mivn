@@ -696,8 +696,10 @@ type to narrow the list; these keys act on it.
 | Key | Does |
 |---|---|
 | `↑` / `↓` | Move up / down the list |
-| `Ctrl+P` / `Ctrl+N` | The same two, without leaving the home row |
-| `←` / `→` | Move the caret inside what you have typed, not the list |
+| `←` / `→` | The same two: every arrow walks the list _(mivn)_ |
+| `Ctrl+P` / `Ctrl+N` | Up / down without leaving the home row |
+| `PageUp` / `PageDown` | A page up / down the list _(mivn)_ |
+| `Shift+←` / `Shift+→` | Move the caret inside what you have typed _(mivn)_ |
 | `Enter` | Open the match |
 | `Ctrl+S` / `Ctrl+V` / `Ctrl+T` | Open it in a split / vertical split / tab |
 | `Tab` | Toggle the preview |
