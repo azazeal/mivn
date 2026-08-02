@@ -823,9 +823,12 @@ Neovim 0.11 binds these when a server attaches. No plugin involved.
 | `gO` | Document symbols |
 | `Ctrl+S` (Insert) | Signature help |
 | `]d` / `[d` | Next / previous diagnostic |
+| `gd` | Go to definition _(mivn)_ |
 
-Go-to-definition has no default binding, which is the one obvious gap. `:h
-lsp-defaults` is the authority on this list for your exact version.
+Go-to-definition has no default binding, the one obvious gap in the stock
+list, so mivn binds `gd` over the stock file-local declaration search when a
+server attaches. `:h lsp-defaults` is the authority on the rest for your
+exact version.
 
 ## Folding
 
