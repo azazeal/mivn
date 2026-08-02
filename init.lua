@@ -215,6 +215,7 @@ require("mivn.restart") -- :restart, refused when the window is remote
 require("mivn.terminal") -- the terminal panel and its toggle
 require("mivn.margins") -- the 80/100/120 width markers
 require("mivn.find") -- fuzzy finding, and the few keys Vim has no default for
+require("mivn.prompt") -- vim.ui.input as a float instead of the bottom bar
 require("mivn.whichkey") -- shows what can follow a key I started typing
 require("mivn.dashboard") -- the landing buffer
 require("mivn.tree") -- the file tree, loaded after the dashboard claims a window
