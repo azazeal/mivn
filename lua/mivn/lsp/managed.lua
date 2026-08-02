@@ -230,7 +230,10 @@ local function actions_for(name)
   return actions
 end
 
-vim.api.nvim_create_user_command("MivnLsp", function()
+--- The listing. A local function rather than the command body so the
+--- action dialog can come back to it: Esc there cancels the action, not
+--- the review.
+local function review()
   local items = {}
 
   for name in vim.spairs(store.manifest) do
@@ -251,6 +254,10 @@ vim.api.nvim_create_user_command("MivnLsp", function()
         }, function(action)
           if action then
             action.run()
+          else
+            -- Backing out returns to the listing, rebuilt so it shows the
+            -- current state. Scheduled: the picker is still tearing down.
+            vim.schedule(review)
           end
         end)
       end,
@@ -293,6 +300,10 @@ vim.api.nvim_create_user_command("MivnLsp", function()
       item.pick()
     end
   end)
-end, { desc = "Review the language servers: managed, on PATH, off" })
+end
+
+vim.api.nvim_create_user_command("MivnLsp", review, {
+  desc = "Review the language servers: managed, on PATH, off",
+})
 
 return { state = state_of }

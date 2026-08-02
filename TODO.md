@@ -58,7 +58,12 @@ checked off; git remembers them.
       cssls, bashls. npm runs only in CI; the user downloads two files.
   - [ ] Go as a build-time runtime for gopls (`go install` at install
       time, entry named `servers/gopls/v<ver>@go<ver>`), since gopls
-      publishes no binaries.
+      publishes no binaries. gci comes along in the same pass: it
+      publishes no binaries either, it is the second half of the Go
+      format pipeline (gopls formats, gci re-groups the imports), and
+      one Go dialog should cover both. The store grows a small "tools"
+      notion for it: same staging, lock and sweep, but no client wiring;
+      lsp.lua's gci run resolves through the store by absolute path.
   - [ ] Grow .github/scripts/repin (or a sibling) to bump the store's
       manifest pins the way it bumps plugin pins, in the same weekly PR.
   - [ ] Steal from fresh: spawn backoff for a crash-looping server, and
