@@ -31,12 +31,6 @@ checked off; git remembers them.
 
 ## Languages
 
-- [ ] `rust-analyzer` is enabled and **not actually installed**. What is on
-    PATH is rustup's shim, and the component behind it is missing;
-    `rustup component add rust-analyzer` is the fix. This class of lie
-    (an executable file with nothing working behind it) is what
-    `:checkhealth mivn` now exists to catch, and it reports this exact
-    case; what remains is only the install.
 - [ ] The servers still missing are the npm ones: `bashls`, `jsonls`, `cssls`,
     `html`, `ts_ls`, `dockerls`. Node is on asdf here with 24.16.0 installed
     but **no global version set**, so `npm i -g` has nowhere to go. Decide

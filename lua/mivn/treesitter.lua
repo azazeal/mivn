@@ -188,11 +188,14 @@ local function parse_as_template(buf)
 end
 
 -- Highlighting is per-buffer and opt-in, so it is started as files open. A
--- missing grammar is the normal case on a fresh checkout, not an error, so the
--- failure is swallowed and Vim's own syntax highlighting stands in.
+-- missing grammar is the normal case on a fresh checkout, not an error, but
+-- it is no longer swallowed whole: Vim's own syntax highlighting stands in,
+-- and a warning names the missing grammar and the command that builds it.
 --
 -- Indentation is left to Neovim's built-in ftplugins: tree-sitter's indent is
 -- still rougher than the hand-written rules for several of these languages.
+local missing_warned = {}
+
 vim.api.nvim_create_autocmd("FileType", {
   group = vim.api.nvim_create_augroup("mivn.treesitter", { clear = true }),
   callback = function(ev)
@@ -201,7 +204,27 @@ vim.api.nvim_create_autocmd("FileType", {
     end
 
     local lang = vim.treesitter.language.get_lang(ev.match)
-    if not lang or not pcall(vim.treesitter.start, ev.buf, lang) then
+    if not lang then
+      return
+    end
+
+    if not pcall(vim.treesitter.start, ev.buf, lang) then
+      -- Failing silently here cost real time twice: a fresh clone has no
+      -- compiled grammars (they live in the data directory, not this repo),
+      -- and everything just stays plain with no hint why. Say it, once per
+      -- language per session, and only for grammars the config actually
+      -- wants; a stray filetype outside the list is not a problem to report.
+      if vim.tbl_contains(grammars, lang) and not missing_warned[lang] then
+        missing_warned[lang] = true
+        vim.notify(
+          (
+            "The tree-sitter grammar for %s is not installed; :MivnInstallGrammars builds the configured set. "
+            .. "Classic highlighting stands in meanwhile."
+          ):format(lang),
+          vim.log.levels.WARN
+        )
+      end
+
       return
     end
 
