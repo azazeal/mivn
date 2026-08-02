@@ -3,7 +3,7 @@
 <!--toc:start-->
 - [mivn](#mivn)
   - [What I want from it](#what-i-want-from-it)
-  - [Running it](#running-it)
+  - [Installing](#installing)
   - [Fonts](#fonts)
   - [Local overrides](#local-overrides)
   - [Layout](#layout)
@@ -12,6 +12,8 @@
 
 My Neovim configuration, written from scratch on Neovim 0.12, for Neovide on
 the desktop and the terminal everywhere else.
+
+![The dashboard, with the file tree beside it](assets/screenshot.png)
 
 ## What I want from it
 
@@ -29,7 +31,29 @@ the desktop and the terminal everywhere else.
 - **A tool, not a project.** Few plugins, all pinned. New friction becomes a
   line in TODO.md and gets fixed in batches, not the same day.
 
-## Running it
+## Installing
+
+What has to be on the system:
+
+- **Neovim's latest stable release** (0.12 or newer). The config leans on
+  0.12 features: `vim.pack` for plugins, `'autocomplete'` for completion.
+- **git**, which `vim.pack` uses to fetch the pinned plugins on first start.
+- **A C compiler** (`cc`, `gcc`, or `clang` on `PATH`), which
+  `:MivnInstallGrammars` needs: tree-sitter grammars compile from source.
+  Without one, and until that command runs, the grammars Neovim ships with
+  still highlight and everything else falls back to classic syntax
+  highlighting; nothing breaks.
+- **A Nerd Font**, for the icons in the tree, the tab bar, and the pickers.
+  See [Fonts](#fonts) for where the font is actually chosen.
+- **ripgrep** (or **fd**), optionally: `<Space>f` and `<Space>/` use whichever
+  is installed, and fall back to slower built-ins otherwise.
+
+Language servers and formatters are deliberately not bundled or managed:
+a server starts when its binary is on `PATH` and stays off otherwise, so
+install the ones you want with your package manager (`:MivnServers` lists
+what the config knows and what it found). The same goes for the external
+formatters (`stylua`, `shfmt`, `jq`, `taplo`, `xmllint`) and `gci` for Go
+imports.
 
 This is a plain Neovim configuration: clone it where Neovim looks and run
 `nvim`.
@@ -38,6 +62,11 @@ This is a plain Neovim configuration: clone it where Neovim looks and run
 git clone https://github.com/azazeal/mivn.git ~/.config/nvim
 ```
 
+The first start clones the plugins at their pinned revisions, which takes a
+few seconds; then run `:MivnInstallGrammars` once for the grammars. Personal
+settings, if any, go into `lua/mivn/local.lua` (see
+[Local overrides](#local-overrides)).
+
 To try it without touching an existing configuration, clone it anywhere and
 run it isolated under a different name:
 
@@ -45,9 +74,6 @@ run it isolated under a different name:
 git clone https://github.com/azazeal/mivn.git ~/.config/mivn
 NVIM_APPNAME=mivn nvim
 ```
-
-It needs Neovim's latest release. First run: `:MivnInstallGrammars` compiles
-the tree-sitter grammars; it needs a C compiler.
 
 ## Fonts
 
