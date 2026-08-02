@@ -13,26 +13,35 @@ extra.setup()
 -- which saves a second icon plugin doing the same job.
 require("mini.icons").mock_nvim_web_devicons()
 
+--- One key standing in for another inside the picker: a custom mapping's
+--- func runs in the picker's own key loop, so feeding the target key through
+--- nvim_input is the supported way to alias it.
+local function alias(char, target)
+  return {
+    char = char,
+    func = function()
+      vim.api.nvim_input(target)
+    end,
+  }
+end
+
 pick.setup({
   mappings = {
     -- Esc closes; the rest of the picker's keys are its own defaults.
     stop = "<Esc>",
 
-    -- Up and Down walk the list like Ctrl+P and Ctrl+N, which stay too. A
-    -- custom mapping's func runs inside the picker's own key loop, so feeding
-    -- the default key through nvim_input is the supported way to alias one.
-    move_down_arrow = {
-      char = "<Down>",
-      func = function()
-        vim.api.nvim_input("<C-n>")
-      end,
-    },
-    move_up_arrow = {
-      char = "<Up>",
-      func = function()
-        vim.api.nvim_input("<C-p>")
-      end,
-    },
+    -- Every arrow walks the list (all four read as "move along it" to my
+    -- hands), and PageUp/PageDown page it; Ctrl+P/N and Ctrl+B/F, the keys
+    -- underneath, stay too. The caret still moves, one pair over: Shift with
+    -- Left or Right, freed up by the arrows' new job.
+    caret_left = "<S-Left>",
+    caret_right = "<S-Right>",
+    move_down_arrow = alias("<Down>", "<C-n>"),
+    move_up_arrow = alias("<Up>", "<C-p>"),
+    move_left_arrow = alias("<Left>", "<C-p>"),
+    move_right_arrow = alias("<Right>", "<C-n>"),
+    page_up_arrow = alias("<PageUp>", "<C-b>"),
+    page_down_arrow = alias("<PageDown>", "<C-f>"),
   },
   options = {
     -- Match on the whole path, so "lua/lsp" narrows the way I expect.
