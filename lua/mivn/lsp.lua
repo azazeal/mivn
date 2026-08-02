@@ -198,6 +198,33 @@ end
 
 --- Start whatever is actually installed --------------------------------------
 
+-- A server that dies right after starting otherwise fails in silence: the
+-- client detaches, features quietly stop, and nothing says why. Measured
+-- with rust-analyzer behind a rustup shim with no component installed:
+-- executable() said yes, the process recursed and died, and :MivnServers
+-- kept reporting it on. Once per server per session, and not on shutdown.
+local exit_warned = {}
+
+vim.lsp.config("*", {
+  on_exit = function(code, _, client_id)
+    if code == 0 or vim.v.exiting ~= vim.NIL then
+      return
+    end
+
+    local client = vim.lsp.get_client_by_id(client_id)
+    local name = client and client.name or ("client %d"):format(client_id)
+    if exit_warned[name] then
+      return
+    end
+    exit_warned[name] = true
+
+    -- Scheduled, because on_exit can run in a fast context.
+    vim.schedule(function()
+      vim.notify(("%s exited with code %d. :checkhealth mivn has details."):format(name, code), vim.log.levels.WARN)
+    end)
+  end,
+})
+
 local enabled = {}
 for server, binary in pairs(servers) do
   if vim.fn.executable(binary) == 1 then
@@ -455,3 +482,7 @@ vim.api.nvim_create_autocmd("BufWritePost", {
     gci_format(ev.buf)
   end,
 })
+
+-- For lua/mivn/health.lua, which probes these instead of trusting
+-- executable(); nothing else reads this.
+return { servers = servers, formatters = formatters }
