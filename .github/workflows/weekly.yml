@@ -77,6 +77,10 @@ jobs:
       - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
         with:
           branch: plugin-updates
+          # Commits through the API instead of the git CLI, which makes them
+          # GitHub-signed; the "signed commits everywhere" ruleset rejects
+          # unsigned pushes on every branch, this one included.
+          sign-commits: true
           commit-message: "plugins: updated pinned revisions"
           title: "plugins: updated pinned revisions"
           body: >
