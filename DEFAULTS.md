@@ -693,6 +693,10 @@ The other set of keys here that are not Neovim's. `<leader>f` (files),
 window, from mini.pick, so this list is learned once and covers all six. You
 type to narrow the list; these keys act on it.
 
+Neovim's own "choose one of these" prompts come through the same window too,
+sized to fit their list _(mivn)_: `gra` code actions are the one you will
+meet first. `Esc` backs out of those without choosing, like any picker.
+
 | Key | Does |
 |---|---|
 | `↑` / `↓` | Move up / down the list |
@@ -710,11 +714,10 @@ type to narrow the list; these keys act on it.
 | `Ctrl+U` | Delete from the caret back to the start of the query |
 | `Esc` | Close |
 
-Two of those are the reason to read this rather than guess. `←` and `→` edit the
-query and do not touch the list, which is the opposite of what the up and down
-arrows do, so the arrows are not one group here. And marking with `Ctrl+X` ends
-in a quickfix list, which is a real Vim structure rather than a picker feature:
-`]q` and `[q` walk it afterwards, and it survives closing the window.
+One of those is the reason to read this rather than guess: marking with
+`Ctrl+X` ends in a quickfix list, which is a real Vim structure rather than a
+picker feature. `]q` and `[q` walk it afterwards, and it survives closing the
+window.
 
 ## The terminal
 
