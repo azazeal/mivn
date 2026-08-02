@@ -63,15 +63,18 @@ jobs:
           neovim: true
           version: stable
 
-      # Startup installs the revisions the lock file pins; the update then
-      # moves them and rewrites nvim-pack-lock.json, which is the whole diff
-      # the PR carries.
+      # plugins.lua pins every plugin to a commit, and vim.pack.update()
+      # respects pins, so the pins are stripped to branches first, the update
+      # moves them, and repin writes the new revisions (and their tag
+      # comments) back. The PR carries plugins.lua and the lock file.
       - name: Update the plugins
         run: |
           mkdir -p ~/.config
           ln -sfn "$PWD" ~/.config/nvim
 
+          ./.github/scripts/repin strip
           nvim --headless "+lua vim.pack.update(nil, { force = true })" +qa
+          ./.github/scripts/repin write
           git diff --stat
 
       - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
