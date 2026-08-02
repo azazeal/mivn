@@ -1,10 +1,14 @@
--- The width markers: prose wraps hard at 80, code carries a soft 100 and a
--- hard 120. Instead of colorcolumn's full stripe, the single character one
--- column past each limit is colored, escalating from yellow to red, so only a
--- line that crosses a limit shows anything.
+-- How long lines are shown: the width markers, and the wrap toggle.
+--
+-- The markers: prose wraps hard at 80, code carries a soft 100 and a hard
+-- 120. Instead of colorcolumn's full stripe, the single character one column
+-- past each limit is colored, escalating from green to red, so only a line
+-- that crosses a limit shows anything.
 --
 -- `%v` is the virtual column, so a tab counts as its display width, which is
--- what a width limit means.
+-- what a width limit means. Inlay hints are not buffer text and do not
+-- count, so with hints on, the marked character sits further right on
+-- screen than the column it marks.
 
 local MARKS = {
   { column = 81, group = "MivnMargin80" },
@@ -39,3 +43,10 @@ vim.api.nvim_create_autocmd({ "BufWinEnter", "WinNew" }, {
   desc = "Width markers at 80, 100 and 120",
   callback = refresh,
 })
+
+-- Long lines run off the right edge ('wrap' is off in init.lua); this brings
+-- them back for the window I am in. Window-local, so a prose buffer can wrap
+-- while the code beside it does not.
+vim.keymap.set("n", "<leader>w", function()
+  vim.wo.wrap = not vim.wo.wrap
+end, { desc = "Wrap long lines in this window" })

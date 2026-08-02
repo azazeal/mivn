@@ -102,7 +102,7 @@ else / the current module, and the server table ships as
 |---------------|-----------------------------------------------------------|
 | `init.lua`    | Options and the command-line setup                        |
 | `lua/mivn/`   | One module per concern; trade-offs live in each header    |
-| `colors/`     | The basalt theme                                     |
+| `colors/`     | The basalt theme                                          |
 | `queries/`    | Tree-sitter extras: SQL in Go strings, gotmpl files       |
 | `DEFAULTS.md` | The tour of stock Vim, and what mivn changes, marked so   |
 | `TODO.md`     | State and queue; friction lands here first                |
@@ -112,7 +112,8 @@ else / the current module, and the server table ships as
 The whole custom key list: `<Space>f` find file, `<Space>/` search the
 project, `<Space>b` buffers, `<Space>:` command palette, `<Space>h` help,
 `<Space>d` diagnostics, `<Space>t` show or hide the file tree, `` <Space>` ``
-show or hide the terminal, `gd` go to definition, `Ctrl+Del` delete the word
+show or hide the terminal, `<Space>w` wrap long lines in this window,
+`gd` go to definition, `Ctrl+Del` delete the word
 ahead, and `Ctrl+Tab` / `Ctrl+Shift+Tab` along the tab bar. `Esc` in Normal
 mode also clears leftover search highlighting. Everything else is stock Vim, or a stock
 option doing its documented job. [DEFAULTS.md](DEFAULTS.md) is the full
