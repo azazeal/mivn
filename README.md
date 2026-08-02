@@ -5,6 +5,7 @@
   - [What I want from it](#what-i-want-from-it)
   - [Installing](#installing)
   - [Fonts](#fonts)
+  - [A remote window](#a-remote-window)
   - [Local overrides](#local-overrides)
   - [Layout](#layout)
   - [The additions](#the-additions)
@@ -82,6 +83,23 @@ terminal's. In Neovide it comes from Neovide's own
 `~/.config/neovide/config.toml`. A font and its size are a per-machine,
 per-screen choice, and an editor config has no way to make that choice well;
 Neovim cannot even ask the compositor for the monitor's physical size.
+
+## A remote window
+
+Neovim can run on one machine with its window on another: Neovide attaching
+over ssh, with `--neovim-bin` pointing at a wrapper that runs the editor on
+the far host. One command must not work there. `:restart` starts the new
+editor on the machine the old one ran on and hands the window an address on
+that machine's filesystem, so the window dies trying to connect and a
+headless editor is left running behind it; Neovim's own docs call out the
+same-system limit. mivn refuses `:restart` and `ZR` in that setup and says
+why.
+
+Export `MIVN_REMOTE_UI=1` in whatever launches the remote session to declare
+it. Without the variable, a remote Neovide is still recognized by the
+clipboard bridge it registers, but the variable is the supported switch: it
+survives Neovide configuration changes and covers UIs this config has never
+heard of.
 
 ## Local overrides
 

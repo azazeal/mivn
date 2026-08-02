@@ -809,6 +809,12 @@ in the way rather than in help.
 `git commit` or `git rebase -i`, it is the difference between "run this" and
 "abort", and it works the same on every machine.
 
+`:restart` (and `ZR`, its Normal-mode spelling) restarts the editor in
+place. One exception _(mivn)_: when the window runs on another machine (see
+the README on remote windows), both refuse with an explanation instead,
+because the restarted editor would come up on the wrong machine, the window
+would die, and a headless editor would be left behind.
+
 Two deviations _(mivn)_, one rule: `:bd` closes a buffer, the `:q` family
 closes the session. Closing the last file with `:bd` normally leaves a blank
 buffer behind; in a session started with no file arguments the dashboard shows
