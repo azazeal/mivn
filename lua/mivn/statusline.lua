@@ -102,6 +102,10 @@ local select_modes = {
 local function section_mode(trunc_width)
   local mode, mode_hl = statusline.section_mode({ trunc_width = trunc_width })
 
+  -- INSERT rather than Insert: the block is a signal, not a word in a
+  -- sentence, and caps read at a glance.
+  mode = mode:upper()
+
   if select_modes[vim.fn.mode()] then
     return mode, "MiniStatuslineModeSelect"
   end
