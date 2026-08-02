@@ -308,15 +308,16 @@ vim.api.nvim_create_autocmd("CmdlineLeavePre", {
 -- tree is one I cannot type my way out of, and `:q` on the last file window is
 -- enough to land there.
 --
--- A quit that leaves the tree alone meant quit, though: the `:q` family and
--- `Ctrl+W c` are how a window is closed on purpose, and with the tree as the
--- only survivor there is nothing left to be in. So the session ends, the same
--- answer stock Vim gives `:q` on its last window. Only when Vim refuses the
--- quit (unsaved work in some buffer) does the layout heal instead: an editing
--- window comes back beside the tree holding the file I was last in, so the
--- unsaved work has somewhere to be seen. `:bd` is the other half of the
--- story and never lands here, since deleting a buffer closes no window; that
--- path belongs to the dashboard's own hook.
+-- A `:q` that leaves the tree alone meant quit, though: with the tree as the
+-- only survivor there is nothing left to be in, so the session ends, the
+-- same answer stock Vim gives `:q` on its last window. But quit intent has
+-- to be read from the command, not the layout: plugins close windows too
+-- (nvim-tree deleting an open file takes that file's window with it), and
+-- those closes must land on the heal, not on a quit. QuitPre is the tell; it
+-- fires for the quit family and nothing else. When there is no quit behind
+-- the close, or Vim refuses the quit (unsaved work somewhere), the layout
+-- heals instead: an editing window comes back beside the tree, unsaved work
+-- first so it has somewhere to be seen.
 
 local TREE_WIDTH = 32
 
@@ -342,6 +343,19 @@ local function last_real_buffer()
   return best
 end
 
+-- When the last quit command started, in nanoseconds. heal() reads it on the
+-- tick after WinClosed, so the window is generous; a stale stamp (a quit Vim
+-- refused, which fires QuitPre but closes nothing) expires on its own.
+local quit_at = 0
+
+vim.api.nvim_create_autocmd("QuitPre", {
+  group = vim.api.nvim_create_augroup("mivn.tree.quit", { clear = true }),
+  desc = "Remember that a window close came from a quit command",
+  callback = function()
+    quit_at = vim.uv.hrtime()
+  end,
+})
+
 local function heal()
   if vim.v.exiting ~= vim.NIL then
     return
@@ -361,9 +375,14 @@ local function heal()
     return
   end
 
-  -- No bang: unsaved work anywhere makes this throw, and the rescue below
-  -- runs instead. On success nothing after this line happens.
-  if pcall(vim.cmd.quitall) then
+  -- Quit only a quit: the stamp says this close came from the `:q` family
+  -- moments ago. No bang on the quitall: unsaved work anywhere makes it
+  -- throw, and the rescue below runs instead. On success nothing after this
+  -- line happens.
+  local quitting = vim.uv.hrtime() - quit_at < 500e6
+  quit_at = 0
+
+  if quitting and pcall(vim.cmd.quitall) then
     return
   end
 
