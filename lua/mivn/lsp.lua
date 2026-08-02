@@ -24,7 +24,6 @@ local servers = {
   yamlls = "yaml-language-server",
   lemminx = "lemminx", -- XML
   taplo = "taplo", -- TOML
-  sqls = "sqls",
 
   bashls = "bash-language-server",
   buf_ls = "buf", -- Protocol Buffers

@@ -28,7 +28,7 @@ return {
   --
   --   lsp_servers = {
   --     basedpyright = "basedpyright",
-  --     sqls = false,
+  --     ruby_lsp = false,
   --   },
   lsp_servers = {},
 

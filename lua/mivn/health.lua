@@ -17,7 +17,6 @@ local PROBES = {
   ["gopls"] = { "version" },
   ["templ"] = { "version" },
   ["expert"] = false,
-  ["sqls"] = false,
   ["nil"] = false,
   ["jsonnet-language-server"] = false,
   ["golangci-lint-langserver"] = false,
