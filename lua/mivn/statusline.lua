@@ -1,0 +1,237 @@
+-- The status line: one across the whole editor rather than one per window
+-- ('laststatus' is 3), so it pairs with the tab bar at the top.
+--
+-- It carries the mode, because 'showmode' is off, which makes the mode block
+-- the most important thing on the line and why it gets the accent color.
+
+local statusline = require("mini.statusline")
+
+--- Git ------------------------------------------------------------------------
+--
+-- mini.statusline's own section_git reads a summary that mini.git or gitsigns
+-- publishes, and neither is installed, so this collects it instead.
+--
+-- One `git status` gives the branch and the dirty flag together, run through
+-- vim.system so a slow repository never blocks a redraw. The line itself only
+-- reads the string this leaves behind: it is evaluated many times a second and
+-- must not do work.
+
+local git = { branch = nil, dirty = false }
+
+local refresh_timer, refreshing = nil, false
+
+local function parse(out)
+  local branch, dirty = nil, false
+
+  for line in out:gmatch("[^\n]+") do
+    local head = line:match("^# branch%.head (.+)$")
+    if head then
+      -- Detached HEAD reports the literal "(detached)", left as it comes.
+      branch = head
+    elseif not line:match("^#") then
+      dirty = true
+      -- The header lines come first, so with the branch already read there is
+      -- nothing left to learn from the rest of the output.
+      if branch then
+        break
+      end
+    end
+  end
+
+  return branch, dirty
+end
+
+local function refresh()
+  if refreshing then
+    return
+  end
+
+  local dir = vim.fn.getcwd()
+  refreshing = true
+
+  vim.system(
+    { "git", "status", "--porcelain=v2", "--branch" },
+    { cwd = dir, text = true },
+    vim.schedule_wrap(function(res)
+      refreshing = false
+
+      if res.code ~= 0 then
+        git.branch, git.dirty = nil, false
+      else
+        git.branch, git.dirty = parse(res.stdout or "")
+      end
+
+      vim.cmd.redrawstatus()
+    end)
+  )
+end
+
+--- Coalesce a burst of events into one call. BufEnter alone fires several times
+--- for a single `:bd`, and each one would otherwise be a subprocess.
+local function schedule_refresh()
+  if refresh_timer then
+    refresh_timer:stop()
+  end
+
+  refresh_timer = vim.defer_fn(refresh, 150)
+end
+
+local function section_git()
+  if not git.branch then
+    return ""
+  end
+  -- The dot is the whole dirty indicator; a count of changed files would be
+  -- another subprocess for what the gutter already says.
+  return " " .. git.branch .. (git.dirty and " ●" or "")
+end
+
+--- Sections -------------------------------------------------------------------
+
+--- The mode, with Select mode told apart from Visual.
+---
+--- mini.statusline hands `s`, `S` and CTRL-S the Visual highlight. The two
+--- modes look the same on screen and differ in the one thing worth knowing: in
+--- Visual the letters I type are commands, in Select they replace the
+--- selection. So Select gets its own color. One table lookup per redraw.
+local select_modes = {
+  s = true,
+  S = true,
+  ["\19"] = true, -- CTRL-S, the block form, which mode() returns as a raw byte
+}
+
+local function section_mode(trunc_width)
+  local mode, mode_hl = statusline.section_mode({ trunc_width = trunc_width })
+
+  if select_modes[vim.fn.mode()] then
+    return mode, "MiniStatuslineModeSelect"
+  end
+
+  return mode, mode_hl
+end
+
+--- What I am in the middle of: a half-typed command, or a macro recording.
+---
+--- `%S` is where 'showcmd' prints the command in progress, which init.lua
+--- points here with 'showcmdloc'. It is the only thing on screen that says a
+--- `d` or a half-typed count is still waiting, and it reserves about eleven
+--- columns whether or not anything is pending.
+---
+--- The recording indicator is there because `q` starts a macro silently, and
+--- 'showmode' being off took away the "recording @w" that said so.
+local function section_pending()
+  local rec = vim.fn.reg_recording()
+
+  return (rec ~= "" and ("rec @" .. rec .. " ") or "") .. "%S"
+end
+
+--- Is this a buffer holding a file, rather than a panel?
+---
+--- The file tree, the landing buffer, help and quickfix all have a 'buftype'
+--- and none of them has a path worth showing. Unchecked, the banner gets a
+--- `[Scratch][-]` and a column number.
+local function is_file()
+  return vim.bo.buftype == ""
+end
+
+--- The file, as a path relative to the project.
+---
+--- mini.statusline's own section_filename shows the absolute path, which is a
+--- wide column of shared prefix. `%f` is the path as opened, relative to the
+--- working directory, and the launcher makes that the project root. `%m` is
+--- the modified flag, `%r` the read-only one; a terminal gets its name.
+local function section_filename()
+  if vim.bo.buftype == "terminal" then
+    return "%t"
+  end
+
+  return "%f%m%r"
+end
+
+--- The project: the parent directory and the directory, joined.
+---
+--- Shown in place of the file name when there is no file, so the line still
+--- says where I am while I am on the banner or in the tree.
+local function section_project()
+  local cwd = vim.fn.getcwd()
+  local parent = vim.fs.basename(vim.fs.dirname(cwd))
+
+  if parent == "" or parent == "/" then
+    return vim.fs.basename(cwd)
+  end
+
+  return parent .. "/" .. vim.fs.basename(cwd)
+end
+
+--- The filetype, and nothing else.
+---
+--- mini.statusline's own section_fileinfo adds the encoding, the line ending
+--- and the file size, all three near-constant here, so they are three columns
+--- of noise beside the one that matters.
+local function section_filetype(trunc_width)
+  if statusline.is_truncated(trunc_width) or vim.bo.filetype == "" then
+    return ""
+  end
+
+  return vim.bo.filetype
+end
+
+--- Where the cursor is: row and column, and nothing else.
+---
+--- mini.statusline's own section_location reads `28|515 12|12`: four numbers
+--- for a question that has two. The column here is the *virtual* one, `%v`,
+--- where a tab counts as the width it looks like rather than one byte.
+---
+--- The dash in `%-2v` pads it to two columns. Without it, crossing column 9
+--- widens this block and shifts the whole right-hand group sideways while I am
+--- moving along a line. The row only gains a digit when the file does.
+local LOCATION = "%l:%-2v"
+
+statusline.setup({
+  use_icons = true,
+
+  content = {
+    active = function()
+      local mode, mode_hl = section_mode(120)
+
+      -- On a panel: the mode, the branch, and where the project is.
+      if not is_file() then
+        return statusline.combine_groups({
+          { hl = mode_hl, strings = { mode } },
+          { hl = "MiniStatuslineDevinfo", strings = { section_pending(), section_git() } },
+          "%<",
+          { hl = "MiniStatuslineFilename", strings = { section_project() } },
+          "%=",
+        })
+      end
+
+      local diagnostics = statusline.section_diagnostics({ trunc_width = 75 })
+      local lsp = statusline.section_lsp({ trunc_width = 75 })
+      local search = statusline.section_searchcount({ trunc_width = 75 })
+
+      return statusline.combine_groups({
+        { hl = mode_hl, strings = { mode } },
+        {
+          hl = "MiniStatuslineDevinfo",
+          strings = { section_pending(), section_git(), diagnostics, lsp },
+        },
+        "%<", -- where the line is cut first when the window is narrow
+        { hl = "MiniStatuslineFilename", strings = { section_filename() } },
+        "%=", -- everything after this is pushed to the right
+        { hl = "MiniStatuslineFileinfo", strings = { section_filetype(120) } },
+        { hl = mode_hl, strings = { search, LOCATION } },
+      })
+    end,
+  },
+})
+
+local group = vim.api.nvim_create_augroup("mivn.statusline", { clear = true })
+
+-- BufWritePost because the format-on-save pass is what most often makes a
+-- clean tree dirty; FocusGained because a commit usually happens in the
+-- terminal beside this window, not in it.
+vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained", "DirChanged" }, {
+  group = group,
+  callback = schedule_refresh,
+})
+
+refresh()

@@ -1,0 +1,85 @@
+# Weekly upkeep, off the push path.
+#
+# Two jobs: boot the config against Neovim's latest release, so a new Neovim
+# breaking the config shows up on a schedule rather than on my next push, and
+# run vim.pack.update, opening a PR when it moves the lock file.
+#
+# One known limit: a PR opened with the default GITHUB_TOKEN does not trigger
+# the ci workflow on its own. Close and reopen the PR to get a run, or push
+# anything to its branch.
+name: Weekly
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays, 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # Not plain "Boot": that is ci.yml's required check, and check names are a
+  # repo-wide namespace, so a same-named job here could satisfy the ruleset
+  # from the wrong workflow.
+  boot-stable:
+    name: Boot (stable)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1.6.1
+        with:
+          neovim: true
+          version: stable
+
+      # Headless Neovim prints a config error and still carries on to exit 0,
+      # so the output is what gets asserted, never the exit code.
+      - name: Boot the config headless
+        run: |
+          mkdir -p ~/.config
+          ln -sfn "$PWD" ~/.config/nvim
+
+          out=$(nvim --headless "+lua io.write('boot clean')" +qa 2>&1)
+          printf '%s\n' "$out"
+
+          grep -q 'boot clean' <<< "$out"
+          if grep -Eqi 'error|E[0-9]{3}' <<< "$out"; then exit 1; fi
+
+  plugin-updates:
+    name: Check for updates
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1.6.1
+        with:
+          neovim: true
+          version: stable
+
+      # Startup installs the revisions the lock file pins; the update then
+      # moves them and rewrites nvim-pack-lock.json, which is the whole diff
+      # the PR carries.
+      - name: Update the plugins
+        run: |
+          mkdir -p ~/.config
+          ln -sfn "$PWD" ~/.config/nvim
+
+          nvim --headless "+lua vim.pack.update(nil, { force = true })" +qa
+          git diff --stat
+
+      - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          branch: plugin-updates
+          commit-message: "plugins: updated pinned revisions"
+          title: "plugins: updated pinned revisions"
+          body: >
+            This PR updates the pinned plugin revisions in
+            `nvim-pack-lock.json`, from the weekly `vim.pack.update()` run.
+            Review the changelogs locally with `:lua vim.pack.update()`.

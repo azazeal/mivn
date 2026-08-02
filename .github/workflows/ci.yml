@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    tags-ignore:
+      - "**"
+    branches:
+      - main
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+# Nothing here writes to the repo; the stylua token only reads releases.
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Lint GitHub workflows
+        uses: docker://index.docker.io/rhysd/actionlint@sha256:6f03470d0152251d7f07f7c4dc019dbe7024c72cd952f839544c7798843efa8f # 1.7.11
+        with:
+          args: -color
+
+      - name: Lint LUA
+        uses: JohnnyMorganz/stylua-action@76fd70c03e6340ceaf673366712db9b20560b402 # v5.0.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: latest
+          args: --check .
+
+
+  boot:
+    name: Boot
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout the code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Stable everywhere, no pin: my machine follows Neovim releases through
+      # brew, so the config only ever has to work on the latest release.
+      - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1.6.1
+        with:
+          neovim: true
+          version: stable
+
+      # Headless Neovim prints a config error and still carries on to exit 0,
+      # so the output is what gets asserted, never the exit code.
+      - name: Boot the config headless
+        run: |
+          mkdir -p ~/.config
+          ln -sfn "$PWD" ~/.config/nvim
+
+          out=$(nvim --headless "+lua io.write('boot clean')" +qa 2>&1)
+          printf '%s\n' "$out"
+
+          grep -q 'boot clean' <<< "$out"
+          if grep -Eqi 'error|E[0-9]{3}' <<< "$out"; then exit 1; fi
