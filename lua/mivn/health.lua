@@ -16,6 +16,7 @@ local M = {}
 local PROBES = {
   ["gopls"] = { "version" },
   ["templ"] = { "version" },
+  ["terraform-ls"] = { "version" },
 
   -- Not --version: superhtml prints "unrecognized subcommand" for it and
   -- still exits 0, which would read as its version line.
@@ -40,14 +41,21 @@ local function first_line(...)
 end
 
 --- The probe for `server` running as `binary`: the override's `probe`
---- field when it is set, the built-in table otherwise.
+--- field when it is set, the built-in table otherwise. Managed binaries
+--- arrive as absolute paths while the table is keyed by name, hence the
+--- basename fallback.
 local function probe_for(server, binary)
   local o = (require("mivn.overrides").lsp or {})[server]
   if type(o) == "table" and o.probe ~= nil then
     return o.probe
   end
 
-  return PROBES[binary]
+  local probe = PROBES[binary]
+  if probe == nil then
+    probe = PROBES[vim.fs.basename(binary)]
+  end
+
+  return probe
 end
 
 --- Probe one binary; report through vim.health.
