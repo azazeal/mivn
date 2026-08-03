@@ -753,7 +753,13 @@ function M.install(name, cb, opts)
 
       local cmd = { bin }
       vim.list_extend(cmd, spec.smoke or { "--version" })
-      vim.system(cmd, { text = true, timeout = 10000 }, function(result)
+
+      -- A binary that cannot start at all fails in the spawn itself, not in
+      -- the result, and that error would escape the callback chain with the
+      -- lock still held. It is the same answer as a bad exit: not this host.
+      -- The dynamically linked build published under a "musl" name is how
+      -- this was found.
+      local ok, err = pcall(vim.system, cmd, { text = true, timeout = 10000 }, function(result)
         vim.schedule(function()
           if result.code ~= 0 then
             return finish(
@@ -763,6 +769,10 @@ function M.install(name, cb, opts)
           next_step()
         end)
       end)
+
+      if not ok then
+        finish(("%s does not run on this host: %s"):format(name, err))
+      end
     end
 
     --- The archive is unpacked (or the download already is the binary at
