@@ -229,8 +229,11 @@ local SERVERS = {
     args = {},
     platforms = {
       ["x86_64-linux"] = {
-        url = "https://github.com/rust-lang/rust-analyzer/releases/download/2026-07-27/rust-analyzer-x86_64-unknown-linux-musl.gz",
-        sha256 = "4793930e0fe32f18ed7e8e689df3ebb03b632f76c16625c44754fb42ce39fc72",
+        -- The musl asset is not the static build the name suggests: it wants
+        -- a musl loader at /lib/ld-musl-x86_64.so.1, which a glibc host does
+        -- not have, and the binary then fails to start at all.
+        url = "https://github.com/rust-lang/rust-analyzer/releases/download/2026-07-27/rust-analyzer-x86_64-unknown-linux-gnu.gz",
+        sha256 = "ac4f42ddbbd040d75d847e991894776485783e28beb744b9719a660a99abe115",
       },
       ["aarch64-linux"] = {
         url = "https://github.com/rust-lang/rust-analyzer/releases/download/2026-07-27/rust-analyzer-aarch64-unknown-linux-gnu.gz",
@@ -750,7 +753,13 @@ function M.install(name, cb, opts)
 
       local cmd = { bin }
       vim.list_extend(cmd, spec.smoke or { "--version" })
-      vim.system(cmd, { text = true, timeout = 10000 }, function(result)
+
+      -- A binary that cannot start at all fails in the spawn itself, not in
+      -- the result, and that error would escape the callback chain with the
+      -- lock still held. It is the same answer as a bad exit: not this host.
+      -- The dynamically linked build published under a "musl" name is how
+      -- this was found.
+      local ok, err = pcall(vim.system, cmd, { text = true, timeout = 10000 }, function(result)
         vim.schedule(function()
           if result.code ~= 0 then
             return finish(
@@ -760,6 +769,10 @@ function M.install(name, cb, opts)
           next_step()
         end)
       end)
+
+      if not ok then
+        finish(("%s does not run on this host: %s"):format(name, err))
+      end
     end
 
     --- The archive is unpacked (or the download already is the binary at
