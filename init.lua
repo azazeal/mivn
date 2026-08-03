@@ -56,26 +56,45 @@ vim.opt.smartcase = true -- ...unless the search itself contains a capital
 vim.opt.shortmess:append("S")
 
 -- ui2, Neovim's experimental rewrite of the message and command-line layer
--- (:h ui2), on trial. What it changes here: a message longer than
--- 'cmdheight' no longer blocks on "Press ENTER"; it is cut short behind a
--- `[+x]` marker, and Enter right after, or `g<` any time, shows the whole
--- thing. :messages opens in a real window I can search and yank from.
--- Defaults otherwise: messages stay on the command line, no floats.
-require("vim._core.ui2").enable({})
+-- (:h ui2). What it changes here: a message longer than 'cmdheight' no
+-- longer blocks on "Press ENTER"; it is cut short behind a `[+x]` marker,
+-- and Enter right after, or `g<` any time, shows the whole thing. :messages
+-- opens in a real window I can search and yank from. Defaults otherwise:
+-- messages stay on the command line, no floats.
+--
+-- Guarded, because the module is private and already changed names once
+-- this cycle (vim._extui before 0.12). When an upgrade moves it again, the
+-- editor must come up on the stock message UI with a warning, not die on
+-- line one; everything below that leans on ui2 sits behind this flag.
+local ui2 = pcall(function()
+  require("vim._core.ui2").enable({})
+end)
 
--- ui2's message pager (`g<`, :messages) is a window I land in, and ui2 only
--- maps q to close it. Esc closes it too, the way it closes the hover float
--- (lua/mivn/lsp.lua): one reflex for every transient view. The mapping is
--- buffer-local and the buffer outlives the window, so FileType fires once
--- and covers every visit.
-vim.api.nvim_create_autocmd("FileType", {
-  group = vim.api.nvim_create_augroup("mivn.ui2", { clear = true }),
-  pattern = "pager",
-  desc = "Close the message pager with Esc as well as q",
-  callback = function(ev)
-    vim.keymap.set("n", "<Esc>", "<C-w>c", { buffer = ev.buf, desc = "Close the message pager" })
-  end,
-})
+if ui2 then
+  -- ui2's message pager (`g<`, :messages) is a window I land in, and ui2
+  -- only maps q to close it. Esc closes it too, the way it closes the hover
+  -- float (lua/mivn/lsp.lua): one reflex for every transient view. The
+  -- mapping is buffer-local and the buffer outlives the window, so FileType
+  -- fires once and covers every visit.
+  vim.api.nvim_create_autocmd("FileType", {
+    group = vim.api.nvim_create_augroup("mivn.ui2", { clear = true }),
+    pattern = "pager",
+    desc = "Close the message pager with Esc as well as q",
+    callback = function(ev)
+      vim.keymap.set("n", "<Esc>", "<C-w>c", { buffer = ev.buf, desc = "Close the message pager" })
+    end,
+  })
+else
+  -- Scheduled so the warning lands after startup instead of scrolling by
+  -- unseen while the UI is still attaching.
+  vim.schedule(function()
+    vim.notify(
+      "ui2 failed to load; messages fall back to stock Neovim. "
+        .. "This Neovim probably moved the module: check :h ui2 and init.lua.",
+      vim.log.levels.WARN
+    )
+  end)
+end
 
 -- 'cmdheight' keeps its default 1. At 0, a message with no line to print on
 -- turns into a modal "Press ENTER" prompt; ui2 above removes that prompt, so
