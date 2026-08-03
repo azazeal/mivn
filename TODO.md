@@ -4,6 +4,7 @@
 - [TODO](#todo)
   - [UI](#ui)
   - [Languages](#languages)
+  - [Plugins](#plugins)
   - [Dashboard](#dashboard)
   - [Watching](#watching)
 <!--toc:end-->
@@ -97,6 +98,17 @@ checked off; git remembers them.
     lsp.lua by hand. health.lua's PROBES table repeats what the manifest's
     `smoke` fields already know, keyed by binary name instead of server
     name. Each is fine today and wrong the day its twin changes.
+
+## Plugins
+
+- [ ] `:checkhealth mivn` should list plugin clones on disk that
+    plugins.lua no longer mentions. vim.pack deletes nothing on its own, so
+    a dropped plugin lingers under site/pack on every other machine, and
+    each boot there "repairs" the lock to account for the orphan, which
+    keeps nvim-pack-lock.json forever dirty in git. Measured 2026-08-04: a
+    leftover SchemaStore.nvim did exactly that on another machine, and
+    `:lua vim.pack.del({ "<name>" })` was the cleanup; the check should
+    name the orphans and point at it.
 
 ## Dashboard
 
