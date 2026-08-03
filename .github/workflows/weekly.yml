@@ -64,9 +64,16 @@ jobs:
           version: stable
 
       # plugins.lua pins every plugin to a commit, and vim.pack.update()
-      # respects pins, so the pins are stripped to branches first, the update
-      # moves them, and repin writes the new revisions (and their tag
-      # comments) back. The PR carries plugins.lua and the lock file.
+      # respects pins, so the pins are stripped first, to a semver range for
+      # plugins that cut releases and a branch for the rest; the update moves
+      # them, and repin writes the new revisions (and their tag comments)
+      # back. The PR carries plugins.lua and the lock file.
+      #
+      # The second update exists for the lock file alone: the first one ran
+      # with the pins stripped, so the lock it wrote records ranges and
+      # branches, not pins. Re-running it under the restored plugins.lua
+      # moves nothing and rewrites the lock as the cache of the pins it is
+      # documented to be.
       - name: Update the plugins
         run: |
           mkdir -p ~/.config
@@ -75,6 +82,7 @@ jobs:
           ./.github/scripts/repin strip
           nvim --headless "+lua vim.pack.update(nil, { force = true })" +qa
           ./.github/scripts/repin write
+          nvim --headless "+lua vim.pack.update(nil, { force = true })" +qa
           git diff --stat
 
       - uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
