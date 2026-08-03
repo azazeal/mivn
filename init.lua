@@ -50,9 +50,37 @@ vim.opt.linebreak = true
 vim.opt.ignorecase = true
 vim.opt.smartcase = true -- ...unless the search itself contains a capital
 
+-- No search count on the command line: the status line shows it as "F: x/x"
+-- instead (lua/mivn/statusline.lua), so the count sits with the rest of the
+-- always-on state rather than floating alone at the bottom right.
+vim.opt.shortmess:append("S")
+
+-- ui2, Neovim's experimental rewrite of the message and command-line layer
+-- (:h ui2), on trial. What it changes here: a message longer than
+-- 'cmdheight' no longer blocks on "Press ENTER"; it is cut short behind a
+-- `[+x]` marker, and Enter right after, or `g<` any time, shows the whole
+-- thing. :messages opens in a real window I can search and yank from.
+-- Defaults otherwise: messages stay on the command line, no floats.
+require("vim._core.ui2").enable({})
+
+-- ui2's message pager (`g<`, :messages) is a window I land in, and ui2 only
+-- maps q to close it. Esc closes it too, the way it closes the hover float
+-- (lua/mivn/lsp.lua): one reflex for every transient view. The mapping is
+-- buffer-local and the buffer outlives the window, so FileType fires once
+-- and covers every visit.
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("mivn.ui2", { clear = true }),
+  pattern = "pager",
+  desc = "Close the message pager with Esc as well as q",
+  callback = function(ev)
+    vim.keymap.set("n", "<Esc>", "<C-w>c", { buffer = ev.buf, desc = "Close the message pager" })
+  end,
+})
+
 -- 'cmdheight' keeps its default 1. At 0, a message with no line to print on
--- turns into a modal "Press ENTER" prompt. The two settings below came out of
--- that experiment and stay on their own merits.
+-- turns into a modal "Press ENTER" prompt; ui2 above removes that prompt, so
+-- the experiment is worth rerunning once ui2 has earned trust. The two
+-- settings below came out of that experiment and stay on their own merits.
 
 -- "-- INSERT --" stays off the command line; the mode lives on the status
 -- line instead, with a color per mode. See lua/mivn/statusline.lua.
