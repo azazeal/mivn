@@ -873,6 +873,12 @@ exact version.
 than on the bottom bar, prefilled and preselected: typing replaces the old
 name, Enter applies the rename, `Esc` backs out with nothing changed.
 
+`K` and the other floats Neovim opens are framed _(mivn)_, stock draws them
+with no border and their text sits straight on top of the buffer. The picker
+and the rename prompt always looked this way; this is the rest of them
+matching.
+
+
 Most servers install themselves _(mivn)_: for the languages the store covers
 (Python, Rust, Lua, TypeScript, Markdown, TOML, HTML, Elixir and more; Go and
 Ruby still pend their runtime passes), opening a file with no server

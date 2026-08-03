@@ -70,6 +70,13 @@ vim.opt.showcmdloc = "statusline"
 -- with the tab bar instead of drawing a strip under the file tree as well.
 vim.opt.laststatus = 3
 
+-- Every float Neovim opens on its own gets a frame: hover documentation,
+-- signature help, the diagnostic float. Stock is no border at all, which
+-- leaves their text flush against the buffer underneath with nothing marking
+-- where one ends. mivn's own floats already ask for this border by name, so
+-- this is the rest of them catching up rather than a new look.
+vim.opt.winborder = "rounded"
+
 -- Command-line completion as a popup menu that opens by itself as I type.
 -- `wildtrigger()` is Vim's own function for that, new in 0.12, so this is an
 -- option and an autocmd rather than a plugin.
