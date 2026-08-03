@@ -285,6 +285,25 @@ vim.api.nvim_create_user_command("MivnBdAll", function(cmd)
   if kept > 0 then
     vim.notify(("%d buffers closed; %d with unsaved changes kept."):format(closed, kept))
   end
+
+  -- The BufEnter rule brings the banner back only when the *current*
+  -- window fell to a blank buffer. Run from a panel (cursor parked in the
+  -- tree), the emptied window is some other one, so it is found by hand:
+  -- measured, not hypothetical.
+  vim.schedule(function()
+    local dashboard = require("mivn.dashboard")
+    if not dashboard.claimed() or #M.real_buffers() > 0 then
+      return
+    end
+
+    for _, w in ipairs(vim.api.nvim_list_wins()) do
+      if vim.api.nvim_win_get_config(w).relative == "" and M.is_blank(vim.api.nvim_win_get_buf(w)) then
+        vim.api.nvim_set_current_win(w)
+        dashboard.open()
+        return
+      end
+    end
+  end)
 end, {
   bang = true,
   desc = "What :%bd becomes: close the file buffers, leave the panels",
