@@ -102,20 +102,9 @@ vim.api.nvim_create_autocmd("TermClose", {
 
       -- Deleting the last listed buffer makes Neovim conjure a blank one in
       -- its place, which nothing shows and which sits in the tab bar as a
-      -- stray unnamed tab. Unlisting hides it, and is safe where deleting it
-      -- could just conjure the next one.
-      for _, b in ipairs(vim.api.nvim_list_bufs()) do
-        if
-          vim.api.nvim_buf_is_loaded(b)
-          and vim.bo[b].buflisted
-          and vim.bo[b].buftype == ""
-          and not vim.bo[b].modified
-          and vim.api.nvim_buf_get_name(b) == ""
-          and vim.fn.bufwinid(b) == -1
-        then
-          vim.bo[b].buflisted = false
-        end
-      end
+      -- stray unnamed tab. Unlisted, not deleted: deleting the last one
+      -- could just conjure the next.
+      require("mivn.session").reap_blanks("unlist")
     end)
   end,
 })
