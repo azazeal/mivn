@@ -128,6 +128,14 @@ vim.lsp.config("lua_ls", {
   },
 })
 
+-- Opening one .tf file outside a Terraform directory is normal here, and
+-- terraform-ls says so every time in a message long enough to raise the
+-- hit-enter prompt, which stops everything until a key arrives. The server
+-- offers this switch for exactly that; nothing else about it changes.
+vim.lsp.config("terraformls", {
+  init_options = { ignoreSingleFileWarning = true },
+})
+
 -- Personal configuration last, so it wins: vim.lsp.config() merges repeated
 -- calls, later ones taking precedence, which is the whole implementation.
 -- `config` is the full vim.lsp.config shape, not just `settings`, because
