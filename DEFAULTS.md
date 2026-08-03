@@ -884,6 +884,12 @@ in it. `Esc` closes it _(mivn)_, as does Neovim's own `q`. Left alone, the
 float goes away by itself the moment the cursor moves in the buffer under
 it. Signature help and the diagnostic float take the same two keys.
 
+The markup stays hidden under the cursor while reading _(mivn)_. Stock shows
+the line the cursor is on as raw text, so stepping into a float landed on
+the ` ```rust ` that opens the signature and showed it. Select the line in
+Visual mode and the markup comes back, which is the point when the reason to
+be on it is to copy it.
+
 Hover on Rust hides the link addresses _(mivn)_. Doc comments there link
 with rustdoc's `[`Type`]` shorthand and rust-analyzer turns each one into a
 full docs.rs URL. Neovim hides the URL but still counts it when sizing the
