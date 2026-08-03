@@ -229,8 +229,11 @@ local SERVERS = {
     args = {},
     platforms = {
       ["x86_64-linux"] = {
-        url = "https://github.com/rust-lang/rust-analyzer/releases/download/2026-07-27/rust-analyzer-x86_64-unknown-linux-musl.gz",
-        sha256 = "4793930e0fe32f18ed7e8e689df3ebb03b632f76c16625c44754fb42ce39fc72",
+        -- The musl asset is not the static build the name suggests: it wants
+        -- a musl loader at /lib/ld-musl-x86_64.so.1, which a glibc host does
+        -- not have, and the binary then fails to start at all.
+        url = "https://github.com/rust-lang/rust-analyzer/releases/download/2026-07-27/rust-analyzer-x86_64-unknown-linux-gnu.gz",
+        sha256 = "ac4f42ddbbd040d75d847e991894776485783e28beb744b9719a660a99abe115",
       },
       ["aarch64-linux"] = {
         url = "https://github.com/rust-lang/rust-analyzer/releases/download/2026-07-27/rust-analyzer-aarch64-unknown-linux-gnu.gz",
