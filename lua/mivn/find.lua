@@ -76,6 +76,7 @@ pick.setup({
 -- what sends `gra` code actions and every other "pick one of these" through
 -- the picker. This wrapper only sizes the float to the list: three code
 -- actions in a full-height window is mostly empty air.
+---@diagnostic disable-next-line: duplicate-set-field it is the point
 vim.ui.select = function(items, opts, on_choice)
   pick.ui_select(items, opts, on_choice, {
     window = {

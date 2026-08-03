@@ -115,6 +115,7 @@ local function rename()
     -- never runs and the override would sit there feeding this name to the
     -- next vim.ui.input caller anywhere in the session.
     local saved = vim.ui.input
+    ---@diagnostic disable-next-line: duplicate-set-field it is the point
     vim.ui.input = function(_, on_confirm)
       on_confirm(typed)
     end
@@ -156,11 +157,13 @@ for i, item in ipairs(TREE_MENU) do
 end
 
 local function set_popup(in_tree)
+  -- nvim_command, not vim.cmd: pcall wants a function, and vim.cmd is a
+  -- callable table the language server rightly flags as one.
   for _, item in ipairs(TREE_MENU) do
-    pcall(vim.cmd, ("nmenu %s PopUp.%s"):format(in_tree and "enable" or "disable", item.name))
+    pcall(vim.api.nvim_command, ("nmenu %s PopUp.%s"):format(in_tree and "enable" or "disable", item.name))
   end
   for _, name in ipairs(STOCK_MENU) do
-    pcall(vim.cmd, ("nmenu %s PopUp.%s"):format(in_tree and "disable" or "enable", name))
+    pcall(vim.api.nvim_command, ("nmenu %s PopUp.%s"):format(in_tree and "disable" or "enable", name))
   end
 end
 

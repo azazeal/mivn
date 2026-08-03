@@ -221,6 +221,7 @@ vim.api.nvim_create_autocmd("LspAttach", {
 -- float come through here too, and get it for the same reason.
 local open_floating_preview = vim.lsp.util.open_floating_preview
 
+---@diagnostic disable-next-line: duplicate-set-field it is the point
 vim.lsp.util.open_floating_preview = function(...)
   local buf, win = open_floating_preview(...)
 
