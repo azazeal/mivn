@@ -3,8 +3,10 @@
 # Rewrites the version pins in lua/mivn/plugins.lua, so that file stays the
 # source of truth and nvim-pack-lock.json stays a cache of it.
 #
-#   repin strip   Replace every commit pin with the branch it tracks, so
-#                 `vim.pack.update()` can move past it.
+#   repin strip   Replace every commit pin with what the plugin follows: a
+#                 semver range for plugins that cut releases, so
+#                 `vim.pack.update()` moves them to their newest tag, or the
+#                 named branch for the exceptions.
 #   repin write   Pin every entry to the revision in nvim-pack-lock.json and
 #                 refresh its comment with the nearest tag and commit date.
 #
@@ -26,11 +28,16 @@ PLUGINS=lua/mivn/plugins.lua
 LOCK=nvim-pack-lock.json
 DATA="${XDG_DATA_HOME:-$HOME/.local/share}/${NVIM_APPNAME:-nvim}/site/pack/core/opt"
 
-# The branch a plugin tracks when its default branch is the wrong one.
-branch_for() {
+# What a plugin follows between pins. The default is releases: a semver
+# range makes vim.pack.update() take the plugin to its newest tag, and the
+# written pin is that tag's commit, so the entry comments read as clean
+# versions. A branch is the exception, for repos whose tags do not describe
+# what we run: nvim-treesitter tags its legacy master while the config
+# rides the main rewrite.
+follows() {
   case "$1" in
-  nvim-treesitter) echo "main" ;;
-  *) echo "" ;;
+  nvim-treesitter) echo "branch main" ;;
+  *) echo "range" ;;
   esac
 }
 
@@ -95,11 +102,11 @@ while IFS= read -r line; do
 
     if [[ $mode == strip ]]; then
       flush
-      branch=$(branch_for "$name")
-      if [[ -n $branch ]]; then
-        printf '%s{ src = "%s", version = "%s" },\n' "$indent" "$src" "$branch" >>"$out"
+      follow=$(follows "$name")
+      if [[ $follow == branch* ]]; then
+        printf '%s{ src = "%s", version = "%s" },\n' "$indent" "$src" "${follow#branch }" >>"$out"
       else
-        printf '%s{ src = "%s" },\n' "$indent" "$src" >>"$out"
+        printf '%s{ src = "%s", version = vim.version.range("*") },\n' "$indent" "$src" >>"$out"
       fi
       continue
     fi
