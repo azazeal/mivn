@@ -30,18 +30,16 @@ wk.setup({
   -- multi-key prefixes at the top of a panel rather than scattered through it.
   sort = { "group", "local", "order", "alphanum", "mod" },
 
-  -- which-key guesses an icon from keywords in the description; where it finds
-  -- nothing or lands wrong, the icon is named here by hand.
+  -- The descriptions themselves live on the mappings (`desc = ...` at each
+  -- vim.keymap.set site) and which-key reads them from there; an entry here
+  -- exists only for what a mapping cannot carry. Icons first: which-key
+  -- guesses one from keywords in the description, and these three are the
+  -- ones it gets wrong. No desc on them on purpose, so the mapping's own
+  -- text stays the single copy.
   spec = {
-    { "<leader>f", desc = "Find file" },
-    { "<leader>/", desc = "Search the project" },
-    { "<leader>b", desc = "Open buffers" },
-    { "<leader>:", desc = "Command palette", icon = { icon = "󰘳", color = "purple" } },
-    { "<leader>h", desc = "Help", icon = { icon = "󰋖", color = "cyan" } },
-    { "<leader>d", desc = "Diagnostics" },
-    { "<leader>t", desc = "Show or hide the file tree", icon = { icon = "󰙅", color = "blue" } },
-    { "<leader>`", desc = "Show or hide the terminal" },
-    { "<leader>w", desc = "Toggle wrapping of long lines" },
+    { "<leader>:", icon = { icon = "󰘳", color = "purple" } },
+    { "<leader>h", icon = { icon = "󰋖", color = "cyan" } },
+    { "<leader>t", icon = { icon = "󰙅", color = "blue" } },
 
     -- Names for the prefixes Vim ships, so the panel explains itself instead
     -- of listing bare letters.
