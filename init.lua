@@ -50,6 +50,11 @@ vim.opt.linebreak = true
 vim.opt.ignorecase = true
 vim.opt.smartcase = true -- ...unless the search itself contains a capital
 
+-- No search count on the command line: the status line shows it as "F: x/x"
+-- instead (lua/mivn/statusline.lua), so the count sits with the rest of the
+-- always-on state rather than floating alone at the bottom right.
+vim.opt.shortmess:append("S")
+
 -- ui2, Neovim's experimental rewrite of the message and command-line layer
 -- (:h ui2), on trial. What it changes here: a message longer than
 -- 'cmdheight' no longer blocks on "Press ENTER"; it is cut short behind a

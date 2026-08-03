@@ -179,6 +179,21 @@ local function section_filetype(trunc_width)
   return vim.bo.filetype
 end
 
+--- The search count, labelled: "F: 3/20" while a search is live.
+---
+--- mini.statusline's own section gives the bare "3/20", empty once
+--- `:nohlsearch` runs, which Esc does (lua/mivn/cua.lua), so the block comes
+--- and goes with the search itself. The command line used to carry this
+--- count; 'shortmess' "S" (init.lua) turned that copy off in favor of this
+--- one. One honest limit: while a search is still being typed, searchcount()
+--- counts the *previous* pattern, so the number here is one search behind
+--- until Enter.
+local function section_search(trunc_width)
+  local count = statusline.section_searchcount({ trunc_width = trunc_width })
+
+  return count ~= "" and "F: " .. count or ""
+end
+
 --- Where the cursor is: row and column, and nothing else.
 ---
 --- mini.statusline's own section_location reads `28|515 12|12`: four numbers
@@ -210,7 +225,6 @@ statusline.setup({
 
       local diagnostics = statusline.section_diagnostics({ trunc_width = 75 })
       local lsp = statusline.section_lsp({ trunc_width = 75 })
-      local search = statusline.section_searchcount({ trunc_width = 75 })
 
       return statusline.combine_groups({
         { hl = mode_hl, strings = { mode } },
@@ -221,8 +235,8 @@ statusline.setup({
         "%<", -- where the line is cut first when the window is narrow
         { hl = "MiniStatuslineFilename", strings = { section_filename() } },
         "%=", -- everything after this is pushed to the right
-        { hl = "MiniStatuslineFileinfo", strings = { section_filetype(120) } },
-        { hl = mode_hl, strings = { search, LOCATION } },
+        { hl = "MiniStatuslineFileinfo", strings = { section_search(75), section_filetype(120) } },
+        { hl = mode_hl, strings = { LOCATION } },
       })
     end,
   },
