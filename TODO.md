@@ -81,8 +81,25 @@ checked off; git remembers them.
       lsp.lua's gci run resolves through the store by absolute path.
   - [ ] Grow .github/scripts/repin (or a sibling) to bump the store's
       manifest pins the way it bumps plugin pins, in the same weekly PR.
+      The 2026-08-04 review sharpened this into the store's single
+      highest-leverage change: move the manifest out of store.lua into a
+      machine-owned JSON next to nvim-pack-lock.json, have the weekly job
+      bump versions and compute every platform's sha256, and have it run
+      `M.install` for each server on the runner before opening the PR, so
+      a dead URL or wrong hash is caught in CI and not at first file open
+      on this machine. Until then the pins rot: ruff and ty release
+      near-weekly and are already behind.
   - [ ] Steal from fresh: spawn backoff for a crash-looping server, and
       a stub log so "view log" always has something to open.
+
+- [ ] Facts written twice, waiting to drift; found by the 2026-08-04
+    review, parked for a monthly batch. find.lua's BUILTINS table
+    hand-describes 21 Ex commands, and its prose-vs-code regex hides any
+    real description that mentions a call like `foldexpr()`.
+    local.example.lua's long header mirrors the behavior of store.lua and
+    lsp.lua by hand. health.lua's PROBES table repeats what the manifest's
+    `smoke` fields already know, keyed by binary name instead of server
+    name. Each is fine today and wrong the day its twin changes.
 
 ## Dashboard
 
