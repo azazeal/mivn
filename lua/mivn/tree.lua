@@ -13,6 +13,10 @@
 -- it. See lua/mivn/panel.lua, which owns this because 'guicursor' is global.
 require("mivn.panel").hide_cursor_in("NvimTree")
 
+-- One width, used by the setup below and by the heal that restores it after
+-- a layout collapse; the two drifting apart makes the heal resize the tree.
+local TREE_WIDTH = 32
+
 vim.keymap.set("n", "<leader>t", function()
   require("nvim-tree.api").tree.toggle({ focus = false })
 end, { desc = "Show or hide the file tree", silent = true })
@@ -184,7 +188,7 @@ require("nvim-tree").setup({
   hijack_cursor = true,
 
   view = {
-    width = 32,
+    width = TREE_WIDTH,
     signcolumn = "no",
   },
 
@@ -297,8 +301,6 @@ vim.api.nvim_create_autocmd("CmdlineLeavePre", {
 -- the close, or Vim refuses the quit (unsaved work somewhere), the layout
 -- heals instead: an editing window comes back beside the tree, unsaved work
 -- first so it has somewhere to be seen.
-
-local TREE_WIDTH = 32
 
 --- The buffer to put back in front of me, or nil for the landing buffer.
 ---

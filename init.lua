@@ -1,6 +1,5 @@
--- mivn: the whole configuration, for now. Almost all of it is options; the
--- only mappings are the four command-line keys below, and they come out of
--- `:h cmdline-autocompletion`.
+-- The entry point: the options, the few mappings no module owns, and, at
+-- the bottom, the load order of every module under lua/mivn/.
 
 -- Leader is Space, and it has to be set before anything maps against it.
 -- Nothing is lost: Space in Normal mode repeats `l`.
