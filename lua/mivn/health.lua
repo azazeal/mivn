@@ -59,6 +59,12 @@ local function probe_for(server, binary)
 end
 
 --- Probe one binary; report through vim.health.
+---
+--- The healthy rows go through info, not ok, on purpose: vim.health.ok
+--- hard-codes "✅ OK" in front of the message, so every row would read
+--- "OK name" when the section is a table scanned by name. Info rows keep
+--- the name first; the loud levels, prefix and all, are kept for rows
+--- that are actually trouble.
 local function check_binary(label, binary, probe)
   local health = vim.health
 
@@ -69,7 +75,7 @@ local function check_binary(label, binary, probe)
   end
 
   if probe == false then
-    health.ok(("%s: %s (found; it has no version flag to probe)"):format(label, path))
+    health.info(("%s: found at %s; it has no version flag to probe"):format(label, path))
     return
   end
 
@@ -99,7 +105,7 @@ local function check_binary(label, binary, probe)
     return
   end
 
-  health.ok(("%s: %s"):format(label, first_line(result.stdout, result.stderr, path)))
+  health.info(("%s: %s"):format(label, first_line(result.stdout, result.stderr, path)))
 end
 
 function M.check()
@@ -140,8 +146,9 @@ function M.check()
   if #clients == 0 then
     health.info("none attached; open a file a server covers, then rerun")
   end
+  -- info for the same reason check_binary uses it: these rows scan by name.
   for _, client in ipairs(clients) do
-    health.ok(("%s, rooted at %s"):format(client.name, client.root_dir or "(no root)"))
+    health.info(("%s, rooted at %s"):format(client.name, client.root_dir or "(no root)"))
   end
 
   health.start("external formatters")

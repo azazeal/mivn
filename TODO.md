@@ -5,7 +5,6 @@
   - [UI](#ui)
   - [Languages](#languages)
   - [Dashboard](#dashboard)
-  - [Later](#later)
   - [Watching](#watching)
 <!--toc:end-->
 
@@ -131,12 +130,6 @@ checked off; git remembers them.
     need it (the background check, and a wrapper around `vim.pack.update`),
     never to the whole Neovim process, or `:terminal` loses the user's git
     config too.
-
-## Later
-
-- [ ] Decide whether the config should be reachable over SSH, and how. The
-    terminal UI already works over an SSH login; the config itself lives in
-    this repo on this machine.
 
 ## Watching
 
