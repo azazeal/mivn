@@ -33,8 +33,6 @@ checked off; git remembers them.
 
 ## Languages
 
-- [ ] Verify `expert` attaches on a real Elixir project. It is installed but
-    has not been exercised.
 - [ ] Check whether treesitter indentation beats the built-in ftplugins for
     any of these. It is off right now on the assumption it does not.
 - [ ] `:MivnInstallGrammars` cannot repair a half-installed grammar. It skips
