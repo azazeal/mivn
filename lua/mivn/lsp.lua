@@ -206,6 +206,36 @@ vim.api.nvim_create_autocmd("LspAttach", {
   end,
 })
 
+--- Getting back out of a float ------------------------------------------------
+
+-- `K` opens the documentation float and a second `K` steps into it. Neovim
+-- maps `q` in there to close it and leaves Esc doing nothing, which is the
+-- one place in mivn where Esc is not the way back: the rename prompt and the
+-- :MivnLsp dialog both take it. This is that key doing the same thing here.
+-- `q` still works, and the mapping is on the float's own buffer, so it
+-- reaches nothing else.
+--
+-- Wrapped rather than replaced: the stock function decides the size, the
+-- highlighting and when the float closes on its own. All this adds is the
+-- mapping, to the buffer it hands back. Signature help and the diagnostic
+-- float come through here too, and get it for the same reason.
+local open_floating_preview = vim.lsp.util.open_floating_preview
+
+vim.lsp.util.open_floating_preview = function(...)
+  local buf, win = open_floating_preview(...)
+
+  -- Reusing a float that is already up hands back the same buffer, so this
+  -- can run twice for one window; setting the same mapping again is free.
+  vim.keymap.set("n", "<Esc>", "<cmd>bdelete<cr>", {
+    buffer = buf,
+    silent = true,
+    nowait = true,
+    desc = "Close this float",
+  })
+
+  return buf, win
+end
+
 --- Diagnostics ---------------------------------------------------------------
 
 -- The message for the line I am on is drawn *under* it rather than after it:
