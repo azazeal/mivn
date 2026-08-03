@@ -878,6 +878,12 @@ with no border and their text sits straight on top of the buffer. The picker
 and the rename prompt always looked this way; this is the rest of them
 matching.
 
+`K` twice puts the cursor inside the float, and from there it is an ordinary
+window: `PageUp` and `PageDown`, `Ctrl+D` and `Ctrl+U`, `j` and `k` all move
+in it. `Esc` closes it _(mivn)_, as does Neovim's own `q`. Left alone, the
+float goes away by itself the moment the cursor moves in the buffer under
+it. Signature help and the diagnostic float take the same two keys.
+
 Hover on Rust hides the link addresses _(mivn)_. Doc comments there link
 with rustdoc's `[`Type`]` shorthand and rust-analyzer turns each one into a
 full docs.rs URL. Neovim hides the URL but still counts it when sizing the
