@@ -5,11 +5,14 @@
 -- recents/projects/sessions lists, and none of that is wanted here.
 --
 -- A fallback, never a destination: it shows when mivn opens with nothing to
--- edit, and again when the last real buffer is closed.
+-- edit, and again when the last real buffer is closed. This module only
+-- draws it; when it comes back and when closing the last file ends the
+-- session instead is lua/mivn/session.lua's call.
 
 local M = {}
 
 local FILETYPE = "mivn-dashboard"
+M.FILETYPE = FILETYPE -- session.lua tells the banner apart by it
 local ns = vim.api.nvim_create_namespace("mivn.dashboard")
 
 -- Nothing here to put a cursor on. The window still has one and the motions
@@ -145,8 +148,12 @@ end
 --- Whether the banner has claimed this session: it opened at startup, or I
 --- summoned it with :MivnDashboard. A session it never claimed is an editor
 --- session (`git commit`, `nvim file.txt`), and those end when the last file
---- closes instead of falling back here; see the BufEnter hook below.
+--- closes instead of falling back here; session.lua reads the flag and acts.
 local claimed = false
+
+function M.claimed()
+  return claimed
+end
 
 --- Show the landing buffer in the current window.
 function M.open()
@@ -188,19 +195,7 @@ function M.open()
   -- one, which would otherwise sit in the tab bar as a tab that opens nothing.
   -- Deleting is safe here because this buffer exists, so Neovim has no reason
   -- to conjure a blank one in its place.
-  for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if
-      b ~= buf
-      and vim.api.nvim_buf_is_loaded(b)
-      and vim.bo[b].buflisted
-      and vim.bo[b].buftype == ""
-      and not vim.bo[b].modified
-      and vim.api.nvim_buf_get_name(b) == ""
-      and vim.fn.bufwinid(b) == -1
-    then
-      pcall(vim.api.nvim_buf_delete, b, { force = true })
-    end
-  end
+  require("mivn.session").reap_blanks("delete", buf)
 
   M.render(buf, win)
 
@@ -231,53 +226,19 @@ function M.open()
   return buf
 end
 
---- Every buffer that counts as something I am actually editing.
----
---- Not keyed on 'buflisted': netrw flips that flag on its own buffer as it
---- redraws, so a rule trusting it reads state that moves underneath it. A real
---- buffer has an empty 'buftype' and either a file name or unsaved changes.
-local function real_buffers()
-  return vim.tbl_filter(function(buf)
-    return vim.api.nvim_buf_is_loaded(buf)
-      and vim.bo[buf].buftype == ""
-      and vim.bo[buf].filetype ~= FILETYPE
-      and (vim.api.nvim_buf_get_name(buf) ~= "" or vim.bo[buf].modified)
-  end, vim.api.nvim_list_bufs())
-end
-
---- Is this the blank buffer Neovim leaves behind when nothing is open?
-local function is_blank(buf)
-  if vim.bo[buf].buftype ~= "" or vim.bo[buf].modified then
-    return false
-  end
-  if vim.api.nvim_buf_get_name(buf) ~= "" then
-    return false
-  end
-
-  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-  return #lines <= 1 and (lines[1] or "") == ""
-end
-
-local group = vim.api.nvim_create_augroup("mivn.dashboard", { clear = true })
-
 -- At startup, when there is nothing to edit. `mivn <dir>` hands Neovim a
 -- directory, which would otherwise open a file listing; the banner shows
--- instead.
+-- instead. Coming back later, after the last file closes, is session.lua's
+-- decision, not this module's.
 vim.api.nvim_create_autocmd("VimEnter", {
-  group = group,
+  group = vim.api.nvim_create_augroup("mivn.dashboard", { clear = true }),
   -- nested, because M.open swaps the window's buffer, and without it that
   -- swap fires no BufWinEnter: whatever hooked the startup buffer (the width
   -- markers, window-local as matches are) would silently stay behind on the
   -- banner.
   nested = true,
   callback = function()
-    if vim.fn.argc() > 1 then
-      return
-    end
-    -- argv() returns a list and argv(n) a string, under one annotation, so the
-    -- cast says which call this is.
-    local arg = vim.fn.argv(0) --[[@as string]]
-    if vim.fn.argc() == 1 and vim.fn.isdirectory(arg) == 0 then
+    if not require("mivn.session").empty_start() then
       return
     end
     -- Something else already claimed the window (a session, a piped stdin).
@@ -293,68 +254,6 @@ vim.api.nvim_create_autocmd("VimEnter", {
     if vim.api.nvim_buf_is_valid(startup) and startup ~= vim.api.nvim_get_current_buf() then
       pcall(vim.api.nvim_buf_delete, startup, { force = true })
     end
-  end,
-})
-
--- And again on the blank buffer Neovim leaves behind, which is where `:bd` on
--- the last file puts me. Only in sessions the banner claimed, though: a
--- session that started on a file (`git commit`, `nvim file.txt`) has no home
--- screen to fall back to, so closing the last file quits Neovim instead,
--- which is what the tool waiting on $EDITOR needs. No bang on the quit, ever:
--- unsaved work keeps blocking it, and `:bd` refuses a modified buffer anyway,
--- so this path is only reachable after a deliberate write or a deliberate
--- `!`.
---
--- Keyed on arriving at a buffer rather than on one being deleted: the delete
--- events fire while the window is still on its way somewhere, so a deferred
--- check sees whatever Neovim fell back to mid-flight. BufEnter is settled.
-vim.api.nvim_create_autocmd("BufEnter", {
-  group = group,
-  callback = function(ev)
-    if vim.v.exiting ~= vim.NIL then
-      return
-    end
-    -- UI sessions only. A headless run is automation, and this hook firing
-    -- there is not hypothetical: vim.pack.update() pumps the event loop
-    -- mid-command (vim.wait under the hood), this callback saw a blank
-    -- unclaimed session and quitall'd nvim from inside the update. That is
-    -- how the weekly plugin-update job went green while updating nothing.
-    if #vim.api.nvim_list_uis() == 0 then
-      return
-    end
-    -- Already here. Without this the landing buffer re-triggers itself.
-    if vim.bo[ev.buf].filetype == FILETYPE then
-      return
-    end
-    if not is_blank(ev.buf) or #real_buffers() > 0 then
-      return
-    end
-
-    -- One at a time. `:bd` with the cursor in the tree deletes the tree's own
-    -- buffer and leaves its window holding a blank one, which would otherwise
-    -- open a second banner. Not also skipping when a tree window exists: the
-    -- tree is open in the ordinary case too, and testing for it would stop the
-    -- banner coming back after `:bd` on the last file.
-    for _, win in ipairs(vim.api.nvim_list_wins()) do
-      if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == FILETYPE then
-        return
-      end
-    end
-
-    vim.schedule(function()
-      if vim.api.nvim_get_current_buf() ~= ev.buf or not is_blank(ev.buf) then
-        return
-      end
-
-      if claimed then
-        M.open()
-        return
-      end
-
-      -- quitall, not quit: the tree or a split may still be open, and closing
-      -- one window would leave the session hanging on the rest.
-      vim.cmd.quitall()
-    end)
   end,
 })
 

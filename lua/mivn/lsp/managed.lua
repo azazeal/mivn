@@ -323,4 +323,8 @@ vim.api.nvim_create_user_command("MivnLsp", review, {
   desc = "Review the language servers: managed, on PATH, off",
 })
 
+-- The daily reclamation pass; without it, a server turned off would keep
+-- its files forever. The store throttles and defers it itself.
+store.autosweep()
+
 return { state = state_of }

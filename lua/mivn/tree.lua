@@ -13,6 +13,10 @@
 -- it. See lua/mivn/panel.lua, which owns this because 'guicursor' is global.
 require("mivn.panel").hide_cursor_in("NvimTree")
 
+-- One width, used by the setup below and by the heal that restores it after
+-- a layout collapse; the two drifting apart makes the heal resize the tree.
+local TREE_WIDTH = 32
+
 vim.keymap.set("n", "<leader>t", function()
   require("nvim-tree.api").tree.toggle({ focus = false })
 end, { desc = "Show or hide the file tree", silent = true })
@@ -106,12 +110,22 @@ local function rename()
       return
     end
 
+    -- Restored after the call, not inside the override: if the rename bails
+    -- before prompting (node gone, an error inside nvim-tree), a self-restore
+    -- never runs and the override would sit there feeding this name to the
+    -- next vim.ui.input caller anywhere in the session.
     local saved = vim.ui.input
+    ---@diagnostic disable-next-line: duplicate-set-field it is the point
     vim.ui.input = function(_, on_confirm)
-      vim.ui.input = saved
       on_confirm(typed)
     end
-    api.fs.rename(node)
+
+    local ok, err = pcall(api.fs.rename, node)
+    vim.ui.input = saved
+
+    if not ok then
+      error(err, 0)
+    end
   end)
 end
 
@@ -143,11 +157,13 @@ for i, item in ipairs(TREE_MENU) do
 end
 
 local function set_popup(in_tree)
+  -- nvim_command, not vim.cmd: pcall wants a function, and vim.cmd is a
+  -- callable table the language server rightly flags as one.
   for _, item in ipairs(TREE_MENU) do
-    pcall(vim.cmd, ("nmenu %s PopUp.%s"):format(in_tree and "enable" or "disable", item.name))
+    pcall(vim.api.nvim_command, ("nmenu %s PopUp.%s"):format(in_tree and "enable" or "disable", item.name))
   end
   for _, name in ipairs(STOCK_MENU) do
-    pcall(vim.cmd, ("nmenu %s PopUp.%s"):format(in_tree and "disable" or "enable", name))
+    pcall(vim.api.nvim_command, ("nmenu %s PopUp.%s"):format(in_tree and "disable" or "enable", name))
   end
 end
 
@@ -175,7 +191,7 @@ require("nvim-tree").setup({
   hijack_cursor = true,
 
   view = {
-    width = 32,
+    width = TREE_WIDTH,
     signcolumn = "no",
   },
 
@@ -271,115 +287,9 @@ vim.api.nvim_create_autocmd("CmdlineLeavePre", {
   end,
 })
 
---- The layout invariant -------------------------------------------------------
---
--- The tree is never the only window. A window holding it cannot show a file,
--- since nvim-tree takes its buffer back, so a layout that is nothing but the
--- tree is one I cannot type my way out of, and `:q` on the last file window is
--- enough to land there.
---
--- A `:q` that leaves the tree alone meant quit, though: with the tree as the
--- only survivor there is nothing left to be in, so the session ends, the
--- same answer stock Vim gives `:q` on its last window. But quit intent has
--- to be read from the command, not the layout: plugins close windows too
--- (nvim-tree deleting an open file takes that file's window with it), and
--- those closes must land on the heal, not on a quit. QuitPre is the tell; it
--- fires for the quit family and nothing else. When there is no quit behind
--- the close, or Vim refuses the quit (unsaved work somewhere), the layout
--- heals instead: an editing window comes back beside the tree, unsaved work
--- first so it has somewhere to be seen.
-
-local TREE_WIDTH = 32
-
---- The buffer to put back in front of me, or nil for the landing buffer.
----
---- Unsaved first: this only runs after a quit was refused over unsaved work,
---- so that work is what the window is for. Most recently used breaks the tie.
-local function last_real_buffer()
-  local best, best_key = nil, -1
-
-  for _, info in ipairs(vim.fn.getbufinfo({ buflisted = 1 })) do
-    local modified = vim.bo[info.bufnr].modified
-    local ok = vim.api.nvim_buf_is_valid(info.bufnr)
-      and vim.bo[info.bufnr].buftype == ""
-      and (info.name ~= "" or modified)
-
-    local key = info.lastused + (modified and 2 ^ 40 or 0)
-    if ok and key > best_key then
-      best, best_key = info.bufnr, key
-    end
-  end
-
-  return best
-end
-
--- When the last quit command started, in nanoseconds. heal() reads it on the
--- tick after WinClosed, so the window is generous; a stale stamp (a quit Vim
--- refused, which fires QuitPre but closes nothing) expires on its own.
-local quit_at = 0
-
-vim.api.nvim_create_autocmd("QuitPre", {
-  group = vim.api.nvim_create_augroup("mivn.tree.quit", { clear = true }),
-  desc = "Remember that a window close came from a quit command",
-  callback = function()
-    quit_at = vim.uv.hrtime()
-  end,
-})
-
-local function heal()
-  if vim.v.exiting ~= vim.NIL then
-    return
-  end
-
-  -- Floating windows do not count: a picker or a hover comes and goes.
-  local windows = vim.tbl_filter(function(win)
-    return vim.api.nvim_win_get_config(win).relative == ""
-  end, vim.api.nvim_list_wins())
-
-  if #windows ~= 1 then
-    return
-  end
-
-  local tree = windows[1]
-  if vim.bo[vim.api.nvim_win_get_buf(tree)].filetype ~= "NvimTree" then
-    return
-  end
-
-  -- Quit only a quit: the stamp says this close came from the `:q` family
-  -- moments ago. No bang on the quitall: unsaved work anywhere makes it
-  -- throw, and the rescue below runs instead. On success nothing after this
-  -- line happens.
-  local quitting = vim.uv.hrtime() - quit_at < 500e6
-  quit_at = 0
-
-  if quitting and pcall(vim.cmd.quitall) then
-    return
-  end
-
-  vim.cmd("rightbelow vsplit")
-  local win = vim.api.nvim_get_current_win()
-
-  local buf = last_real_buffer()
-  if buf then
-    vim.api.nvim_win_set_buf(win, buf)
-  else
-    require("mivn.dashboard").open()
-  end
-
-  -- The split halved it. Panels keep their width.
-  if vim.api.nvim_win_is_valid(tree) then
-    vim.api.nvim_win_set_width(tree, TREE_WIDTH)
-  end
-end
-
-vim.api.nvim_create_autocmd("WinClosed", {
-  group = vim.api.nvim_create_augroup("mivn.tree.layout", { clear = true }),
-  -- Deferred because the window being closed is still in the list while this
-  -- fires; the count is only true afterwards.
-  callback = function()
-    vim.schedule(heal)
-  end,
-})
+-- The layout invariant, "the tree is never the only window", lives in
+-- lua/mivn/session.lua with the rest of the endgame rules; it reads the
+-- width exported below when it heals a collapsed layout.
 
 -- Open at startup beside the landing buffer, without taking focus, so I land
 -- on the banner. Registered after the dashboard's own VimEnter so it goes into
@@ -387,13 +297,7 @@ vim.api.nvim_create_autocmd("WinClosed", {
 vim.api.nvim_create_autocmd("VimEnter", {
   group = vim.api.nvim_create_augroup("mivn.tree", { clear = true }),
   callback = function()
-    if vim.fn.argc() > 1 then
-      return
-    end
-    -- argv() returns a list and argv(n) a string, under one annotation, so the
-    -- cast says which call this is.
-    local arg = vim.fn.argv(0) --[[@as string]]
-    if vim.fn.argc() == 1 and vim.fn.isdirectory(arg) == 0 then
+    if not require("mivn.session").empty_start() then
       return
     end
 
@@ -409,5 +313,6 @@ vim.api.nvim_create_autocmd("VimEnter", {
   end,
 })
 
--- Only for the menu's Rename entry, which reaches it by module name.
-return { rename = rename }
+-- rename is only for the menu's Rename entry, which reaches it by module
+-- name; WIDTH is for session.lua's heal.
+return { rename = rename, WIDTH = TREE_WIDTH }

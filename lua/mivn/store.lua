@@ -20,8 +20,9 @@
 --
 -- Linux and macOS, x86_64 and arm64. Downloads need curl, archives need
 -- tar, gzip or unzip by their kind, all present on stock installs of
--- either OS except unzip on minimal Linux; checksums go through
--- vim.fn.sha256, so no platform hashing tool is involved.
+-- either OS except unzip on minimal Linux; checksums prefer the platform's
+-- sha256sum or shasum, which read the file off the main thread, and fall
+-- back to vim.fn.sha256 when neither exists.
 
 local M = {}
 
@@ -485,17 +486,42 @@ end
 
 --- The lock -------------------------------------------------------------------
 
---- Take the store lock, or return false and the PID holding it. "wx" is
---- O_CREAT|O_EXCL, so creation is the atomic test-and-set; a lock whose
---- owner no longer runs is taken over, once, so two racing takeovers
---- cannot chase each other.
-local function try_lock(retrying)
+local held = false -- whether *this instance* holds the on-disk lock
+
+--- Take the store lock, or return false and the PID holding it.
+---
+--- The lock is born with its owner's PID already inside: the PID goes into
+--- a private file first, and hard-linking that into place is the atomic
+--- test-and-set (the link fails when a lock exists), so no reader ever
+--- sees a half-written lock. A lock whose owner is dead is claimed by
+--- renaming it aside; a rename succeeds for exactly one claimant, so two
+--- takeovers cannot both proceed, and the loser goes back to waiting.
+---
+--- `held` tells "this process owns the lock" apart from "a previous life
+--- of this PID left it behind", which the file alone cannot; without it, a
+--- second install in this instance would steal the first one's lock. One
+--- edge stays open knowingly: kill(pid, 0) cannot tell a recycled PID from
+--- the original owner, so a stale lock whose PID now names some unrelated
+--- process waits out the bounded poll instead of being claimed.
+local function try_lock()
+  if held then
+    return false, uv.os_getpid()
+  end
+
   vim.fn.mkdir(root, "p")
 
-  local fd = uv.fs_open(lock_path, "wx", 384)
-  if fd then
-    uv.fs_write(fd, tostring(uv.os_getpid()))
-    uv.fs_close(fd)
+  local temp = lock_path .. "." .. uv.os_getpid()
+  local fd = uv.fs_open(temp, "w", 384)
+  if not fd then
+    return false, 0
+  end
+  uv.fs_write(fd, tostring(uv.os_getpid()))
+  uv.fs_close(fd)
+
+  local linked = uv.fs_link(temp, lock_path)
+  uv.fs_unlink(temp)
+  if linked then
+    held = true
     return true
   end
 
@@ -504,17 +530,19 @@ local function try_lock(retrying)
     return false, pid
   end
 
-  if retrying then
-    return false, pid or 0
+  -- A dead owner, or a previous life of this PID. Reap it; losing the
+  -- rename means another instance is reaping it right now, and either way
+  -- the next attempt finds the way clear.
+  local reaped = lock_path .. ".reaped." .. uv.os_getpid()
+  if uv.fs_rename(lock_path, reaped) then
+    uv.fs_unlink(reaped)
   end
 
-  -- Unreadable, left over from a previous life of this PID, or a dead
-  -- owner: take it over.
-  uv.fs_unlink(lock_path)
-  return try_lock(true)
+  return false, pid or 0
 end
 
 local function unlock()
+  held = false
   uv.fs_unlink(lock_path)
 end
 
@@ -538,7 +566,7 @@ local function with_lock(fn, on_fail)
 
     if not announced then
       announced = true
-      vim.notify(("The server store is locked by another Neovim (PID %d); waiting for it."):format(pid))
+      vim.notify(("The server store is locked by an install in progress (PID %d); waiting for it."):format(pid))
     end
 
     vim.defer_fn(attempt, 2000)
@@ -588,6 +616,14 @@ local function sweep_locked()
       if not pid or (pid ~= uv.os_getpid() and uv.kill(pid, 0) ~= 0) then
         vim.fs.rm(vim.fs.joinpath(staging_root, child), { recursive = true, force = true })
       end
+    end
+  end
+
+  -- Lock litter next: `.lock.<pid>` temp files a crash left mid-take.
+  for child, kind in vim.fs.dir(root) do
+    local pid = tonumber(child:match("^%.lock%..*(%d+)$"))
+    if kind == "file" and pid and pid ~= uv.os_getpid() and uv.kill(pid, 0) ~= 0 then
+      uv.fs_unlink(vim.fs.joinpath(root, child))
     end
   end
 
@@ -653,6 +689,35 @@ function M.sweep(cb)
   end, cb)
 end
 
+-- Before this, sweeping only ever ran after a successful install, so a
+-- stable config never even condemned the entries of a server turned off:
+-- the grace week never started counting.
+local stamp_path = vim.fs.joinpath(root, ".swept")
+
+--- A sweep on its own schedule: at most one a day across all instances,
+--- deferred well past startup so launching the editor stays instant.
+--- Wired up by lua/mivn/lsp/managed.lua.
+function M.autosweep()
+  local last = tonumber(slurp(stamp_path) or "")
+  if last and os.time() - last < 24 * 60 * 60 then
+    return
+  end
+
+  vim.defer_fn(function()
+    M.sweep(function(err)
+      if err then
+        return -- a locked store means another instance got there first
+      end
+
+      local file = io.open(stamp_path, "w")
+      if file then
+        file:write(tostring(os.time()))
+        file:close()
+      end
+    end)
+  end, 30000)
+end
+
 --- Installing -----------------------------------------------------------------
 
 -- Which tools each unpacking kind needs, checked before anything downloads.
@@ -689,6 +754,12 @@ function M.install(name, cb, opts)
     end
   end
 
+  -- tar hands .xz decompression to xz, which minimal hosts lack; better
+  -- said here than found later in tar's stderr.
+  if kind == "tar" and plat.url:match("%.xz$") and vim.fn.executable("xz") ~= 1 then
+    return cb("xz is not installed, and this download needs it")
+  end
+
   if installing[name] then
     return cb(name .. " is already being installed")
   end
@@ -712,9 +783,17 @@ function M.install(name, cb, opts)
   end
 
   with_lock(function()
-    -- The lock is held from here on; finish() is the only way out.
+    -- The lock is held from here on; finish() is the only way out, the only
+    -- place that releases it, and one-shot, so a straggling callback cannot
+    -- release somebody else's turn.
+    local finished = false
     local function finish(err)
-      vim.fs.rm(staging, { recursive = true, force = true })
+      if finished then
+        return
+      end
+      finished = true
+
+      pcall(vim.fs.rm, staging, { recursive = true, force = true })
       if not err then
         pcall(sweep_locked)
       end
@@ -722,15 +801,34 @@ function M.install(name, cb, opts)
       give_up(err)
     end
 
-    if uv.fs_stat(dest) then
-      if not (opts and opts.force) then
-        return finish() -- someone else won the race, and that is success
+    --- Every re-entry from the event loop runs through this: an error
+    --- thrown anywhere in the chain must land in finish() and release the
+    --- lock, not escape into the editor with the store wedged for every
+    --- instance until this one exits.
+    local function guarded(f)
+      return function(...)
+        local ok, err = pcall(f, ...)
+        if not ok then
+          finish(("installing %s died: %s"):format(name, err))
+        end
       end
-      vim.fs.rm(dest, { recursive = true, force = true })
     end
 
-    vim.fn.mkdir(extracted, "p")
-    vim.fn.mkdir(final, "p")
+    guarded(function()
+      if uv.fs_stat(dest) then
+        if not (opts and opts.force) then
+          return finish() -- someone else won the race, and that is success
+        end
+        vim.fs.rm(dest, { recursive = true, force = true })
+      end
+
+      vim.fn.mkdir(extracted, "p")
+      vim.fn.mkdir(final, "p")
+    end)()
+
+    if finished then
+      return
+    end
 
     -- The steps run as a callback chain; every vim.system result hops back
     -- to the main loop before the next step touches the API.
@@ -760,14 +858,14 @@ function M.install(name, cb, opts)
       -- The dynamically linked build published under a "musl" name is how
       -- this was found.
       local ok, err = pcall(vim.system, cmd, { text = true, timeout = 10000 }, function(result)
-        vim.schedule(function()
+        vim.schedule(guarded(function()
           if result.code ~= 0 then
             return finish(
               ("%s does not run on this host (exit %d): %s"):format(name, result.code, vim.trim(result.stderr or ""))
             )
           end
           next_step()
-        end)
+        end))
       end)
 
       if not ok then
@@ -822,33 +920,58 @@ function M.install(name, cb, opts)
       }
 
       vim.system(commands[kind], { text = true }, function(result)
-        vim.schedule(function()
+        vim.schedule(guarded(function()
           if result.code ~= 0 then
             return finish(("could not unpack %s: %s"):format(name, vim.trim(result.stderr or "")))
           end
           stage(kind == "gz" and vim.fs.joinpath(staging, binary) or nil)
-        end)
+        end))
       end)
     end
 
+    --- Compare the download against its pinned sha256, then unpack.
+    ---
+    --- The platform's hashing tool reads the file itself, off the main
+    --- thread; both OSes ship one. The fallback slurps the asset into a
+    --- string for vim.fn.sha256, which stalls the editor for the biggest
+    --- archives, so it is exactly that: the fallback.
     local function verify()
-      local data = slurp(asset)
-      if not data or vim.fn.sha256(data) ~= plat.sha256 then
-        return finish(("the %s download does not match its pinned sha256"):format(name))
+      local hasher
+      if vim.fn.executable("sha256sum") == 1 then
+        hasher = { "sha256sum", asset }
+      elseif vim.fn.executable("shasum") == 1 then
+        hasher = { "shasum", "-a", "256", asset }
       end
-      unpack()
+
+      if not hasher then
+        local data = slurp(asset)
+        if not data or vim.fn.sha256(data) ~= plat.sha256 then
+          return finish(("the %s download does not match its pinned sha256"):format(name))
+        end
+        return unpack()
+      end
+
+      vim.system(hasher, { text = true }, function(result)
+        vim.schedule(guarded(function()
+          local sum = result.code == 0 and (result.stdout or ""):match("^%x+")
+          if sum ~= plat.sha256 then
+            return finish(("the %s download does not match its pinned sha256"):format(name))
+          end
+          unpack()
+        end))
+      end)
     end
 
     vim.system(
       { "curl", "--fail", "--silent", "--show-error", "--location", "--retry", "3", "--output", asset, plat.url },
       { text = true },
       function(result)
-        vim.schedule(function()
+        vim.schedule(guarded(function()
           if result.code ~= 0 then
             return finish(("downloading %s failed: %s"):format(name, vim.trim(result.stderr or "")))
           end
           verify()
-        end)
+        end))
       end
     )
   end, give_up)

@@ -221,6 +221,7 @@ vim.api.nvim_create_autocmd("LspAttach", {
 -- float come through here too, and get it for the same reason.
 local open_floating_preview = vim.lsp.util.open_floating_preview
 
+---@diagnostic disable-next-line: duplicate-set-field it is the point
 vim.lsp.util.open_floating_preview = function(...)
   local buf, win = open_floating_preview(...)
 
@@ -301,13 +302,19 @@ local function gci_format(buf)
   end
   cmd[#cmd + 1] = path
 
+  -- The buffer matches the disk right now, just after the write. If it does
+  -- not by the time gci's result comes back, I typed in the window in
+  -- between, and splicing the file over the buffer would throw those
+  -- keystrokes away; the changedtick is the guard against exactly that.
+  local tick = vim.api.nvim_buf_get_changedtick(buf)
+
   vim.system(cmd, { text = true }, function(result)
     if result.code ~= 0 then
       return
     end
 
     vim.schedule(function()
-      if not vim.api.nvim_buf_is_valid(buf) then
+      if not vim.api.nvim_buf_is_valid(buf) or vim.api.nvim_buf_get_changedtick(buf) ~= tick then
         return
       end
 

@@ -10,10 +10,16 @@ local M = {}
 local buf -- the one terminal buffer, kept across toggles
 local panel_win -- the split the toggle last opened, for the cleanup below
 
---- The window in this tab currently showing a terminal, if any.
+--- The window in this tab showing the panel's own terminal, if any. Matched
+--- on the panel's buffer, never on 'buftype': a :terminal split opened by
+--- hand is not the panel, and the toggle must not close it.
 local function terminal_window()
+  if not buf then
+    return
+  end
+
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-    if vim.bo[vim.api.nvim_win_get_buf(win)].buftype == "terminal" then
+    if vim.api.nvim_win_get_buf(win) == buf then
       return win
     end
   end
@@ -96,20 +102,9 @@ vim.api.nvim_create_autocmd("TermClose", {
 
       -- Deleting the last listed buffer makes Neovim conjure a blank one in
       -- its place, which nothing shows and which sits in the tab bar as a
-      -- stray unnamed tab. Unlisting hides it, and is safe where deleting it
-      -- could just conjure the next one.
-      for _, b in ipairs(vim.api.nvim_list_bufs()) do
-        if
-          vim.api.nvim_buf_is_loaded(b)
-          and vim.bo[b].buflisted
-          and vim.bo[b].buftype == ""
-          and not vim.bo[b].modified
-          and vim.api.nvim_buf_get_name(b) == ""
-          and vim.fn.bufwinid(b) == -1
-        then
-          vim.bo[b].buflisted = false
-        end
-      end
+      -- stray unnamed tab. Unlisted, not deleted: deleting the last one
+      -- could just conjure the next.
+      require("mivn.session").reap_blanks("unlist")
     end)
   end,
 })

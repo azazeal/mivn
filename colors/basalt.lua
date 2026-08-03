@@ -53,6 +53,12 @@ local c = {
 
   diff_add = "#3B5135",
   diff_del = "#572A32",
+
+  -- The two steps between red and diff_del that the dashboard's fire
+  -- gradient needs and the scale above has no name for. Nothing else may
+  -- use them; they are named here only so every hex stays in this table.
+  fire4 = "#BC4D58",
+  fire5 = "#893B45",
 }
 
 local function hl(groups)
@@ -486,21 +492,16 @@ hl({
 
 --- The landing buffer --------------------------------------------------------
 
--- The two steps between c.red and c.diff_del that the fire gradient needs and
--- the palette has no name for. They are the banner's alone, so they live here
--- rather than widening the scale above.
-local fire4 = "#BC4D58"
-local fire5 = "#893B45"
-
 -- A fire gradient: it starts on the yellow, orange and red above and falls to
--- the diff-removed background, so it borrows no colors from outside the theme.
--- One group per row of the block letters, top to bottom.
+-- the diff-removed background through the two fire steps named in the
+-- palette, so it borrows no colors from outside the theme. One group per row
+-- of the block letters, top to bottom.
 hl({
   MivnDashboardFire1 = { fg = c.yellow },
   MivnDashboardFire2 = { fg = c.orange },
   MivnDashboardFire3 = { fg = c.red },
-  MivnDashboardFire4 = { fg = fire4 },
-  MivnDashboardFire5 = { fg = fire5 },
+  MivnDashboardFire4 = { fg = c.fire4 },
+  MivnDashboardFire5 = { fg = c.fire5 },
   MivnDashboardFire6 = { fg = c.diff_del },
 
   -- The muted grey the theme uses for comments, so the supporting text sits
