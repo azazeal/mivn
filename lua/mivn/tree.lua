@@ -106,12 +106,21 @@ local function rename()
       return
     end
 
+    -- Restored after the call, not inside the override: if the rename bails
+    -- before prompting (node gone, an error inside nvim-tree), a self-restore
+    -- never runs and the override would sit there feeding this name to the
+    -- next vim.ui.input caller anywhere in the session.
     local saved = vim.ui.input
     vim.ui.input = function(_, on_confirm)
-      vim.ui.input = saved
       on_confirm(typed)
     end
-    api.fs.rename(node)
+
+    local ok, err = pcall(api.fs.rename, node)
+    vim.ui.input = saved
+
+    if not ok then
+      error(err, 0)
+    end
   end)
 end
 
