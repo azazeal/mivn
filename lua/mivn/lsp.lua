@@ -233,6 +233,14 @@ vim.lsp.util.open_floating_preview = function(...)
     desc = "Close this float",
   })
 
+  -- Stock leaves 'concealcursor' empty, so the line the cursor is on drops
+  -- back to raw markdown. Stepping into the float lands on line one, which
+  -- is the ```rust that opens the signature, and reading documentation is
+  -- not the moment to be shown its markup. Normal mode only: a Visual
+  -- selection is usually me taking the text, and then the markup is the
+  -- point.
+  vim.wo[win].concealcursor = "n"
+
   return buf, win
 end
 
