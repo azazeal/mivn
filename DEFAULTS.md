@@ -878,6 +878,12 @@ with no border and their text sits straight on top of the buffer. The picker
 and the rename prompt always looked this way; this is the rest of them
 matching.
 
+Hover on Rust hides the link addresses _(mivn)_. Doc comments there link
+with rustdoc's `[`Type`]` shorthand and rust-analyzer turns each one into a
+full docs.rs URL. Neovim hides the URL but still counts it when sizing the
+window, so a paragraph with two links came out a hundred columns wide and
+broke its sentences in the middle. The link text stays; only the address is
+gone, so following one means searching docs.rs by hand.
 
 Most servers install themselves _(mivn)_: for the languages the store covers
 (Python, Rust, Lua, TypeScript, Markdown, TOML, HTML, Elixir and more; Go and
