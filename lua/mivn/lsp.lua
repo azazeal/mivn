@@ -11,31 +11,18 @@
 
 --- Which server handles what, and what binary proves it is installed ---------
 
--- Keys are nvim-lspconfig's names. Values are the executable to look for,
--- which is usually but not always the same string. Everything here installs
--- from Homebrew as a plain binary; servers that would drag a Node runtime in
--- (bashls, yamlls, jsonls and friends) are out on purpose, and the `lsp`
--- overrides below are the hatch for anyone who wants one anyway.
---
--- Python is absent on purpose: ty and ruff come from the store
--- (lua/mivn/store.lua), which installs them itself. Servers migrate from
--- this table to the store's manifest over time, not the other way.
+-- The waiting room. Everything still here waits on a store runtime pass
+-- (lua/mivn/store.lua manages the rest): gopls and golangci-lint-langserver
+-- leave with the Go pass, ruby-lsp with the Ruby one. denols is the one
+-- deliberate stay: a Deno project needs deno itself anyway, and its server
+-- should be the project's own. Keys are nvim-lspconfig's names, values the
+-- executable to look for; the `lsp` overrides below add or re-point
+-- anything else.
 local servers = {
   gopls = "gopls",
   golangci_lint_ls = "golangci-lint-langserver", -- lint diagnostics beside gopls
-  rust_analyzer = "rust-analyzer",
-  expert = "expert", -- Elixir
-  lua_ls = "lua-language-server",
-
-  buf_ls = "buf", -- Protocol Buffers
-  denols = "deno", -- TypeScript and JavaScript
-  docker_language_server = "docker-language-server", -- Dockerfile and Compose
-  marksman = "marksman", -- Markdown
   ruby_lsp = "ruby-lsp",
-  superhtml = "superhtml", -- HTML
-  taplo = "taplo", -- TOML
-  templ = "templ",
-  terraformls = "terraform-ls",
+  denols = "deno", -- Deno's own LSP; it only claims deno.json workspaces
 }
 
 --- Local overrides ------------------------------------------------------------

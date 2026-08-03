@@ -125,6 +125,12 @@ if next(pending) then
   local group = vim.api.nvim_create_augroup("mivn.managed", { clear = true })
   local asking = false
 
+  --- Whether anything is drawing this session. False under `--headless`
+  --- until a remote UI attaches, which is how the tests drive it.
+  local function has_ui()
+    return #vim.api.nvim_list_uis() > 0
+  end
+
   vim.api.nvim_create_autocmd("FileType", {
     group = group,
     desc = "Offer to install the language servers that cover this file",
@@ -139,7 +145,11 @@ if next(pending) then
         end
       end
 
-      if #ask == 0 or asking then
+      -- A session with no UI has nobody to answer, so the question waits for
+      -- one; the answer is per machine and keeps until then. Skipping it is
+      -- not just politeness: the dialog is a mini.pick window, and opening
+      -- one in `nvim --headless` blocks the session for good.
+      if #ask == 0 or asking or not has_ui() then
         return
       end
       asking = true
@@ -151,8 +161,15 @@ if next(pending) then
       end
 
       -- Scheduled: FileType can fire mid-batch (doautoall, sessions), and
-      -- the dialog draws windows.
+      -- the dialog draws windows. The gap is what the second check is for: a
+      -- quit can start in between, and a window opened after VimLeave takes
+      -- the exit back and leaves the session running with nothing on screen.
       vim.schedule(function()
+        if not has_ui() or vim.v.exiting ~= vim.NIL then
+          asking = false
+          return
+        end
+
         vim.ui.select({ "Yes", "No, and do not ask again", "Ask me later" }, {
           prompt = ("Install %s for %s?"):format(table.concat(what, " and "), ev.match),
         }, function(_, idx)

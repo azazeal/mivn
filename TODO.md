@@ -28,6 +28,14 @@ checked off; git remembers them.
     has not been exercised.
 - [ ] Check whether treesitter indentation beats the built-in ftplugins for
     any of these. It is off right now on the assumption it does not.
+- [ ] `:MivnInstallGrammars` cannot repair a half-installed grammar. It skips
+    a language whose parser is already there, so a broken query link is
+    invisible: the parser loads, highlighting turns on, and every capture
+    comes back empty, which reads as "the colorscheme forgot this language".
+    That is what the move off lazy.nvim left behind in `~/.config/nvim`: 30
+    languages whose `queries/<lang>` still pointed into the old `lazy/`
+    directory, relinked by hand on 2026-08-03. Either check the links on
+    install or say it in `:checkhealth mivn`.
 - [ ] Markdown: decide the writing set. Three things are missing today.
     Formatting: marksman does not format, and the formatter table has no
     markdown entry, so tables stay as typed; `deno fmt` (deno is already
@@ -38,19 +46,17 @@ checked off; git remembers them.
     both preview in the browser with mermaid support. In-buffer polish:
     render-markdown.nvim prettifies headings and tables in place but renders
     no diagrams. A monthly-batch decision, not a today one.
-- [ ] Managed language servers, the rest. The engine landed in
-    lua/mivn/store.lua and lua/mivn/lsp/managed.lua with ty and ruff, so
-    Python is managed end to end; the full design (manifest, store
-    layout, lock, sweep, hook points) lives in those two files' comments
-    and in this entry's git history. Still to do, roughly in order:
-  - [ ] Migrate the remaining single-binary servers from the Homebrew
-      table into the store's manifest (rust-analyzer, marksman, taplo,
-      terraform-ls, superhtml, docker-language-server...), at which
-      point Homebrew becomes the override path, not the requirement.
-  - [ ] tsgo once its LSP is ready enough to replace denols: the
-      TypeScript compiler rewritten in Go, one binary, releases on
-      microsoft/typescript-go, and nvim-lspconfig already carries
-      tsgo.lua.
+- [ ] Managed language servers, the rest. The engine lives in
+    lua/mivn/store.lua and lua/mivn/lsp/managed.lua, and every server
+    that ships as a binary is managed now; the full design (manifest,
+    store layout, lock, sweep, hook points) lives in those two files'
+    comments and in this entry's git history. Still to do, roughly in
+    order:
+  - [ ] Ruby, decided 2026-08-03: build the ruby runtime after the other
+      passes land. ruby-lsp (Shopify) is the server, a gem, so the store
+      needs a portable ruby plus a `gem install` at install time, the way
+      go will build gopls. Rails comes from the ruby-lsp-rails addon,
+      which activates from the project's Gemfile on its own.
   - [ ] The node runtime as a store entry (one `bin/node`), plus the
       node-only servers bundled to a single file with esbuild by the
       weekly workflow and published as sha-pinned release assets of

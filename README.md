@@ -49,14 +49,17 @@ What has to be on the system:
 - **ripgrep** (or **fd**), optionally: `<Space>f` and `<Space>/` use whichever
   is installed, and fall back to slower built-ins otherwise.
 
-Language servers come two ways. Python's (`ty` and `ruff`) are managed:
-opening a Python file offers to install them, pinned and checksum-verified,
-into Neovim's data directory, and no Python needs to exist on the machine;
-more servers migrate to that store over time (`lua/mivn/store.lua`). The
-rest start when their binary is on `PATH` and stay off otherwise, so
-install the ones you want with your package manager. `:MivnLsp` lists both
-kinds and what was found. The external formatters (`stylua`, `shfmt`, `jq`,
-`taplo`, `xmllint`) and `gci` for Go imports are `PATH` tools too.
+Most language servers are managed: opening a covered file offers to install
+the server, pinned and checksum-verified, into Neovim's data directory
+(`lua/mivn/store.lua` is the manifest), and no language runtime needs to
+exist on the machine. That covers Python (`ty`, `ruff`), TypeScript and
+JavaScript (`tsgo`, the TypeScript 7 compiler with the LSP inside), Rust,
+Lua, Elixir, Markdown, TOML, HTML, Terraform, Protocol Buffers, templ, and
+the Docker files. The few still expected on `PATH` until their runtime
+passes land: `gopls` and `golangci-lint-langserver` (Go), `ruby-lsp`, and
+`deno` for Deno workspaces. `:MivnLsp` lists both kinds and what was found.
+The external formatters (`stylua`, `shfmt`, `jq`, `taplo`, `xmllint`) and
+`gci` for Go imports are `PATH` tools still.
 
 This is a plain Neovim configuration: clone it where Neovim looks and run
 `nvim`.
