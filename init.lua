@@ -63,6 +63,20 @@ vim.opt.shortmess:append("S")
 -- Defaults otherwise: messages stay on the command line, no floats.
 require("vim._core.ui2").enable({})
 
+-- ui2's message pager (`g<`, :messages) is a window I land in, and ui2 only
+-- maps q to close it. Esc closes it too, the way it closes the hover float
+-- (lua/mivn/lsp.lua): one reflex for every transient view. The mapping is
+-- buffer-local and the buffer outlives the window, so FileType fires once
+-- and covers every visit.
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("mivn.ui2", { clear = true }),
+  pattern = "pager",
+  desc = "Close the message pager with Esc as well as q",
+  callback = function(ev)
+    vim.keymap.set("n", "<Esc>", "<C-w>c", { buffer = ev.buf, desc = "Close the message pager" })
+  end,
+})
+
 -- 'cmdheight' keeps its default 1. At 0, a message with no line to print on
 -- turns into a modal "Press ENTER" prompt; ui2 above removes that prompt, so
 -- the experiment is worth rerunning once ui2 has earned trust. The two

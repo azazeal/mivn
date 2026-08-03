@@ -22,6 +22,15 @@ checked off; git remembers them.
     (`file.go:12.2,15.9 3 1`) and extmarks do the rest. Decide in a monthly
     batch, not now.
 
+- [ ] Guard ui2's pager window against opening files into it. Measured on
+    2026-08-04: with focus in the pager, `:view /etc/hosts` opens the file
+    inside the float, and ui2 later swaps its own buffer back in, leaving
+    the file loaded but shown nowhere. 'winfixbuf' on the pager window is
+    the obvious guard, but ui2 itself puts buffers into that window when it
+    rebuilds one, and a fixed buffer turns that into an error, so the clean
+    version of this fix is upstream's to make. File it there, or carry a
+    careful local one.
+
 ## Languages
 
 - [ ] Verify `expert` attaches on a real Elixir project. It is installed but
@@ -117,6 +126,17 @@ checked off; git remembers them.
 ## Watching
 
 Seen once, not reproduced, not forgotten:
+
+- Neovide and `:restart` under the ui2 trial: one session hung on restart with
+  no dashboard and the old buffers still loaded, and after closing the buffers
+  by hand the statusline and the command line were gone. Not reproduced since,
+  2026-08-04: a scripted `:view` + `:restart` comes back clean in the TUI and
+  in a fresh Neovide, and the server state after both is healthy, so whatever
+  breaks lives in Neovide's reattach once a session has more history behind
+  it. If it happens again, before recovering run `nvim --server <sock>
+  --remote-expr` from outside and capture 'laststatus', 'cmdheight',
+  `nvim_list_uis()` and the window list; those say which half is broken, the
+  server or the window.
 
 - After a layout collapse in the tree, `:NvimTreeOpen` left a completely blank
   full-window `NvimTree_1` buffer, drawing no listing at all. Scripted repros

@@ -64,7 +64,7 @@ to the shell, and from the middle of a half-typed operator. `Esc` covers the
 other ninety percent, including the hit-enter prompt, which is worth knowing
 precisely: it dismisses the message and runs nothing. _(mivn)_ runs ui2, so
 that prompt should barely appear: a long message is cut short behind a `[+x]`
-marker instead, and `g<` shows the whole thing.
+marker instead, and `g<` shows the whole thing; `q` or Esc closes that view.
 
 `gt` is in that list because a changed screen is more often a second tab than a
 broken editor. A Vim tab is a whole layout of windows, so landing in one
