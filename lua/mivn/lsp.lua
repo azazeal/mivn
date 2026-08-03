@@ -111,6 +111,14 @@ vim.lsp.config("rust_analyzer", {
     -- key has to be quoted the way gopls' `local` above does.
     ["rust-analyzer"] = {
       check = { command = "clippy" },
+
+      -- Rust doc comments link with rustdoc's own `[`Type`]` shorthand, and
+      -- rust-analyzer expands each one into a full docs.rs URL before
+      -- sending the hover. Neovim then conceals the URL but still measures
+      -- the line with it, so one link makes the float a hundred columns
+      -- wider than its text and wraps the sentence in the middle of itself.
+      -- Off, the link text stays and the URL never arrives.
+      hover = { links = { enable = false } },
     },
   },
 })
