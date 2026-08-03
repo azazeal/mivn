@@ -113,23 +113,19 @@ checked off; git remembers them.
     `git fetch` per plugin plus `git rev-list --count HEAD..origin/<branch>`,
     counted up into one line under the byline.
 
-    **It must not touch an SSH key, and today it would.** The global
-    `~/.gitconfig` carries
-    `url."ssh://git@github.com/".insteadOf = https://github.com/`, so every
-    plugin here was actually cloned over SSH despite `plugins.lua` naming
-    https URLs (`git -C <plugin> remote -v` shows `ssh://git@github.com/`).
-    It works right now only because the key is in the agent and Neovide
-    inherits `SSH_AUTH_SOCK` from the session; a background fetch without an
-    agent would hang on a passphrase prompt nothing is drawing.
+    **It must not touch an SSH key.** A global gitconfig can rewrite the
+    https plugin URLs to ssh (`url.<base>.insteadOf`), and then a
+    background fetch on a machine whose agent holds no key hangs on a
+    passphrase prompt nothing is drawing.
 
     The fix is `GIT_CONFIG_GLOBAL=/dev/null` on the git subprocess, which
-    drops the rewrite and fetches anonymous https. Verified. Note that you
-    cannot instead *override* the rewrite with a competing rule: git picks
-    the longest matching prefix and ties go to the first one seen, so an
-    equal-length rule always loses. Scope the variable to the two places that
-    need it (the background check, and a wrapper around `vim.pack.update`),
-    never to the whole Neovim process, or `:terminal` loses the user's git
-    config too.
+    drops the rewrite and fetches anonymous https. Verified, and half in
+    place: plugins.lua wraps `vim.pack.update` with exactly that, so the
+    background check only has to do the same. Note that you cannot instead
+    *override* the rewrite with a competing rule: git picks the longest
+    matching prefix and ties go to the first one seen, so an equal-length
+    rule always loses. Never set the variable for the whole Neovim process,
+    or `:terminal` loses the user's git config too.
 
 ## Watching
 

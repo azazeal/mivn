@@ -38,3 +38,51 @@ vim.pack.add({
   -- auto-closing pairs, on trial (v0.18.0, 2026-06-19)
   { src = "https://github.com/echasnovski/mini.pairs", version = "4a014143fcb4e9df26198ccb3ecff3b9e77a048c" },
 })
+
+-- vim.pack.update, with SSH kept out of it. A global gitconfig can rewrite
+-- https URLs to ssh (url.<base>.insteadOf), and then the plugins above,
+-- https as their URLs read, fetch over SSH, and on a machine whose agent
+-- holds no key the update hangs on a passphrase prompt nothing draws.
+-- GIT_CONFIG_GLOBAL=/dev/null drops the rewrite for the update's git
+-- subprocesses alone: set before the call, restored once the work is done.
+-- "Done" is after the call for a forced update, but at the review buffer's
+-- deletion otherwise: these are blobless clones, so the checkout that the
+-- buffer's :write starts still fetches blobs, and quitting the buffer is
+-- the cancel. Not process-wide, ever: :terminal must keep the user's real
+-- git config. TODO.md's dashboard entry records the fuller story.
+local pack_update = vim.pack.update
+
+---@diagnostic disable-next-line: duplicate-set-field it is the point
+vim.pack.update = function(...)
+  local saved = vim.env.GIT_CONFIG_GLOBAL
+  vim.env.GIT_CONFIG_GLOBAL = "/dev/null"
+
+  local function restore()
+    vim.env.GIT_CONFIG_GLOBAL = saved
+  end
+
+  local ok, err = pcall(pack_update, ...)
+
+  local review
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_get_name(buf):find("nvim-pack://confirm", 1, true) then
+      review = buf
+      break
+    end
+  end
+
+  if review then
+    vim.api.nvim_create_autocmd("BufWipeout", {
+      buffer = review,
+      once = true,
+      desc = "Put the git config back after the plugin update settles",
+      callback = restore,
+    })
+  else
+    restore()
+  end
+
+  if not ok then
+    error(err, 0)
+  end
+end
