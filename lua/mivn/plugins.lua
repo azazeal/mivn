@@ -10,10 +10,10 @@
 vim.pack.add({
   -- The basics: syntax, language servers, the file tree.
 
-  -- grammars (v0.9.3+837, 2026-07-26)
-  { src = "https://github.com/nvim-treesitter/nvim-treesitter", version = "61df84986b4b4ec469ee745a182e433d49f8c27e" },
-  -- per-server configs, not a client (v2.11.0+9, 2026-07-26)
-  { src = "https://github.com/neovim/nvim-lspconfig", version = "7ab79bb1b57160a537f427ac8a6026102f12b701" },
+  -- grammars (v0.9.3+840, 2026-08-01)
+  { src = "https://github.com/nvim-treesitter/nvim-treesitter", version = "7b6cc8949f9999c5ed91436cbe24aa5f99c42025" },
+  -- per-server configs, not a client (v2.11.0+17, 2026-08-01)
+  { src = "https://github.com/neovim/nvim-lspconfig", version = "1c0d8f70dbc8827263eedc3cf7021ceba0f68689" },
   -- the file tree (v1+5, 2026-07-16)
   { src = "https://github.com/nvim-tree/nvim-tree.lua", version = "4213bd6eabac38b16dd6615002b6243b23cf3bf6" },
   -- what can follow the key I just pressed (stable+8, 2025-10-28)
