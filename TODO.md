@@ -28,6 +28,14 @@ checked off; git remembers them.
     has not been exercised.
 - [ ] Check whether treesitter indentation beats the built-in ftplugins for
     any of these. It is off right now on the assumption it does not.
+- [ ] `:MivnInstallGrammars` cannot repair a half-installed grammar. It skips
+    a language whose parser is already there, so a broken query link is
+    invisible: the parser loads, highlighting turns on, and every capture
+    comes back empty, which reads as "the colorscheme forgot this language".
+    That is what the move off lazy.nvim left behind in `~/.config/nvim`: 30
+    languages whose `queries/<lang>` still pointed into the old `lazy/`
+    directory, relinked by hand on 2026-08-03. Either check the links on
+    install or say it in `:checkhealth mivn`.
 - [ ] Markdown: decide the writing set. Three things are missing today.
     Formatting: marksman does not format, and the formatter table has no
     markdown entry, so tables stay as typed; `deno fmt` (deno is already
