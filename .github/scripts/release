@@ -84,7 +84,25 @@ if [[ -n $last ]]; then
   notes_args+=(-f previous_tag_name="$last")
 fi
 
-gh api "repos/{owner}/{repo}/releases/generate-notes" "${notes_args[@]}" --jq .body >"$notes"
+# Straight from the API the notes have no blank line after the heading and two
+# before the changelog link. Both render the same, but this file is opened in
+# an editor and read as markdown before it is rendered anywhere, so the source
+# is tidied on the way in: one blank line after a heading, never two in a row,
+# and none left at the end.
+tidy() {
+  awk '
+    $0 == "" { pending = 1; next }
+    {
+      if (printed && (pending || heading)) print ""
+      print
+      printed = 1
+      pending = 0
+      heading = ($0 ~ /^#+ /)
+    }
+  '
+}
+
+gh api "repos/{owner}/{repo}/releases/generate-notes" "${notes_args[@]}" --jq .body | tidy >"$notes"
 
 echo "release: review the notes; an editor error or empty notes cancels" >&2
 
