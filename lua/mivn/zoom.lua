@@ -1,5 +1,6 @@
 -- Ctrl with =, - or 0 zooms the window, the keys everything else on this
--- desktop zooms with.
+-- desktop zooms with. The numpad's + and - do the same, for the hand that is
+-- already there.
 --
 -- Neovide only. In a terminal these keys never reach nvim: foot takes
 -- Ctrl+= / Ctrl+- / Ctrl+0 itself and resizes its own font, which is the
@@ -40,11 +41,21 @@ local function by(step)
   end
 end
 
+-- The numpad keys sit next to the ones above rather than replace them: the
+-- keypad sends its own codes, so a <C-=> map never sees <C-kPlus>.
 vim.keymap.set(MODES, "<C-=>", by(STEP), {
   desc = "Zoom in",
 })
 
+vim.keymap.set(MODES, "<C-kPlus>", by(STEP), {
+  desc = "Zoom in",
+})
+
 vim.keymap.set(MODES, "<C-->", by(1 / STEP), {
+  desc = "Zoom out",
+})
+
+vim.keymap.set(MODES, "<C-kMinus>", by(1 / STEP), {
   desc = "Zoom out",
 })
 
