@@ -86,14 +86,24 @@ local function build(width, height)
   end
 
   local centered = center(byline, width)
-  body[#body + 1] = {
-    text = centered,
-    hl = "MivnDashboardByline",
-    name = true,
+  local row = { text = centered, hl = "MivnDashboardByline", name = true }
+
+  if running then
     -- center() only ever pads the left, so the difference is exactly where the
     -- text starts, and the version starts with it.
-    version = running and { from = #centered - #byline, to = #centered - #byline + #running } or nil,
-  }
+    local at = #centered - #byline
+    row.version = { from = at, to = at + #running }
+
+    -- How far past the release this checkout is gets its own color. Sitting on
+    -- a release there is no suffix at all, so a suffix is the one thing on the
+    -- row worth noticing, and it should not have to be read to be seen.
+    local plus = running:find("+", 1, true)
+    if plus then
+      row.ahead = { from = at + plus - 1, to = at + #running }
+    end
+  end
+
+  body[#body + 1] = row
 
   body[#body + 1] = { text = "" }
 
@@ -122,7 +132,13 @@ local function build(width, height)
   for _, entry in ipairs(body) do
     lines[#lines + 1] = entry.text
     if entry.hl then
-      marks[#marks + 1] = { row = #lines - 1, hl = entry.hl, name = entry.name, version = entry.version }
+      marks[#marks + 1] = {
+        row = #lines - 1,
+        hl = entry.hl,
+        name = entry.name,
+        version = entry.version,
+        ahead = entry.ahead,
+      }
     end
   end
 
@@ -149,11 +165,19 @@ function M.render(buf, win)
       hl_group = mark.hl,
     })
 
-    -- The release rides on the same row, at the front of it.
+    -- The release rides on the same row, at the front of it, with the distance
+    -- past it laid over the top of that again.
     if mark.version then
       vim.api.nvim_buf_set_extmark(buf, ns, mark.row, mark.version.from, {
         end_col = mark.version.to,
         hl_group = "MivnDashboardVersion",
+      })
+    end
+
+    if mark.ahead then
+      vim.api.nvim_buf_set_extmark(buf, ns, mark.row, mark.ahead.from, {
+        end_col = mark.ahead.to,
+        hl_group = "MivnDashboardVersionAhead",
       })
     end
 

@@ -515,6 +515,11 @@ hl({
   -- first and identity second, with the name the only accent on it.
   MivnDashboardVersion = { fg = c.bg6 },
 
+  -- The "+7" past that release, in the color this theme already gives modified
+  -- files, which is what a checkout past a release is. It only ever appears
+  -- where I develop, so it is allowed to be the brightest thing on the row.
+  MivnDashboardVersionAhead = { fg = c.yellow1 },
+
   -- The update notice, cool against a warm block so it reads as information
   -- rather than another piece of the art, and dim enough that a screen with
   -- nothing to say still looks the same as it always did.
