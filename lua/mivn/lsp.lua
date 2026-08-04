@@ -425,6 +425,23 @@ local function external_format(buf)
   return true
 end
 
+local ORGANIZE_IMPORTS = "source.organizeImports"
+
+--- Whether `kind` is the imports action that was asked for, or a refinement
+--- of it.
+---
+--- The request already names the kind it wants, and this checks the answer
+--- again, because a server is free to reply with whatever it likes. marksman
+--- answers a source.organizeImports request with its "Create a Table of
+--- Contents" action, kind `source`, and applying that on every write grew a
+--- table of contents in every markdown file this editor had ever saved, in
+--- silence. Kinds are dotted and hierarchical, so a refinement of the kind
+--- asked for counts (source.organizeImports.ts) and a parent of it does not.
+local function organizes_imports(kind)
+  kind = kind or ""
+  return kind == ORGANIZE_IMPORTS or kind:sub(1, #ORGANIZE_IMPORTS + 1) == ORGANIZE_IMPORTS .. "."
+end
+
 vim.api.nvim_create_autocmd("BufWritePre", {
   group = group,
   callback = function(ev)
@@ -442,19 +459,28 @@ vim.api.nvim_create_autocmd("BufWritePre", {
     for _, client in ipairs(clients) do
       if client:supports_method("textDocument/codeAction") then
         local params = vim.tbl_extend("force", vim.lsp.util.make_range_params(0, client.offset_encoding), {
-          context = { only = { "source.organizeImports" }, diagnostics = {} },
+          context = { only = { ORGANIZE_IMPORTS }, diagnostics = {} },
         })
 
         local responses = client:request_sync("textDocument/codeAction", params, 1000, ev.buf)
         for _, action in pairs((responses or {}).result or {}) do
-          if action.edit then
+          if action.edit and organizes_imports(action.kind) then
             vim.lsp.util.apply_workspace_edit(action.edit, client.offset_encoding)
           end
         end
       end
     end
 
-    vim.lsp.buf.format({ bufnr = ev.buf, timeout_ms = 2000 })
+    -- Only when one of them can. vim.lsp.buf.format says "no matching language
+    -- servers" into the message area otherwise, which is every markdown save,
+    -- marksman being attached and offering no formatter.
+    local formats = vim.iter(clients):any(function(client)
+      return client:supports_method("textDocument/formatting")
+    end)
+
+    if formats then
+      vim.lsp.buf.format({ bufnr = ev.buf, timeout_ms = 2000 })
+    end
   end,
 })
 
