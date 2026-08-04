@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+#
+# Cuts a release: a signed tag on main, and a GitHub release whose notes are
+# the pull requests merged since the last one.
+#
+#   release v0.2.0
+#
+# Versions are semver with a leading v: minor for a monthly batch, patch for a
+# fix between batches. A tag that is not semver is invisible to anything that
+# compares versions.
+#
+# `git tag -a` is never used here and must never be: -a on the command line
+# overrides tag.forceSignAnnotated, so it writes an unsigned annotated tag and
+# says nothing about it. GitHub does not catch that either, since a tag
+# ruleset's "require signed commits" checks the commit the tag points at, not
+# the tag object. `-s` plus the verify below is the whole guard.
+#
+# Releases are immutable and the "tags never move" ruleset blocks force-pushing
+# any tag, so a release that went out wrong is fixed by cutting the next patch
+# version, never by moving this one. The notes are the one part still editable
+# afterwards, on the release page.
+
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+die() {
+  echo "release: $1" >&2
+  exit 1
+}
+
+version="${1:?usage: release vMAJOR.MINOR.PATCH}"
+
+[[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "$version is not vMAJOR.MINOR.PATCH"
+
+# The tag names a commit everyone else can fetch, so main has to be exactly
+# what the remote carries: not a branch, not dirty, not ahead.
+[[ $(git branch --show-current) == "main" ]] || die "not on main"
+[[ -z $(git status --porcelain) ]] || die "the working tree is dirty"
+
+git fetch --quiet origin main
+[[ $(git rev-parse HEAD) == $(git rev-parse origin/main) ]] || die "main and origin/main disagree"
+
+if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
+  die "$version already exists locally"
+fi
+
+if git ls-remote --exit-code --tags origin "refs/tags/$version" >/dev/null 2>&1; then
+  die "$version already exists on the remote"
+fi
+
+git tag -s "$version" -m "$version"
+
+# Signing failing silently is the thing this script exists to prevent, so the
+# tag is read back before anything leaves the machine. Verifying needs the
+# signing key listed in gpg.ssh.allowedsignersfile.
+if ! git tag -v "$version" >/dev/null 2>&1; then
+  git tag -d "$version" >/dev/null
+  die "the tag did not verify, so nothing was pushed"
+fi
+
+git push origin "$version"
+
+# --verify-tag refuses to invent a tag if the push above did not land.
+gh release create "$version" --title "$version" --verify-tag --generate-notes
