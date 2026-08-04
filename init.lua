@@ -202,6 +202,18 @@ vim.opt.undofile = true -- undo survives closing the file
 vim.opt.splitbelow = true
 vim.opt.splitright = true
 
+-- An arrow at the end of a line carries on to the next one, and at column
+-- zero back to the end of the one above. Vim keeps every key inside the line
+-- unless 'whichwrap' names it, and the default names only Backspace and
+-- Space. Word motions never needed naming, which is why Ctrl+arrow already
+-- spanned lines here while a plain arrow stopped dead.
+--
+-- "<" and ">" are the arrows in Normal and Visual, "[" and "]" the ones in
+-- Insert. `h` and `l` are left out on purpose: the arrows are the CUA layer
+-- and may behave like every other editor, while the letters keep Vim's
+-- line-at-a-time meaning.
+vim.opt.whichwrap:append("<,>,[,]")
+
 -- Shift and an arrow selects, the one habit from Emacs and Zed worth carrying
 -- over. No mapping is involved: Vim already binds the shifted arrows to
 -- motions, and these three options decide that pressing one starts a selection

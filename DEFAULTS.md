@@ -210,6 +210,13 @@ extending it, while `hjkl` still extends. That is the price of shift-selection
 below, and it is the only place in this document where an arrow and its letter
 part company.
 
+A second difference, also this config's: an arrow crosses the line boundary
+_(mivn)_. At the end of a line `→` carries on to the start of the next, and at
+column zero `←` goes back to the end of the one above, in Normal, Visual and
+Insert alike. Vim stops at the boundary instead, and says which keys may cross
+in `'whichwrap'`. `h` and `l` are not among the ones let through here, so they
+still stop where Vim stops them.
+
 `hjkl` exists so the hand never leaves the home row, which matters less than it
 is made out to. Single-character movement is the least Vim-like way to get
 around whatever key drives it. The habit worth building is reaching for `w`,
