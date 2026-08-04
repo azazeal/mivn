@@ -29,7 +29,7 @@ vim.opt.number = true
 vim.opt.relativenumber = true
 
 vim.opt.cursorline = true
-vim.opt.scrolloff = 4
+vim.opt.scrolloff = 8
 vim.opt.signcolumn = "yes" -- always reserved, so text never shifts sideways
 
 -- The whitespace worth seeing: tabs, trailing spaces, and the non-breaking
