@@ -51,29 +51,22 @@ vim.keymap.set({ "n", "o" }, "<C-Left>", "b", {
 -- this key selects two words, because Vim runs the built-in WORD first while
 -- the selection is still one character wide, and the mapping's `w` lands on
 -- top of that.
-vim.keymap.set("n", "<C-S-Right>", "vw", {
-  desc = "Select to the start of the next word",
-})
+for _, sel in ipairs({
+  { lhs = "<C-S-Right>", motion = "w", word = "next" },
+  { lhs = "<C-S-Left>", motion = "b", word = "previous" },
+}) do
+  vim.keymap.set("n", sel.lhs, "v" .. sel.motion, {
+    desc = "Select to the start of the " .. sel.word .. " word",
+  })
 
-vim.keymap.set("x", "<C-S-Right>", "w", {
-  desc = "Extend the selection to the start of the next word",
-})
+  vim.keymap.set("x", sel.lhs, sel.motion, {
+    desc = "Extend the selection to the start of the " .. sel.word .. " word",
+  })
 
-vim.keymap.set("s", "<C-S-Right>", "<C-o>w", {
-  desc = "Extend the selection to the start of the next word",
-})
-
-vim.keymap.set("n", "<C-S-Left>", "vb", {
-  desc = "Select to the start of the previous word",
-})
-
-vim.keymap.set("x", "<C-S-Left>", "b", {
-  desc = "Extend the selection to the start of the previous word",
-})
-
-vim.keymap.set("s", "<C-S-Left>", "<C-o>b", {
-  desc = "Extend the selection to the start of the previous word",
-})
+  vim.keymap.set("s", sel.lhs, "<C-o>" .. sel.motion, {
+    desc = "Extend the selection to the start of the " .. sel.word .. " word",
+  })
+end
 
 -- Ctrl+Shift and a vertical arrow carries the line, or the selected lines,
 -- up or down. The chord is my own from Zed and VS Code, rebound to it in
@@ -91,24 +84,6 @@ vim.keymap.set("s", "<C-S-Left>", "<C-o>b", {
 -- holding the key walks the block through the file; the mapping also takes
 -- the key away from 'keymodel', which is the point rather than a loss, per
 -- the redundancy above.
-vim.keymap.set("n", "<C-S-Up>", "<Cmd>silent! move .-2<CR>", {
-  desc = "Move the line up",
-})
-
-vim.keymap.set("n", "<C-S-Down>", "<Cmd>silent! move .+1<CR>", {
-  desc = "Move the line down",
-})
-
-vim.keymap.set("x", "<C-S-Up>", ":<C-u>silent! '<,'>move '<-2<CR>gv", {
-  silent = true,
-  desc = "Move the selected lines up",
-})
-
-vim.keymap.set("x", "<C-S-Down>", ":<C-u>silent! '<,'>move '>+1<CR>gv", {
-  silent = true,
-  desc = "Move the selected lines down",
-})
-
 -- In Insert the completion menu is the land mine: while it is open the text
 -- is locked (:move dies with E565, silently here), and the menu is open a
 -- lot as I type. So the menu is dismissed first, and only then the line
@@ -119,15 +94,27 @@ local function insert_move(dst)
   end
 end
 
-vim.keymap.set("i", "<C-S-Up>", insert_move(".-2"), {
-  expr = true,
-  desc = "Move the line up",
-})
+-- `line` addresses the cursor's line, `lines` the selection, and they lean
+-- opposite ways: up moves to before the line above '<, down to after the
+-- line below '>.
+for _, mv in ipairs({
+  { lhs = "<C-S-Up>", line = ".-2", lines = "'<-2", word = "up" },
+  { lhs = "<C-S-Down>", line = ".+1", lines = "'>+1", word = "down" },
+}) do
+  vim.keymap.set("n", mv.lhs, "<Cmd>silent! move " .. mv.line .. "<CR>", {
+    desc = "Move the line " .. mv.word,
+  })
 
-vim.keymap.set("i", "<C-S-Down>", insert_move(".+1"), {
-  expr = true,
-  desc = "Move the line down",
-})
+  vim.keymap.set("x", mv.lhs, ":<C-u>silent! '<,'>move " .. mv.lines .. "<CR>gv", {
+    silent = true,
+    desc = "Move the selected lines " .. mv.word,
+  })
+
+  vim.keymap.set("i", mv.lhs, insert_move(mv.line), {
+    expr = true,
+    desc = "Move the line " .. mv.word,
+  })
+end
 
 -- Esc clears leftover search highlighting, which Vim otherwise keeps lit until
 -- :noh (Ctrl+L, a Neovim default, does the same plus a redraw). The real Esc
