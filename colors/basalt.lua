@@ -510,6 +510,11 @@ hl({
   MivnDashboardByline = { fg = c.bg7 },
   MivnDashboardName = { fg = c.orange, bold = true },
 
+  -- The release, one step back from the byline it sits on: the theme's
+  -- structural grey, the one line numbers use, so the row reads as metadata
+  -- first and identity second, with the name the only accent on it.
+  MivnDashboardVersion = { fg = c.bg6 },
+
   -- The update notice, cool against a warm block so it reads as information
   -- rather than another piece of the art, and dim enough that a screen with
   -- nothing to say still looks the same as it always did.

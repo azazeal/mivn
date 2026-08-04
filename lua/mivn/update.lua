@@ -93,6 +93,27 @@ local function version()
   return installed or nil
 end
 
+--- The release this checkout is on, as something to show a person.
+---
+--- The tag alone when HEAD sits exactly on one, and the pin format the rest of
+--- the repo already uses past it (v0.2.1+7, written by .github/scripts/repin),
+--- so a checkout ahead of a release never claims to be that release. Nothing
+--- about the working tree: I dirty this config all day and do not need a
+--- banner telling me so.
+---
+--- Deliberately not what version() returns. That one is compared with
+--- vim.version, where a +7 is build metadata and ignored, and the comparison
+--- wants the release itself anyway.
+local shown
+function M.running()
+  if shown == nil then
+    local described = here({ "describe", "--tags" })
+    shown = described and (described:gsub("%-(%d+)%-g%x+$", "+%1")) or false
+  end
+
+  return shown or nil
+end
+
 --- The public https URL for origin, whatever form origin is written in.
 ---
 --- ssh://git@github.com/o/r.git, git@github.com:o/r.git and the https URL all
@@ -346,7 +367,7 @@ local function pull()
         end
 
         -- The release moved, so the memo has to go; the banner asks again.
-        installed = nil
+        installed, shown = nil, nil
         vim.api.nvim_exec_autocmds("User", { pattern = "MivnUpdate", modeline = false })
 
         local told = ("Updated to %s. Run :restart to load it."):format(target)
