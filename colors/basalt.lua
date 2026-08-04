@@ -515,9 +515,11 @@ hl({
   -- first and identity second, with the name the only accent on it.
   MivnDashboardVersion = { fg = c.bg6 },
 
-  -- The "+7" past that release, in the color this theme already gives modified
-  -- files, which is what a checkout past a release is. It only ever appears
-  -- where I develop, so it is allowed to be the brightest thing on the row.
+  -- The count of commits past that release, in the color this theme already
+  -- gives modified files, which is what a checkout past a release is. The +
+  -- itself stays grey: the number is what the eye is being sent to. It only
+  -- ever appears where I develop, so it is allowed to be the brightest thing
+  -- on the row.
   MivnDashboardVersionAhead = { fg = c.yellow1 },
 
   -- The update notice, cool against a warm block so it reads as information

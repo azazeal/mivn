@@ -94,12 +94,14 @@ local function build(width, height)
     local at = #centered - #byline
     row.version = { from = at, to = at + #running }
 
-    -- How far past the release this checkout is gets its own color. Sitting on
-    -- a release there is no suffix at all, so a suffix is the one thing on the
-    -- row worth noticing, and it should not have to be read to be seen.
+    -- How far past the release this checkout is gets its own color, the count
+    -- alone and not the + in front of it, which stays grey with the version it
+    -- belongs to. Sitting on a release there is no suffix at all, so a suffix
+    -- is the one thing on the row worth noticing, and it should not have to be
+    -- read to be seen.
     local plus = running:find("+", 1, true)
     if plus then
-      row.ahead = { from = at + plus - 1, to = at + #running }
+      row.ahead = { from = at + plus, to = at + #running }
     end
   end
 
