@@ -114,6 +114,21 @@ function M.check()
   local store = require("mivn.store")
   local managed = require("mivn.lsp.managed")
 
+  health.start("mivn")
+  local update = require("mivn.update").report()
+  if not update.current then
+    health.info("no release tag here, so this config is not checked for updates")
+  elseif not update.latest then
+    health.info(("%s; the remote has not answered yet"):format(update.current))
+  elseif vim.version.gt(update.latest, update.current) then
+    health.warn(
+      ("%s is out, and this is %s"):format(update.latest, update.current),
+      ":MivnUpdate takes it, then :restart"
+    )
+  else
+    health.ok(("%s, the newest release"):format(update.current))
+  end
+
   health.start("managed language servers")
   local target, why = store.supported()
   if not target then

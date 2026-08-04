@@ -125,6 +125,12 @@ checked off; git remembers them.
     `git fetch` per plugin plus `git rev-list --count HEAD..origin/<branch>`,
     counted up into one line under the byline.
 
+    Half of that now exists. `lua/mivn/update.lua` already owns a line under
+    the byline, the once-a-day cache under `stdpath("state")`, and the
+    environment that keeps a background git off ssh; it asks about mivn's own
+    releases. The plugin count belongs on the same line, through the same
+    cache, not on a second one.
+
     **It must not touch an SSH key.** A global gitconfig can rewrite the
     https plugin URLs to ssh (`url.<base>.insteadOf`), and then a
     background fetch on a machine whose agent holds no key hangs on a

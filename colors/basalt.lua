@@ -509,6 +509,11 @@ hl({
   MivnDashboardTagline = { fg = c.bg7 },
   MivnDashboardByline = { fg = c.bg7 },
   MivnDashboardName = { fg = c.orange, bold = true },
+
+  -- The update notice, cool against a warm block so it reads as information
+  -- rather than another piece of the art, and dim enough that a screen with
+  -- nothing to say still looks the same as it always did.
+  MivnDashboardUpdate = { fg = c.blue2 },
 })
 
 --- The hidden cursor ---------------------------------------------------------
