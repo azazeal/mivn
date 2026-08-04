@@ -99,7 +99,8 @@ One line can appear under that banner _(mivn)_, and only one: a newer mivn
 release is out. The config directory is a git clone, so mivn asks GitHub once a
 day whether a release tag exists that this checkout does not have, and says
 nothing at all the rest of the time. `:MivnUpdate` takes it, as a fast-forward
-pull that refuses outright if the checkout has any changes of its own, and
+onto that release and not onto whatever the branch carries today, refused
+outright if the checkout has any changes of its own or is not on a branch;
 `:restart` is what actually loads the new files. `:checkhealth mivn` says the
 same thing when the banner is not on screen.
 
