@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
 # Cuts a release: a signed tag on main, and a GitHub release whose notes are
-# the pull requests merged since the last one.
+# the pull requests merged since the last one, opened in my editor first so I
+# can fix them before anyone sees them.
 #
 #   release v0.2.0
 #
@@ -48,6 +49,39 @@ if git ls-remote --exit-code --tags origin "refs/tags/$version" >/dev/null 2>&1;
   die "$version already exists on the remote"
 fi
 
+last=$(git describe --tags --abbrev=0 2>/dev/null || true)
+if [[ -n $last && $(git rev-list --count "$last..HEAD") -eq 0 ]]; then
+  die "nothing has landed since $last"
+fi
+
+# The notes come first, because generating them creates nothing: the API reads
+# the pull requests merged since the last release and hands them back. So the
+# review below happens while an abort still costs nothing, with no tag written
+# and nothing pushed.
+notes=$(mktemp)
+trap 'rm -f "$notes"' EXIT
+
+notes_args=(-f tag_name="$version" -f target_commitish="$(git rev-parse HEAD)")
+
+# Which release this one follows, said outright. Left to itself the API works
+# it out from the target commit and has been seen to reach past the last tag,
+# listing the whole history again.
+if [[ -n $last ]]; then
+  notes_args+=(-f previous_tag_name="$last")
+fi
+
+gh api "repos/{owner}/{repo}/releases/generate-notes" "${notes_args[@]}" --jq .body >"$notes"
+
+echo "release: review the notes; an editor error or empty notes cancels" >&2
+
+# git var, not $EDITOR: it answers with core.editor, $GIT_EDITOR, $VISUAL and
+# $EDITOR in git's own order, so the editor here is the one every other part
+# of the workflow already opens.
+editor=$(git var GIT_EDITOR)
+eval "$editor \"\$notes\"" || die "the editor exited with an error, nothing released"
+
+grep -q '[^[:space:]]' "$notes" || die "the notes are empty, so nothing was released"
+
 git tag -s "$version" -m "$version"
 
 # Signing failing silently is the thing this script exists to prevent, so the
@@ -60,5 +94,11 @@ fi
 
 git push origin "$version"
 
-# --verify-tag refuses to invent a tag if the push above did not land.
-gh release create "$version" --title "$version" --verify-tag --generate-notes
+# --verify-tag refuses to invent a tag if the push above did not land, and
+# --fail-on-no-commits is the same guard as the rev-list above, on GitHub's
+# side of the line this time.
+gh release create "$version" \
+  --title "$version" \
+  --notes-file "$notes" \
+  --verify-tag \
+  --fail-on-no-commits
