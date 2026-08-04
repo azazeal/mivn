@@ -75,6 +75,60 @@ vim.keymap.set("s", "<C-S-Left>", "<C-o>b", {
   desc = "Extend the selection to the start of the previous word",
 })
 
+-- Ctrl+Shift and a vertical arrow carries the line, or the selected lines,
+-- up or down. The chord is my own from Zed and VS Code, rebound to it in
+-- both, and it is free here: without a mapping it extended the selection by
+-- one line, which plain Shift already does.
+--
+-- Built on :move because `dd`/`p` would overwrite the clipboard on every
+-- press ('clipboard' is unnamedplus); :move touches no register. The customary
+-- reindent (`==`, and mini.move's default) is deliberately absent: it trusts
+-- the filetype's indent, and Rust's flattens a `.method()` chain line to
+-- column zero. The move is exact and indentation stays mine.
+--
+-- At the buffer's edges :move fails and `silent!` is what keeps that quiet;
+-- the key becomes a no-op instead of an error. In Visual, `gv` reselects, so
+-- holding the key walks the block through the file; the mapping also takes
+-- the key away from 'keymodel', which is the point rather than a loss, per
+-- the redundancy above.
+vim.keymap.set("n", "<C-S-Up>", "<Cmd>silent! move .-2<CR>", {
+  desc = "Move the line up",
+})
+
+vim.keymap.set("n", "<C-S-Down>", "<Cmd>silent! move .+1<CR>", {
+  desc = "Move the line down",
+})
+
+vim.keymap.set("x", "<C-S-Up>", ":<C-u>silent! '<,'>move '<-2<CR>gv", {
+  silent = true,
+  desc = "Move the selected lines up",
+})
+
+vim.keymap.set("x", "<C-S-Down>", ":<C-u>silent! '<,'>move '>+1<CR>gv", {
+  silent = true,
+  desc = "Move the selected lines down",
+})
+
+-- In Insert the completion menu is the land mine: while it is open the text
+-- is locked (:move dies with E565, silently here), and the menu is open a
+-- lot as I type. So the menu is dismissed first, and only then the line
+-- moves.
+local function insert_move(dst)
+  return function()
+    return (vim.fn.pumvisible() == 1 and "<C-e>" or "") .. "<Cmd>silent! move " .. dst .. "<CR>"
+  end
+end
+
+vim.keymap.set("i", "<C-S-Up>", insert_move(".-2"), {
+  expr = true,
+  desc = "Move the line up",
+})
+
+vim.keymap.set("i", "<C-S-Down>", insert_move(".+1"), {
+  expr = true,
+  desc = "Move the line down",
+})
+
 -- Esc clears leftover search highlighting, which Vim otherwise keeps lit until
 -- :noh (Ctrl+L, a Neovim default, does the same plus a redraw). The real Esc
 -- is sent on afterwards, so everything it already did still happens.
