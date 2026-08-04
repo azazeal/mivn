@@ -1,16 +1,5 @@
 # mivn
 
-<!--toc:start-->
-- [mivn](#mivn)
-  - [What I want from it](#what-i-want-from-it)
-  - [Installing](#installing)
-  - [Fonts](#fonts)
-  - [A remote window](#a-remote-window)
-  - [Local overrides](#local-overrides)
-  - [Layout](#layout)
-  - [The additions](#the-additions)
-<!--toc:end-->
-
 My Neovim configuration, written from scratch on Neovim 0.12, for Neovide on
 the desktop and the terminal everywhere else.
 

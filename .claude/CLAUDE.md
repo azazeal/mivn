@@ -1,14 +1,5 @@
 # mivn
 
-<!--toc:start-->
-- [mivn](#mivn)
-  - [Philosophy](#philosophy)
-  - [Conventions](#conventions)
-  - [Verify before calling anything done](#verify-before-calling-anything-done)
-  - [Releasing](#releasing)
-  - [Agents](#agents)
-<!--toc:end-->
-
 A personal Neovim config. The repo root is the config directory, cloned to
 `~/.config/nvim` (or run isolated: symlink the repo to `~/.config/mivn` and
 set `NVIM_APPNAME=mivn`, which is how this working copy is tested without
