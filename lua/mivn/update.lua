@@ -21,11 +21,12 @@
 -- :terminal must keep my real git config.
 --
 -- Nothing updates itself. The notice is the feature, and :MivnUpdate is me
--- saying yes to it: a fast-forward pull, refused outright if this checkout has
--- anything of its own in it, and never a restart. Neovim is running the Lua it
--- loaded at startup, so a pull under a live session changes files that nothing
--- re-reads until :restart, and the pins in plugins.lua move without the
--- plugins moving with them. Both of those are for me to do, once I am ready.
+-- saying yes to it: a fast-forward onto the release the notice named, refused
+-- outright if this checkout has anything of its own in it, and never a
+-- restart. Neovim is running the Lua it loaded at startup, so moving the files
+-- under a live session changes nothing that is read again until :restart, and
+-- the pins in plugins.lua move without the plugins moving with them. Both of
+-- those are for me to do, once I am ready.
 
 local M = {}
 
@@ -85,22 +86,38 @@ local function url()
   return ("https://github.com/%s"):format((path:gsub("%.git$", "")))
 end
 
---- The newest release tag in ls-remote output, as a "v1.2.3" string.
+--- The newest of `names`, as a "v1.2.3" string.
 ---
---- Annotated tags come back twice, the second as refs/tags/<name>^{} for the
---- commit they point at; the suffix comes off and the duplicate loses to
---- itself. Prereleases are skipped: I do not want to be told about an rc.
-local function newest(stdout)
+--- Prereleases are skipped: I do not want to be told about an rc, and I do not
+--- want to be moved onto one either. The remote's tags and this checkout's own
+--- go through here alike, so both ends of the comparison agree on what the
+--- newest release is.
+local function newest(names)
   local best
 
-  for tag in stdout:gmatch("refs/tags/(%S+)") do
-    local parsed = vim.version.parse((tag:gsub("%^{}$", "")))
+  for _, name in ipairs(names) do
+    local parsed = vim.version.parse(name)
     if parsed and not parsed.prerelease and (not best or vim.version.gt(parsed, best)) then
       best = parsed
     end
   end
 
   return best and ("v%s"):format(tostring(best)) or nil
+end
+
+--- The tag names in ls-remote output.
+---
+--- Annotated tags come back twice, the second as refs/tags/<name>^{} for the
+--- commit they point at; the suffix comes off and the duplicate loses to
+--- itself.
+local function advertised(stdout)
+  local names = {}
+
+  for tag in stdout:gmatch("refs/tags/(%S+)") do
+    names[#names + 1] = (tag:gsub("%^{}$", ""))
+  end
+
+  return names
 end
 
 local function read()
@@ -191,7 +208,7 @@ function M.check(force)
       return
     end
 
-    local latest = newest(out.stdout)
+    local latest = newest(advertised(out.stdout))
 
     vim.schedule(function()
       cached = { checked = os.time(), latest = latest }
@@ -204,42 +221,80 @@ function M.check(force)
   end)
 end
 
+--- git in the config directory, keeping my own git config.
+---
+--- The opposite of the check above, and deliberately: this one is allowed to
+--- use origin's real URL and my keys, because taking a release is exactly what
+--- they are for. BatchMode is what stops a machine with no key loaded from
+--- hanging on a passphrase prompt in a window with no way to answer it.
+local function take(args, on_exit)
+  return vim.system(vim.list_extend({ "git", "-C", vim.fn.stdpath("config") }, args), {
+    text = true,
+    timeout = 60000,
+    env = { GIT_TERMINAL_PROMPT = "0", GIT_SSH_COMMAND = "ssh -o BatchMode=yes" },
+  }, on_exit)
+end
+
+local function trouble(out)
+  return vim.trim(out.stderr ~= "" and out.stderr or out.stdout)
+end
+
 --- Take the release the notice is about.
 ---
---- --ff-only, so a checkout with commits of its own stops rather than growing
---- a merge; a dirty tree stops earlier still. Unlike the check, this one keeps
---- my real git config, since pulling is what origin's own URL and my keys are
---- for. BatchMode turns a machine with no key loaded into an error instead of
---- a passphrase prompt in a window with no way to answer it.
+--- A fast-forward onto the newest release tag, and not a pull of the branch:
+--- the branch moves on with every merge, so pulling it lands on whatever main
+--- happens to be today, which is not the version the banner named and is not
+--- a version I decided anything about. --ff-only means a checkout carrying
+--- commits of its own stops instead of growing a merge; a dirty tree and a
+--- detached HEAD stop earlier still.
 local function pull()
-  if not url() then
-    vim.notify("This config is not a git clone of a GitHub repository.", vim.log.levels.WARN)
+  -- An origin is all this needs, unlike the check, which has to build a URL it
+  -- can read without a key.
+  if not here({ "remote", "get-url", "origin" }) then
+    vim.notify("This config has no git remote to take anything from.", vim.log.levels.WARN)
+    return
+  end
+
+  -- Nothing to fast-forward without a branch, and `git checkout <tag>` is the
+  -- ordinary way into that state.
+  if not here({ "symbolic-ref", "-q", "HEAD" }) then
+    vim.notify("Your config is not on a branch. Run `git switch main` in it first.", vim.log.levels.WARN)
     return
   end
 
   if here({ "status", "--porcelain" }) then
-    vim.notify("Your config has changes of its own, so nothing was pulled.", vim.log.levels.WARN)
+    vim.notify("Your config has changes of its own, so nothing was taken.", vim.log.levels.WARN)
     return
   end
 
-  local before = here({ "rev-parse", "HEAD" })
-  vim.notify("Pulling...")
+  vim.notify("Fetching...")
 
-  vim.system({ "git", "-C", vim.fn.stdpath("config"), "pull", "--ff-only" }, {
-    text = true,
-    timeout = 60000,
-    env = { GIT_TERMINAL_PROMPT = "0", GIT_SSH_COMMAND = "ssh -o BatchMode=yes" },
-  }, function(out)
+  take({ "fetch", "--tags", "origin" }, function(fetched)
     vim.schedule(function()
-      if out.code ~= 0 then
-        local why = vim.trim(out.stderr ~= "" and out.stderr or out.stdout)
-        vim.notify("The pull failed:\n" .. why, vim.log.levels.ERROR)
+      if fetched.code ~= 0 then
+        vim.notify("The fetch failed:\n" .. trouble(fetched), vim.log.levels.ERROR)
         return
       end
 
-      local after = here({ "rev-parse", "HEAD" })
-      if after == before then
-        vim.notify("Already on the newest mivn.")
+      local target = newest(vim.split(here({ "tag", "--list", "v*" }) or "", "\n", { trimempty = true }))
+      if not target then
+        vim.notify("There are no releases to move to.", vim.log.levels.WARN)
+        return
+      end
+
+      -- Everything from here is local and immediate, so it runs in line rather
+      -- than nesting another callback under this one.
+      local before = here({ "rev-parse", "HEAD" })
+      local merged = take({ "merge", "--ff-only", target }):wait(30000)
+      if merged.code ~= 0 then
+        vim.notify(("Moving to %s failed:\n%s"):format(target, trouble(merged)), vim.log.levels.ERROR)
+        return
+      end
+
+      -- A fast-forward onto a release already behind this checkout is a
+      -- no-op that still exits 0, so what moved is the only honest answer.
+      if here({ "rev-parse", "HEAD" }) == before then
+        vim.notify(("Already on %s, or past it."):format(target))
         return
       end
 
@@ -248,7 +303,7 @@ local function pull()
       vim.api.nvim_exec_autocmds("User", { pattern = "MivnUpdate", modeline = false })
 
       local moved = here({ "diff", "--name-only", ("%s..HEAD"):format(before) }) or ""
-      local told = ("Updated to %s. Run :restart to load it."):format(version() or "the newest commit")
+      local told = ("Updated to %s. Run :restart to load it."):format(target)
       if moved:find("plugins.lua", 1, true) then
         told = told .. "\nPlugins moved too, so run :lua vim.pack.update() after that."
       end
