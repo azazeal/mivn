@@ -82,8 +82,8 @@ end
 -- inside the tree, Neovim's own text items everywhere else. Disabled entries
 -- stay visible, grayed.
 
---- The F2 rename: the floating prompt (lua/mivn/prompt.lua) holding the full
---- name, with the stem (the name minus its last extension) preselected in
+--- The rename on `e`: the floating prompt (lua/mivn/prompt.lua) holding the
+--- full name, with the stem (the name minus its last extension) preselected in
 --- Select mode. Typing replaces the stem, an arrow drops the selection and
 --- edits anything, extension included. nvim-tree's own rename does the
 --- actual work (buffer renames and tree refresh included), fed the new name

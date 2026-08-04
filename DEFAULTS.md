@@ -126,6 +126,8 @@ most of them are discovered by pressing one by accident.
 | `Ctrl+P` / `Ctrl+N` | A line up / down; completion in Insert mode |
 | `Ctrl+S` | Nothing in Normal mode; signature help in Insert and Select |
 | `Ctrl+Z` | Suspend |
+| `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / back to 100%, Neovide only _(mivn)_ |
+| `Ctrl+Shift+↑` / `Ctrl+Shift+↓` | Move the line, or the selected lines _(mivn)_ |
 | `q` | Starts recording a macro into the next key you press |
 | `Ctrl+W` / `Ctrl+U` in Insert | Delete the word / the line before the cursor |
 
@@ -195,7 +197,8 @@ Greek layout", which are otherwise guesswork.
 | `/` `?` | Command-line | Search forward / backward |
 
 `gv` reselects whatever you had selected last. Select mode is the one to know
-about here, because this config also puts it under Shift and the arrows: see
+about here, because the floating prompt and the tree's `e` rename come up in
+it, with the name preselected so typing replaces it: see
 [Selecting with Shift](#selecting-with-shift).
 
 ## Arrows
@@ -209,6 +212,13 @@ rather than from Vim: an unshifted arrow **ends** the selection instead of
 extending it, while `hjkl` still extends. That is the price of shift-selection
 below, and it is the only place in this document where an arrow and its letter
 part company.
+
+A second difference, also this config's: an arrow crosses the line boundary
+_(mivn)_. At the end of a line `→` carries on to the start of the next, and at
+column zero `←` goes back to the end of the one above, in Normal, Visual and
+Insert alike. Vim stops at the boundary instead, and says which keys may cross
+in `'whichwrap'`. `h` and `l` are not among the ones let through here, so they
+still stop where Vim stops them.
 
 `hjkl` exists so the hand never leaves the home row, which matters less than it
 is made out to. Single-character movement is the least Vim-like way to get
@@ -225,33 +235,37 @@ they just have no way to move in Insert mode without leaving it first.
 ### Selecting with Shift
 
 Shift and an arrow selects, the way it does in every other editor. No mapping is
-involved: `init.lua` sets `'keymodel'`, `'selectmode'` and `'selection'`, three
-options Vim ships for exactly this, and the keys were bound already.
-Shift+`←`/`→` extends by a character, Shift+`↑`/`↓` by a line,
-Ctrl+Shift+`←`/`→` by a word, Shift+Home/End to either end of the line. Typing
-replaces what is selected. A mouse drag selects the same way. `Esc` drops the
-selection and leaves you in the mode it started from, Insert or Normal.
+involved: `init.lua` sets `'keymodel'` and `'selection'`, two options Vim ships
+for exactly this, and the keys were bound already. Shift+`←`/`→` extends by a
+character, Shift+`↑`/`↓` by a line, Ctrl+Shift+`←`/`→` by a word _(mivn)_,
+Shift+Home/End to either end of the line, Shift+PageUp/PageDown by a page,
+stopping at the first and last line _(mivn)_. A mouse drag selects the same
+way. `Esc` drops the selection.
 
-What you land in is **Select mode**, which is Vim's own (`:h select-mode`) and
-not Visual. The two look identical and differ in exactly one thing: in Visual
-mode the letters you type are commands, in Select mode they replace the
-selection. The status line gives Select its own color so the two are never
-confused, and `Ctrl+G` switches between them when the selection is the one you
-wanted but the mode is not.
+What you land in is **Visual mode**, Vim's own, so a selection is only a
+selection and the whole grammar applies to it: `y` copies, `d` and `x` cut, `c`
+replaces, `>` indents, and a motion adjusts which text is picked out. With the
+clipboard setting in `init.lua`, that `y` and that `d` reach the system
+clipboard, so Ctrl+V in the browser gets what you just took.
 
-Copying a selection needs that switch, because `y` in Select mode replaces the
-selection with the letter y. `Ctrl+O` borrows Visual mode for a single command,
-so `Ctrl+O y` copies the selection and drops it; with the clipboard setting in
-`init.lua` that copy is on the system clipboard. `Ctrl+G` is the same idea when
-there is more than one command to run on it.
+The cost is that a stray letter is a command and not text. `X` deletes the whole
+line, `p` pastes over the selection, `u` lowercases it. Each of those is one `u`
+away from being undone, and none of them is quiet enough to miss.
 
-This is a bridge for the edit you make once, and the grammar is still the better
-tool for the edit you are about to make five more times. Renaming a word by
-Ctrl+Shift+`→` and typing `NEW` costs two undos, because the delete and the
-typing are separate changes, and `.` cannot repeat it: it replays the typing
-without the delete, so the next word comes out `NEWdelta` instead of replaced.
-`ciw` then `NEW` is one undo and repeats properly, so `w.` handles the next
-occurrence and the one after that.
+Vim's other selection mode, **Select** (`:h select-mode`), is the one where
+typing replaces the selection. `'selectmode'` would put the shifted keys and the
+mouse there and is deliberately unset: the one habit it bought cost `y` and `d`,
+which replaced the selection with a letter, and copying became `Ctrl+O y`. You
+still meet Select mode where it does earn its keep, in the floating prompt and
+the tree's `e` rename, which come up with the name preselected so typing
+replaces it. `gh` starts it by hand, `Ctrl+G` switches between the two, and the
+status line gives Select its own color so they are never confused.
+
+This is still a bridge for the edit you make once. Replacing a word with
+Ctrl+Shift+`→`, `c` and `NEW` is one change and one undo, but `.` repeats it
+over the same *number of characters* rather than over the next word, so it goes
+wrong as soon as the next word is a different length. `ciw` then `NEW` repeats
+properly, and `w.` handles the occurrence after that.
 
 The other cost is `'selection'`, which is `exclusive` here so that three presses
 of Shift+`→` select three characters and not four. What that costs elsewhere is
@@ -272,6 +286,7 @@ what it acts on.
 | `h` `l` or `←` `→` | Left / right |
 | `w` / `W` | Start of next word / WORD |
 | `b` / `B` | Start of previous word / WORD |
+| Ctrl+`→` / Ctrl+`←` | Start of next / previous word _(mivn)_ |
 | `e` / `E` | End of word / WORD |
 | `0` | Column zero |
 | `^` | First non-blank character |
@@ -285,6 +300,13 @@ what it acts on.
 
 A *word* stops at punctuation; a *WORD* is whitespace-delimited. In
 `foo.bar_baz`, `w` moves to `.` and `W` skips the whole thing.
+
+Ctrl and an arrow is the word here, not the WORD _(mivn)_. Vim gives the
+arrows both sizes, `w` on Shift and `W` on Ctrl, but Shift selects here
+instead, and the WORD alone crosses a whole `foo::bar(baz(r, g, b))` in one
+press. This is what Ctrl+`→` does in every other editor, and what it already
+did in Insert mode. It works after an operator too, so `d`+Ctrl+`→` is `dw`,
+and `W` / `B` are untouched.
 
 One deviation to know before the table: long lines do not wrap here _(mivn)_.
 Vim wraps by default; with the width markers saying when a line is too long,

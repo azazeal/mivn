@@ -112,3 +112,41 @@ vim.keymap.set({ "n", "x", "i" }, "<PageDown>", page(1), {
 vim.keymap.set({ "n", "x", "i" }, "<PageUp>", page(-1), {
   desc = "A page up, or the first line when there is no page left",
 })
+
+--- The shifted pair, selecting what the unshifted one flies over. Two things
+--- keep it from simply running page() inside a selection. 'keymodel' takes
+--- the raw shifted key and would run Vim's own page motion, the one whose
+--- edge behavior this module exists to fix, so the selection has to be
+--- opened here for the clamped version to apply at all. And "stopsel" ends a
+--- selection on Ctrl+F itself, measured on stock nvim, so the scroll branch
+--- would cut the selection short from inside it; the cursor moves by the
+--- page instead, and the view chases it.
+local function select_page(step)
+  return function()
+    if vim.api.nvim_get_mode().mode == "n" then
+      vim.cmd("normal! v")
+    end
+
+    local from = vim.api.nvim_win_get_cursor(0)[1]
+    local last = vim.api.nvim_buf_line_count(0)
+    local reach = vim.api.nvim_win_get_height(0) * vim.v.count1
+
+    if step > 0 then
+      goto_line(math.min(from + reach, last))
+    else
+      goto_line(math.max(from - reach, 1))
+    end
+  end
+end
+
+-- Not Insert: from there 'keymodel' still opens the selection itself, with the
+-- unclamped motion. Reproducing the open would mean leaving Insert by hand and
+-- re-anchoring the exclusive selection, and a page-selection mid-typing is not
+-- worth that trade yet; TODO.md if the edge ever bites there.
+vim.keymap.set({ "n", "x" }, "<S-PageDown>", select_page(1), {
+  desc = "Select a page down, to the last line when there is no page left",
+})
+
+vim.keymap.set({ "n", "x" }, "<S-PageUp>", select_page(-1), {
+  desc = "Select a page up, to the first line when there is no page left",
+})

@@ -22,6 +22,19 @@ checked off; git remembers them.
     version of this fix is upstream's to make. File it there, or carry a
     careful local one.
 
+- [ ] Ctrl+Shift and an arrow over-reaches in one sequence. Measured on
+    2026-08-04: one Shift+Right, then Ctrl+Shift+Right, selects two words
+    rather than one. With "startsel" in 'keymodel' and the selection still
+    one character wide (the cursor sitting on its own anchor), Vim runs the
+    key's built-in `W` first and the mapping in lua/mivn/cua.lua then adds
+    its `w` on top; an `<Nop>` in place of the mapping still moves, so the
+    built-in is not mine to stop. Every other order is right, including two
+    Shift+Rights and then Ctrl+Shift+Right. Taking shift-selection off
+    'keymodel' and mapping all eight keys by hand would fix it and costs
+    more than the bug does. The same one-character-wide state also costs
+    Shift+PageDown one extra line (measured: 90 -> 112 where a 21-line
+    window says 111), a milder case of the same thing.
+
 ## Languages
 
 - [ ] Check whether treesitter indentation beats the built-in ftplugins for
