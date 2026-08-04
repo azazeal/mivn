@@ -380,6 +380,12 @@ hl({
   MiniStatuslineModeCommand = { fg = c.bg0, bg = c.yellow, bold = true }, -- types
   MiniStatuslineModeOther = { fg = c.bg0, bg = c.cyan, bold = true }, -- terminal, rest
 
+  -- The branch in orange, the color my shell prompt already gives branch
+  -- names, so the statusline and the prompt say it in the same voice. The
+  -- dirty dot rides along: it is one token with the name, and yellow1 already
+  -- means "modified" elsewhere.
+  MivnStatuslineGit = { fg = c.orange, bg = c.bg3 },
+
   -- Two shades either side of the file name, so the line reads as three bands
   -- rather than one strip with text in it.
   MiniStatuslineDevinfo = { fg = c.fg, bg = c.bg3 },
