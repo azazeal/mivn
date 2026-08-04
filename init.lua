@@ -221,20 +221,27 @@ vim.opt.whichwrap:append("<,>,[,]")
 -- only gaining a selection: Shift+Up and Shift+Down are page motions in stock
 -- Neovim, one line here.
 --
--- All three are needed. 'keymodel' is what makes a shifted key start a
--- selection and an unshifted one end it. 'selectmode' makes that selection
--- Select rather than Visual, where the letters I type would run as commands
--- instead of replacing it. 'selection' has to be exclusive because the
--- inclusive default counts the character under the cursor, so typing over a
--- selection replaces one too many. "mouse" is there so a drag lands in Select
--- mode too; <C-g> switches between Select and Visual.
+-- 'keymodel' is what makes a shifted key start a selection and an unshifted
+-- one end it. What the selection lands in is Visual, Vim's own answer to "I
+-- have picked some text out": `y` copies it, `d` and `x` cut it, `c`
+-- replaces it, and a motion adjusts it. A mouse drag lands there too.
 --
--- Two costs. "stopsel" means an unshifted arrow ends a Visual selection
--- instead of extending it, so hjkl is how I adjust one. And exclusive takes
--- one character off a character-wise Visual yank: on "amm", `vlly` yanks "am".
+-- 'selectmode' would land it in Select instead, where the letters I type
+-- replace the selection rather than running as commands, and it is not set
+-- here. That one habit cost `y` and `d`, which replaced the selection with a
+-- letter, so copying what I had just picked out was <C-o> y. Select mode is
+-- still the mode the floating prompt and the tree's rename preselect in
+-- (lua/mivn/prompt.lua), and `gh` and <C-g> still reach it, which is why the
+-- status line goes on telling the two apart.
+--
+-- 'selection' is exclusive so that three presses of Shift+Right select three
+-- characters rather than four. prompt.lua's preselection counts on it too.
+--
+-- Two costs. "stopsel" means an unshifted arrow ends a selection instead of
+-- extending it, so hjkl is how I adjust one. And exclusive takes one
+-- character off a character-wise Visual yank: on "amm", `vlly` yanks "am".
 -- Text objects and operators are unaffected.
 vim.opt.keymodel = "startsel,stopsel"
-vim.opt.selectmode = "key,mouse"
 vim.opt.selection = "exclusive"
 
 -- The unnamed register and the system clipboard become one register, so `y`

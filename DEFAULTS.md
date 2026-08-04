@@ -196,7 +196,8 @@ Greek layout", which are otherwise guesswork.
 | `/` `?` | Command-line | Search forward / backward |
 
 `gv` reselects whatever you had selected last. Select mode is the one to know
-about here, because this config also puts it under Shift and the arrows: see
+about here, because the floating prompt and the tree's `e` rename come up in
+it, with the name preselected so typing replaces it: see
 [Selecting with Shift](#selecting-with-shift).
 
 ## Arrows
@@ -233,33 +234,36 @@ they just have no way to move in Insert mode without leaving it first.
 ### Selecting with Shift
 
 Shift and an arrow selects, the way it does in every other editor. No mapping is
-involved: `init.lua` sets `'keymodel'`, `'selectmode'` and `'selection'`, three
-options Vim ships for exactly this, and the keys were bound already.
-Shift+`←`/`→` extends by a character, Shift+`↑`/`↓` by a line,
-Ctrl+Shift+`←`/`→` by a word, Shift+Home/End to either end of the line. Typing
-replaces what is selected. A mouse drag selects the same way. `Esc` drops the
-selection and leaves you in the mode it started from, Insert or Normal.
+involved: `init.lua` sets `'keymodel'` and `'selection'`, two options Vim ships
+for exactly this, and the keys were bound already. Shift+`←`/`→` extends by a
+character, Shift+`↑`/`↓` by a line, Ctrl+Shift+`←`/`→` by a word _(mivn)_,
+Shift+Home/End to either end of the line. A mouse drag selects the same way.
+`Esc` drops the selection.
 
-What you land in is **Select mode**, which is Vim's own (`:h select-mode`) and
-not Visual. The two look identical and differ in exactly one thing: in Visual
-mode the letters you type are commands, in Select mode they replace the
-selection. The status line gives Select its own color so the two are never
-confused, and `Ctrl+G` switches between them when the selection is the one you
-wanted but the mode is not.
+What you land in is **Visual mode**, Vim's own, so a selection is only a
+selection and the whole grammar applies to it: `y` copies, `d` and `x` cut, `c`
+replaces, `>` indents, and a motion adjusts which text is picked out. With the
+clipboard setting in `init.lua`, that `y` and that `d` reach the system
+clipboard, so Ctrl+V in the browser gets what you just took.
 
-Copying a selection needs that switch, because `y` in Select mode replaces the
-selection with the letter y. `Ctrl+O` borrows Visual mode for a single command,
-so `Ctrl+O y` copies the selection and drops it; with the clipboard setting in
-`init.lua` that copy is on the system clipboard. `Ctrl+G` is the same idea when
-there is more than one command to run on it.
+The cost is that a stray letter is a command and not text. `X` deletes the whole
+line, `p` pastes over the selection, `u` lowercases it. Each of those is one `u`
+away from being undone, and none of them is quiet enough to miss.
 
-This is a bridge for the edit you make once, and the grammar is still the better
-tool for the edit you are about to make five more times. Renaming a word by
-Ctrl+Shift+`→` and typing `NEW` costs two undos, because the delete and the
-typing are separate changes, and `.` cannot repeat it: it replays the typing
-without the delete, so the next word comes out `NEWdelta` instead of replaced.
-`ciw` then `NEW` is one undo and repeats properly, so `w.` handles the next
-occurrence and the one after that.
+Vim's other selection mode, **Select** (`:h select-mode`), is the one where
+typing replaces the selection. `'selectmode'` would put the shifted keys and the
+mouse there and is deliberately unset: the one habit it bought cost `y` and `d`,
+which replaced the selection with a letter, and copying became `Ctrl+O y`. You
+still meet Select mode where it does earn its keep, in the floating prompt and
+the tree's `e` rename, which come up with the name preselected so typing
+replaces it. `gh` starts it by hand, `Ctrl+G` switches between the two, and the
+status line gives Select its own color so they are never confused.
+
+This is still a bridge for the edit you make once. Replacing a word with
+Ctrl+Shift+`→`, `c` and `NEW` is one change and one undo, but `.` repeats it
+over the same *number of characters* rather than over the next word, so it goes
+wrong as soon as the next word is a different length. `ciw` then `NEW` repeats
+properly, and `w.` handles the occurrence after that.
 
 The other cost is `'selection'`, which is `exclusive` here so that three presses
 of Shift+`→` select three characters and not four. What that costs elsewhere is
