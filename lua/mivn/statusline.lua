@@ -2,7 +2,10 @@
 -- ('laststatus' is 3), so it pairs with the tab bar at the top.
 --
 -- It carries the mode, because 'showmode' is off, which makes the mode block
--- the most important thing on the line and why it gets the accent color.
+-- the most important thing on the line and why it gets the accent color. The
+-- block is the color first and a letter second: the hue says the mode from
+-- across the room, the letter confirms it up close, and one letter keeps the
+-- block the same width in every mode, so nothing beside it ever shifts.
 
 local statusline = require("mini.statusline")
 
@@ -81,51 +84,59 @@ local function section_git()
     return ""
   end
   -- The dot is the whole dirty indicator; a count of changed files would be
-  -- another subprocess for what the gutter already says.
-  return " " .. git.branch .. (git.dirty and " ●" or "")
+  -- another subprocess for what the gutter already says. No leading space:
+  -- the group padding supplies it.
+  return git.branch .. (git.dirty and " ●" or "")
 end
 
 --- Sections -------------------------------------------------------------------
 
---- The mode, with Select mode told apart from Visual.
+--- The mode, one letter and its highlight.
 ---
---- mini.statusline hands `s`, `S` and CTRL-S the Visual highlight. The two
---- modes look the same on screen and differ in the one thing worth knowing: in
---- Visual the letters I type are commands, in Select they replace the
---- selection. So Select gets its own color. One table lookup per redraw.
-local select_modes = {
-  s = true,
-  S = true,
-  ["\19"] = true, -- CTRL-S, the block form, which mode() returns as a raw byte
+--- The line-wise and block-wise variants collapse into V and S: the selection
+--- itself already draws that difference on screen, so the block would only
+--- repeat it. Visual and Select stay apart, because nothing else on screen
+--- tells them apart and they differ in the one thing worth knowing: in Visual
+--- the letters I type are commands, in Select they replace the selection.
+--- mini.statusline hands both the Visual highlight, so Select carries its own.
+local modes = {
+  n = { "N", "MiniStatuslineModeNormal" },
+  i = { "I", "MiniStatuslineModeInsert" },
+
+  v = { "V", "MiniStatuslineModeVisual" },
+  V = { "V", "MiniStatuslineModeVisual" },
+  ["\22"] = { "V", "MiniStatuslineModeVisual" }, -- CTRL-V, a raw byte
+
+  s = { "S", "MiniStatuslineModeSelect" },
+  S = { "S", "MiniStatuslineModeSelect" },
+  ["\19"] = { "S", "MiniStatuslineModeSelect" }, -- CTRL-S, a raw byte
+
+  R = { "R", "MiniStatuslineModeReplace" },
+  c = { "C", "MiniStatuslineModeCommand" },
+
+  t = { "T", "MiniStatuslineModeOther" }, -- terminal
+  r = { "P", "MiniStatuslineModeOther" }, -- hit-enter and more prompts
+  ["!"] = { "X", "MiniStatuslineModeOther" }, -- a shell command running
 }
 
-local function section_mode(trunc_width)
-  local mode, mode_hl = statusline.section_mode({ trunc_width = trunc_width })
+local MODE_FALLBACK = { "O", "MiniStatuslineModeOther" } -- operator-pending
 
-  -- INSERT rather than Insert: the block is a signal, not a word in a
-  -- sentence, and caps read at a glance.
-  mode = mode:upper()
+local function section_mode()
+  -- mode() answers with the state first ("no", "niI", "Rv"), so the first
+  -- byte picks the letter; "no" is the exception, since its first byte reads
+  -- as Normal while an operator is waiting.
+  local mode = vim.fn.mode()
+  local entry = vim.startswith(mode, "no") and MODE_FALLBACK or modes[mode:sub(1, 1)] or MODE_FALLBACK
 
-  if select_modes[vim.fn.mode()] then
-    return mode, "MiniStatuslineModeSelect"
-  end
-
-  return mode, mode_hl
+  return entry[1], entry[2]
 end
 
---- What I am in the middle of: a half-typed command, or a macro recording.
----
---- `%S` is where 'showcmd' prints the command in progress, which init.lua
---- points here with 'showcmdloc'. It is the only thing on screen that says a
---- `d` or a half-typed count is still waiting, and it reserves about eleven
---- columns whether or not anything is pending.
----
---- The recording indicator is there because `q` starts a macro silently, and
---- 'showmode' being off took away the "recording @w" that said so.
-local function section_pending()
+--- The macro recording indicator: `q` starts one silently, and 'showmode'
+--- being off took away the "recording @w" that said so.
+local function section_recording()
   local rec = vim.fn.reg_recording()
 
-  return (rec ~= "" and ("rec @" .. rec .. " ") or "") .. "%S"
+  return rec ~= "" and ("rec @" .. rec) or ""
 end
 
 --- Is this a buffer holding a file, rather than a panel?
@@ -210,16 +221,18 @@ statusline.setup({
 
   content = {
     active = function()
-      local mode, mode_hl = section_mode(120)
+      local mode, mode_hl = section_mode()
 
       -- On a panel: the mode, the branch, and where the project is.
       if not is_file() then
         return statusline.combine_groups({
           { hl = mode_hl, strings = { mode } },
-          { hl = "MiniStatuslineDevinfo", strings = { section_pending(), section_git() } },
+          { hl = "MivnStatuslineGit", strings = { section_git() } },
+          { hl = "MiniStatuslineDevinfo", strings = { section_recording() } },
           "%<",
           { hl = "MiniStatuslineFilename", strings = { section_project() } },
           "%=",
+          { hl = "MiniStatuslineFileinfo", strings = { "%S" } },
         })
       end
 
@@ -228,14 +241,16 @@ statusline.setup({
 
       return statusline.combine_groups({
         { hl = mode_hl, strings = { mode } },
-        {
-          hl = "MiniStatuslineDevinfo",
-          strings = { section_pending(), section_git(), diagnostics, lsp },
-        },
+        { hl = "MivnStatuslineGit", strings = { section_git() } },
+        { hl = "MiniStatuslineDevinfo", strings = { section_recording(), diagnostics, lsp } },
         "%<", -- where the line is cut first when the window is narrow
         { hl = "MiniStatuslineFilename", strings = { section_filename() } },
         "%=", -- everything after this is pushed to the right
-        { hl = "MiniStatuslineFileinfo", strings = { section_search(75), section_filetype(120) } },
+        -- `%S` is where 'showcmd' prints the command in progress, which
+        -- init.lua points here with 'showcmdloc'. First slot after `%=` on
+        -- purpose: while a count or an operator is pending the group grows
+        -- leftward into the empty middle, so nothing beside it ever moves.
+        { hl = "MiniStatuslineFileinfo", strings = { "%S", section_search(75), section_filetype(120) } },
         { hl = mode_hl, strings = { LOCATION } },
       })
     end,
