@@ -42,8 +42,7 @@ local function git(args, on_exit)
   }, on_exit)
 end
 
---- git inside the config directory, for the questions with local answers.
-local function here(args)
+local function ask(args)
   local out = git(vim.list_extend({ "git", "-C", vim.fn.stdpath("config") }, args)):wait(5000)
   if out.code ~= 0 then
     return nil
@@ -51,6 +50,33 @@ local function here(args)
 
   local value = vim.trim(out.stdout)
   return value ~= "" and value or nil
+end
+
+--- git inside the config directory, for the questions with local answers, and
+--- only when that directory is a checkout in its own right.
+---
+--- The guard is the point: git searches upwards from -C, so a config directory
+--- that merely sits inside some other repository (a dotfiles repo holding all
+--- of ~/.config, say) answers every question below with that repository's tags
+--- and origin. Unguarded, this would go on to ask GitHub about the wrong
+--- project and offer to update a checkout that cannot be updated.
+---
+--- Comparing real paths and not the strings: running mivn through a
+--- ~/.config/mivn symlink makes toplevel report where the symlink leads, which
+--- never matches stdpath("config") as written.
+local rooted
+local function here(args)
+  if rooted == nil then
+    local top = ask({ "rev-parse", "--show-toplevel" })
+    local real = top and vim.uv.fs_realpath(top)
+    rooted = real ~= nil and real == vim.uv.fs_realpath(vim.fn.stdpath("config"))
+  end
+
+  if not rooted then
+    return nil
+  end
+
+  return ask(args)
 end
 
 --- The release this checkout is on, or nil when it is not a clone, has no
@@ -65,6 +91,27 @@ local function version()
   end
 
   return installed or nil
+end
+
+--- The release this checkout is on, as something to show a person.
+---
+--- The tag alone when HEAD sits exactly on one, and the pin format the rest of
+--- the repo already uses past it (v0.2.1+7, written by .github/scripts/repin),
+--- so a checkout ahead of a release never claims to be that release. Nothing
+--- about the working tree: I dirty this config all day and do not need a
+--- banner telling me so.
+---
+--- Deliberately not what version() returns. That one is compared with
+--- vim.version, where a +7 is build metadata and ignored, and the comparison
+--- wants the release itself anyway.
+local shown
+function M.running()
+  if shown == nil then
+    local described = here({ "describe", "--tags" })
+    shown = described and (described:gsub("%-(%d+)%-g%x+$", "+%1")) or false
+  end
+
+  return shown or nil
 end
 
 --- The public https URL for origin, whatever form origin is written in.
@@ -320,7 +367,7 @@ local function pull()
         end
 
         -- The release moved, so the memo has to go; the banner asks again.
-        installed = nil
+        installed, shown = nil, nil
         vim.api.nvim_exec_autocmds("User", { pattern = "MivnUpdate", modeline = false })
 
         local told = ("Updated to %s. Run :restart to load it."):format(target)

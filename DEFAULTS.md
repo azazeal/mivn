@@ -95,6 +95,11 @@ drawn, and where it lands makes no difference to anything. There is nothing
 there to edit, so the keys that would try (`i`, `a`, `x`, `dd` and the rest) say
 so on the status line instead of failing.
 
+The byline under it says which release you are running _(mivn)_: `v0.2.1 by
+@azazeal`, or `v0.2.1+7` when the checkout sits that many commits past the
+release, which is the same way `plugins.lua` writes its pins. A checkout with
+no release to name drops it and the byline reads as it always did.
+
 One line can appear under that banner _(mivn)_, and only one: a newer mivn
 release is out. The config directory is a git clone, so mivn asks GitHub once a
 day whether a release tag exists that this checkout does not have, and says

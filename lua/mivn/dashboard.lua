@@ -73,11 +73,40 @@ local function build(width, height)
   body[#body + 1] = { text = "" }
   body[#body + 1] = { text = center(tagline, width), hl = "MivnDashboardTagline" }
   body[#body + 1] = { text = "" }
-  body[#body + 1] = {
-    text = center(byline_prefix .. byline_name, width),
-    hl = "MivnDashboardByline",
-    name = true,
-  }
+
+  -- The release rides in front of the byline rather than on a line of its own:
+  -- it is what this copy is, said next to whose it is, and it costs no row.
+  -- The name stays last on the row, which is what the highlight below counts
+  -- backwards from. A checkout with no release to name drops it and the row
+  -- reads as it always did.
+  local running = require("mivn.update").running()
+  local byline = byline_prefix .. byline_name
+  if running then
+    byline = running .. " " .. byline
+  end
+
+  local centered = center(byline, width)
+  local row = { text = centered, hl = "MivnDashboardByline", name = true }
+
+  if running then
+    -- center() only ever pads the left, so the difference is exactly where the
+    -- text starts, and the version starts with it.
+    local at = #centered - #byline
+    row.version = { from = at, to = at + #running }
+
+    -- How far past the release this checkout is gets its own color, the count
+    -- alone and not the + in front of it, which stays grey with the version it
+    -- belongs to. Sitting on a release there is no suffix at all, so a suffix
+    -- is the one thing on the row worth noticing, and it should not have to be
+    -- read to be seen.
+    local plus = running:find("+", 1, true)
+    if plus then
+      row.ahead = { from = at + plus, to = at + #running }
+    end
+  end
+
+  body[#body + 1] = row
+
   body[#body + 1] = { text = "" }
 
   for _, hint in ipairs(hints) do
@@ -105,7 +134,13 @@ local function build(width, height)
   for _, entry in ipairs(body) do
     lines[#lines + 1] = entry.text
     if entry.hl then
-      marks[#marks + 1] = { row = #lines - 1, hl = entry.hl, name = entry.name }
+      marks[#marks + 1] = {
+        row = #lines - 1,
+        hl = entry.hl,
+        name = entry.name,
+        version = entry.version,
+        ahead = entry.ahead,
+      }
     end
   end
 
@@ -131,6 +166,22 @@ function M.render(buf, win)
       end_col = #line,
       hl_group = mark.hl,
     })
+
+    -- The release rides on the same row, at the front of it, with the distance
+    -- past it laid over the top of that again.
+    if mark.version then
+      vim.api.nvim_buf_set_extmark(buf, ns, mark.row, mark.version.from, {
+        end_col = mark.version.to,
+        hl_group = "MivnDashboardVersion",
+      })
+    end
+
+    if mark.ahead then
+      vim.api.nvim_buf_set_extmark(buf, ns, mark.row, mark.ahead.from, {
+        end_col = mark.ahead.to,
+        hl_group = "MivnDashboardVersionAhead",
+      })
+    end
 
     -- The name rides on the byline's row, highlighted over the top of it.
     if mark.name then

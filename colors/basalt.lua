@@ -510,6 +510,18 @@ hl({
   MivnDashboardByline = { fg = c.bg7 },
   MivnDashboardName = { fg = c.orange, bold = true },
 
+  -- The release, one step back from the byline it sits on: the theme's
+  -- structural grey, the one line numbers use, so the row reads as metadata
+  -- first and identity second, with the name the only accent on it.
+  MivnDashboardVersion = { fg = c.bg6 },
+
+  -- The count of commits past that release, in the color this theme already
+  -- gives modified files, which is what a checkout past a release is. The +
+  -- itself stays grey: the number is what the eye is being sent to. It only
+  -- ever appears where I develop, so it is allowed to be the brightest thing
+  -- on the row.
+  MivnDashboardVersionAhead = { fg = c.yellow1 },
+
   -- The update notice, cool against a warm block so it reads as information
   -- rather than another piece of the art, and dim enough that a screen with
   -- nothing to say still looks the same as it always did.
