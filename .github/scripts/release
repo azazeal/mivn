@@ -33,6 +33,23 @@ version="${1:?usage: release vMAJOR.MINOR.PATCH}"
 
 [[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "$version is not vMAJOR.MINOR.PATCH"
 
+# Reviewing the notes is the whole point of the editor below, and both of the
+# ways that review can be skipped are silent: an editor with no terminal to
+# draw on returns straight away, and so does an editor that is `true`. Neither
+# says anything, the notes come back unchanged and readable, and the release
+# goes out with whatever the API wrote. Both are checked here, before the tag
+# and before the API call, because a release cannot be taken back afterwards.
+[[ -t 0 && -t 1 ]] || die "there is no terminal, so the notes cannot be reviewed"
+
+# git var, not $EDITOR: it answers with core.editor, $GIT_EDITOR, $VISUAL and
+# $EDITOR in git's own order, so the editor here is the one every other part
+# of the workflow already opens.
+editor=$(git var GIT_EDITOR)
+
+case ${editor##*/} in
+  true | : | false | cat) die "the editor is $editor, which reviews nothing" ;;
+esac
+
 # The tag names a commit everyone else can fetch, so this cuts from main at
 # exactly what the remote carries. Getting there is this script's job and not
 # mine to remember: whatever branch I am on, it switches and fast-forwards.
@@ -106,10 +123,6 @@ gh api "repos/{owner}/{repo}/releases/generate-notes" "${notes_args[@]}" --jq .b
 
 echo "release: review the notes; an editor error or empty notes cancels" >&2
 
-# git var, not $EDITOR: it answers with core.editor, $GIT_EDITOR, $VISUAL and
-# $EDITOR in git's own order, so the editor here is the one every other part
-# of the workflow already opens.
-editor=$(git var GIT_EDITOR)
 eval "$editor \"\$notes\"" || die "the editor exited with an error, nothing released"
 
 grep -q '[^[:space:]]' "$notes" || die "the notes are empty, so nothing was released"
