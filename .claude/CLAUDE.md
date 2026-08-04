@@ -5,6 +5,7 @@
   - [Philosophy](#philosophy)
   - [Conventions](#conventions)
   - [Verify before calling anything done](#verify-before-calling-anything-done)
+  - [Releasing](#releasing)
   - [Agents](#agents)
 <!--toc:end-->
 
@@ -48,6 +49,18 @@ direnv are up to the executing environment and not this repo.
   must print `ok` with no errors (needs the `~/.config/mivn` symlink above).
   Headless boot does not exercise UI paths; drive them with `:normal` or
   feedkeys when a change touches one.
+
+## Releasing
+
+- Work happens on a branch and lands on `main` through a pull request; `main`
+  takes no direct pushes, and I run the merge myself.
+- A release is `.github/scripts/release vX.Y.Z`, never the git and gh commands
+  by hand: it is the only thing standing between a slipped `git tag -a` and an
+  unsigned tag, which nothing on GitHub's side rejects. Its header comment
+  says why.
+- Releases are immutable and tags cannot be moved, so a bad release is
+  followed by the next patch version, not repaired. Only the notes can still
+  be edited.
 
 ## Agents
 

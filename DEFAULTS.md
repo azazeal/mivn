@@ -95,6 +95,14 @@ drawn, and where it lands makes no difference to anything. There is nothing
 there to edit, so the keys that would try (`i`, `a`, `x`, `dd` and the rest) say
 so on the status line instead of failing.
 
+One line can appear under that banner _(mivn)_, and only one: a newer mivn
+release is out. The config directory is a git clone, so mivn asks GitHub once a
+day whether a release tag exists that this checkout does not have, and says
+nothing at all the rest of the time. `:MivnUpdate` takes it, as a fast-forward
+pull that refuses outright if the checkout has any changes of its own, and
+`:restart` is what actually loads the new files. `:checkhealth mivn` says the
+same thing when the banner is not on screen.
+
 ### Chords your hands already have
 
 Every one of these is a key some other editor taught you to press without

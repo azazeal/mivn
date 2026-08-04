@@ -273,6 +273,7 @@ require("mivn.prompt") -- vim.ui.input as a float instead of the bottom bar
 require("mivn.whichkey") -- shows what can follow a key I started typing
 require("mivn.session") -- what happens when buffers and windows run out
 require("mivn.dashboard") -- the landing buffer
+require("mivn.update") -- whether a newer mivn is out, said once on the banner
 require("mivn.tree") -- the file tree, loaded after the dashboard claims a window
 require("mivn.tabline") -- the buffer tab bar
 require("mivn.statusline") -- the status line, and where the mode is shown

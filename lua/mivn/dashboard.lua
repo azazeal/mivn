@@ -84,6 +84,18 @@ local function build(width, height)
     body[#body + 1] = { text = center(hint, width), hl = "MivnDashboardTagline" }
   end
 
+  -- The one line here that asks for anything, and only when there is
+  -- something to ask for; lua/mivn/update.lua answers nil the rest of the
+  -- time, which is nearly always.
+  local update = require("mivn.update").status()
+  if update then
+    body[#body + 1] = { text = "" }
+    body[#body + 1] = {
+      text = center(("%s is out; :MivnUpdate takes it"):format(update.latest), width),
+      hl = "MivnDashboardUpdate",
+    }
+  end
+
   -- Vertical centering: blank rows above the block so it sits in the middle.
   local top = math.max(0, math.floor((height - #body) / 2))
   for _ = 1, top do
@@ -203,24 +215,36 @@ function M.open()
   -- included: the tree opens beside this buffer a tick after startup, which
   -- used to leave the banner centered for the full editor width. Scheduled,
   -- because WinNew fires while the new window's columns are still being dealt.
-  vim.api.nvim_create_autocmd({ "VimResized", "WinResized", "WinNew", "WinClosed" }, {
-    group = vim.api.nvim_create_augroup("mivn.dashboard.render", { clear = true }),
-    callback = function()
+  local function redraw()
+    if not vim.api.nvim_buf_is_valid(buf) then
+      return true -- the banner is gone, and the autocmd goes with it
+    end
+
+    vim.schedule(function()
       if not vim.api.nvim_buf_is_valid(buf) then
-        return true -- the banner is gone, and the autocmd goes with it
+        return
       end
 
-      vim.schedule(function()
-        if not vim.api.nvim_buf_is_valid(buf) then
-          return
-        end
+      local shown_in = vim.fn.bufwinid(buf)
+      if shown_in ~= -1 then
+        M.render(buf, shown_in)
+      end
+    end)
+  end
 
-        local shown_in = vim.fn.bufwinid(buf)
-        if shown_in ~= -1 then
-          M.render(buf, shown_in)
-        end
-      end)
-    end,
+  local group = vim.api.nvim_create_augroup("mivn.dashboard.render", { clear = true })
+
+  vim.api.nvim_create_autocmd({ "VimResized", "WinResized", "WinNew", "WinClosed" }, {
+    group = group,
+    callback = redraw,
+  })
+
+  -- The update check answers a couple of seconds after startup, well after
+  -- this buffer was drawn, so its line has to arrive on its own.
+  vim.api.nvim_create_autocmd("User", {
+    group = group,
+    pattern = "MivnUpdate",
+    callback = redraw,
   })
 
   return buf

@@ -3,10 +3,12 @@
 -- tag and the commit date beside it, so this file says exactly what is
 -- installed; nvim-pack-lock.json is a cache of the same and never disagrees.
 --
--- Moving a pin forward is .github/scripts/repin's job: `repin strip`, then
--- `:lua vim.pack.update()`, then `repin write`. The weekly workflow does
--- that and opens a PR with the result. Details and trade-offs live with each
--- plugin's setup in lua/mivn/.
+-- Moving a pin forward is .github/scripts/repin's job. The weekly workflow
+-- runs `repin pick 14`, which takes every plugin to the newest release that
+-- has been out for two weeks, and opens a PR with the result. By hand it is
+-- `repin strip`, then `:lua vim.pack.update()`, then `repin write`, which
+-- shows me the changelogs and waits for nothing. Details and trade-offs live
+-- with each plugin's setup in lua/mivn/.
 vim.pack.add({
   -- The basics: syntax, language servers, the file tree.
 
