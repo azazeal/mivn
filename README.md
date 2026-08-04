@@ -78,6 +78,12 @@ terminal's. In Neovide it comes from Neovide's own
 per-screen choice, and an editor config has no way to make that choice well;
 Neovim cannot even ask the compositor for the monitor's physical size.
 
+Under Neovide, `Ctrl+=`, `Ctrl+-` and `Ctrl+0` zoom in, out and back to 100%.
+They scale what that file asked for rather than writing a size anywhere, so
+100% keeps meaning whatever the file says. The step is foot's, near enough,
+and it stops at half and at triple. In a terminal the keys are not mivn's to
+take: foot has them and resizes its own font.
+
 ## A remote window
 
 Neovim can run on one machine with its window on another: Neovide attaching

@@ -280,6 +280,7 @@ require("mivn.cua") -- the CUA edit keys that are mappings rather than options
 require("mivn.restart") -- :restart, refused when the window is remote
 require("mivn.terminal") -- the terminal panel and its toggle
 require("mivn.margins") -- the 80/100/120 width markers
+require("mivn.zoom") -- Ctrl and =, - or 0, under Neovide alone
 require("mivn.find") -- fuzzy finding, and the few keys Vim has no default for
 require("mivn.prompt") -- vim.ui.input as a float instead of the bottom bar
 require("mivn.whichkey") -- shows what can follow a key I started typing
