@@ -31,7 +31,9 @@ checked off; git remembers them.
     built-in is not mine to stop. Every other order is right, including two
     Shift+Rights and then Ctrl+Shift+Right. Taking shift-selection off
     'keymodel' and mapping all eight keys by hand would fix it and costs
-    more than the bug does.
+    more than the bug does. The same one-character-wide state also costs
+    Shift+PageDown one extra line (measured: 90 -> 112 where a 21-line
+    window says 111), a milder case of the same thing.
 
 ## Languages
 

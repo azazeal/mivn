@@ -238,8 +238,9 @@ Shift and an arrow selects, the way it does in every other editor. No mapping is
 involved: `init.lua` sets `'keymodel'` and `'selection'`, two options Vim ships
 for exactly this, and the keys were bound already. Shift+`←`/`→` extends by a
 character, Shift+`↑`/`↓` by a line, Ctrl+Shift+`←`/`→` by a word _(mivn)_,
-Shift+Home/End to either end of the line. A mouse drag selects the same way.
-`Esc` drops the selection.
+Shift+Home/End to either end of the line, Shift+PageUp/PageDown by a page,
+stopping at the first and last line _(mivn)_. A mouse drag selects the same
+way. `Esc` drops the selection.
 
 What you land in is **Visual mode**, Vim's own, so a selection is only a
 selection and the whole grammar applies to it: `y` copies, `d` and `x` cut, `c`
