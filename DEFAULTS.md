@@ -272,6 +272,7 @@ what it acts on.
 | `h` `l` or `←` `→` | Left / right |
 | `w` / `W` | Start of next word / WORD |
 | `b` / `B` | Start of previous word / WORD |
+| Ctrl+`→` / Ctrl+`←` | Start of next / previous word _(mivn)_ |
 | `e` / `E` | End of word / WORD |
 | `0` | Column zero |
 | `^` | First non-blank character |
@@ -285,6 +286,13 @@ what it acts on.
 
 A *word* stops at punctuation; a *WORD* is whitespace-delimited. In
 `foo.bar_baz`, `w` moves to `.` and `W` skips the whole thing.
+
+Ctrl and an arrow is the word here, not the WORD _(mivn)_. Vim gives the
+arrows both sizes, `w` on Shift and `W` on Ctrl, but Shift selects here
+instead, and the WORD alone crosses a whole `foo::bar(baz(r, g, b))` in one
+press. This is what Ctrl+`→` does in every other editor, and what it already
+did in Insert mode. It works after an operator too, so `d`+Ctrl+`→` is `dw`,
+and `W` / `B` are untouched.
 
 One deviation to know before the table: long lines do not wrap here _(mivn)_.
 Vim wraps by default; with the width markers saying when a line is too long,
