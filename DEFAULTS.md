@@ -127,7 +127,7 @@ most of them are discovered by pressing one by accident.
 | `Ctrl+S` | Nothing in Normal mode; signature help in Insert and Select |
 | `Ctrl+Z` | Suspend |
 | `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / back to 100%, Neovide only _(mivn)_ |
-| `Ctrl+numpad +` / `Ctrl+numpad -` | Zoom in / out, Neovide only _(mivn)_ |
+| `Ctrl+numpad +` / `Ctrl+numpad -` / `Ctrl+numpad 0` | Zoom in / out / back to 100%, Neovide only _(mivn)_ |
 | `Ctrl+Shift+↑` / `Ctrl+Shift+↓` | Move the line, or the selected lines _(mivn)_ |
 | `q` | Starts recording a macro into the next key you press |
 | `Ctrl+W` / `Ctrl+U` in Insert | Delete the word / the line before the cursor |
