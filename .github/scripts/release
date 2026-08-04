@@ -33,13 +33,21 @@ version="${1:?usage: release vMAJOR.MINOR.PATCH}"
 
 [[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "$version is not vMAJOR.MINOR.PATCH"
 
-# The tag names a commit everyone else can fetch, so main has to be exactly
-# what the remote carries: not a branch, not dirty, not ahead.
-[[ $(git branch --show-current) == "main" ]] || die "not on main"
+# The tag names a commit everyone else can fetch, so this cuts from main at
+# exactly what the remote carries. Getting there is this script's job and not
+# mine to remember: whatever branch I am on, it switches and fast-forwards.
+# Only a dirty tree stops it, because that is the one state where switching
+# would take my changes along with it.
 [[ -z $(git status --porcelain) ]] || die "the working tree is dirty"
 
 git fetch --quiet origin main
-[[ $(git rev-parse HEAD) == $(git rev-parse origin/main) ]] || die "main and origin/main disagree"
+
+if [[ $(git branch --show-current) != "main" ]]; then
+  echo "release: switching to main" >&2
+  git switch --quiet main
+fi
+
+git merge --quiet --ff-only origin/main || die "main has commits the remote does not"
 
 if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
   die "$version already exists locally"

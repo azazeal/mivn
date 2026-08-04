@@ -247,6 +247,11 @@ end
 --- a version I decided anything about. --ff-only means a checkout carrying
 --- commits of its own stops instead of growing a merge; a dirty tree and a
 --- detached HEAD stop earlier still.
+---
+--- The fetch happens before the question, because what is worth asking about
+--- is what the release actually carries: how many commits, and whether the
+--- plugins move with it. Fetching alone changes nothing here, so an answer of
+--- no leaves this checkout exactly as it was.
 local function pull()
   -- An origin is all this needs, unlike the check, which has to build a URL it
   -- can read without a key.
@@ -284,31 +289,47 @@ local function pull()
 
       -- Everything from here is local and immediate, so it runs in line rather
       -- than nesting another callback under this one.
-      local before = here({ "rev-parse", "HEAD" })
-      local merged = take({ "merge", "--ff-only", target }):wait(30000)
-      if merged.code ~= 0 then
-        vim.notify(("Moving to %s failed:\n%s"):format(target, trouble(merged)), vim.log.levels.ERROR)
-        return
-      end
-
-      -- A fast-forward onto a release already behind this checkout is a
-      -- no-op that still exits 0, so what moved is the only honest answer.
-      if here({ "rev-parse", "HEAD" }) == before then
+      --
+      -- A release this checkout already has, or sits past, is nothing to ask
+      -- about: a fast-forward onto it would be a no-op that still exits 0.
+      if take({ "merge-base", "--is-ancestor", target, "HEAD" }):wait(5000).code == 0 then
         vim.notify(("Already on %s, or past it."):format(target))
         return
       end
 
-      -- The release moved, so the memo has to go; the banner asks again.
-      installed = nil
-      vim.api.nvim_exec_autocmds("User", { pattern = "MivnUpdate", modeline = false })
+      local span = ("HEAD..%s"):format(target)
+      local commits = #vim.split(here({ "log", "--oneline", span }) or "", "\n", { trimempty = true })
+      local plugins = (here({ "diff", "--name-only", span }) or ""):find("plugins.lua", 1, true) ~= nil
 
-      local moved = here({ "diff", "--name-only", ("%s..HEAD"):format(before) }) or ""
-      local told = ("Updated to %s. Run :restart to load it."):format(target)
-      if moved:find("plugins.lua", 1, true) then
-        told = told .. "\nPlugins moved too, so run :lua vim.pack.update() after that."
-      end
+      vim.ui.select({ "Take it", "Not now" }, {
+        prompt = ("%s is out: %d commit%s%s. Take it?"):format(
+          target,
+          commits,
+          commits == 1 and "" or "s",
+          plugins and ", plugins included" or ""
+        ),
+      }, function(_, idx)
+        if idx ~= 1 then
+          return
+        end
 
-      vim.notify(told)
+        local merged = take({ "merge", "--ff-only", target }):wait(30000)
+        if merged.code ~= 0 then
+          vim.notify(("Moving to %s failed:\n%s"):format(target, trouble(merged)), vim.log.levels.ERROR)
+          return
+        end
+
+        -- The release moved, so the memo has to go; the banner asks again.
+        installed = nil
+        vim.api.nvim_exec_autocmds("User", { pattern = "MivnUpdate", modeline = false })
+
+        local told = ("Updated to %s. Run :restart to load it."):format(target)
+        if plugins then
+          told = told .. "\nPlugins moved too, so run :lua vim.pack.update() after that."
+        end
+
+        vim.notify(told)
+      end)
     end)
   end)
 end
