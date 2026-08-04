@@ -58,8 +58,14 @@ fi
 # the pull requests merged since the last release and hands them back. So the
 # review below happens while an abort still costs nothing, with no tag written
 # and nothing pushed.
-notes=$(mktemp)
-trap 'rm -f "$notes"' EXIT
+#
+# A whole directory for one file, because the name has to end in .md: this is
+# the one file I hand-edit every release, and without the extension the editor
+# reads no filetype off it, so the notes open as plain text with no
+# highlighting, no `gq` and no spell check. A suffix after mktemp's template is
+# not portable, a temporary directory is.
+notes=$(mktemp -d)/notes.md
+trap 'rm -rf "$(dirname "$notes")"' EXIT
 
 notes_args=(-f tag_name="$version" -f target_commitish="$(git rev-parse HEAD)")
 
