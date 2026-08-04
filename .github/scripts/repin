@@ -3,6 +3,10 @@
 # Rewrites the version pins in lua/mivn/plugins.lua, so that file stays the
 # source of truth and nvim-pack-lock.json stays a cache of it.
 #
+#   repin pick N  Pin every entry to the newest thing that has been out for at
+#                 least N days: the newest release for plugins that cut them,
+#                 the newest commit for the ones that follow a branch. Also
+#                 refreshes the comments, the way write does.
 #   repin strip   Replace every commit pin with what the plugin follows: a
 #                 semver range for plugins that cut releases, so
 #                 `vim.pack.update()` moves them to their newest tag, or the
@@ -10,13 +14,25 @@
 #   repin write   Pin every entry to the revision in nvim-pack-lock.json and
 #                 refresh its comment with the nearest tag and commit date.
 #
-# Moving pins forward is these two around one update:
+# The weekly workflow moves the pins with pick, then one update to check the
+# picks out and rewrite the lock as their cache:
+#
+#   repin pick 14
+#   nvim --headless "+lua vim.pack.update(nil, { force = true })" +qa
+#
+# By hand, to read the changelogs before taking anything, strip and write go
+# around an interactive update instead. That route takes whatever is newest,
+# waiting for nothing, which is fine when a person is reading the diff.
 #
 #   repin strip
-#   nvim --headless "+lua vim.pack.update(nil, { force = true })" +qa
+#   :lua vim.pack.update()
 #   repin write
 #
-# The weekly workflow runs exactly that. Each entry's own comment sits on the
+# The wait pick enforces is the point of it. A release cut yesterday has had
+# no time for its "this broke everything" issue to be filed, and no plugin
+# here is urgent enough that I want to be the one finding out.
+#
+# Each entry's own comment sits on the
 # line directly above it and ends in a parenthesized pin description; that
 # closing parenthesis is how this script tells an entry comment from a group
 # comment, so keep it there.
@@ -64,7 +80,63 @@ describe() {
   fi
 }
 
-mode="${1:?usage: repin strip|write}"
+# The revision a plugin should move to: the newest thing that has been out for
+# at least `days` days, or `current` when nothing is old enough yet.
+#
+# The fetch drops the global git config, because that config can rewrite the
+# https plugin URLs to ssh (url.<base>.insteadOf), and on a machine whose agent
+# holds no key the fetch then hangs on a passphrase prompt. Local git calls
+# keep the real config; only the one that talks to a remote loses it.
+pick() {
+  local name="$1" days="$2" current="$3" dir="$DATA/$1" follow cutoff tag when chosen
+
+  if [[ ! -d $dir ]]; then
+    echo "repin: $name is not installed, so there is nothing to pick from" >&2
+    exit 1
+  fi
+
+  GIT_CONFIG_GLOBAL=/dev/null git -C "$dir" fetch --quiet --tags --force origin
+
+  follow=$(follows "$name")
+  if [[ $follow == branch* ]]; then
+    chosen=$(git -C "$dir" rev-list -1 --before="$days days ago" "origin/${follow#branch }")
+  else
+    cutoff=$(($(date +%s) - days * 86400))
+
+    # Newest version first, and versions only: this skips prereleases
+    # (v1.2.3-rc1) and the moving aliases some repos carry beside the real tag
+    # (which-key has stable, nvim-tree has v1 and v1.18 next to v1.18.0).
+    while read -r tag when; do
+      [[ $tag =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+      ((when <= cutoff)) || continue
+
+      chosen=$(git -C "$dir" rev-parse "$tag^{commit}")
+      break
+    done < <(git -C "$dir" tag --sort=-version:refname --format='%(refname:short) %(creatordate:unix)')
+  fi
+
+  # Never backwards. A pin can already sit past the wait, left there by a run
+  # from before this waiting existed or by an update taken by hand, and a wait
+  # is a reason to hold still, never a reason to hand a version back.
+  if [[ -z ${chosen:-} ]] || git -C "$dir" merge-base --is-ancestor "$chosen" "$current"; then
+    echo "$current"
+    return
+  fi
+
+  echo "$chosen"
+}
+
+mode="${1:?usage: repin pick <days>|strip|write}"
+
+days=""
+if [[ $mode == pick ]]; then
+  days="${2:?usage: repin pick <days>}"
+
+  [[ $days =~ ^[0-9]+$ ]] || {
+    echo "repin: $days is not a number of days" >&2
+    exit 1
+  }
+fi
 
 # name -> rev, straight from the lock file.
 declare -A revs
@@ -111,7 +183,12 @@ while IFS= read -r line; do
       continue
     fi
 
-    # write: refresh the pin, and the entry comment's trailing "(...)".
+    # pick chooses a revision of its own; the lock's is only its fallback.
+    if [[ $mode == pick ]]; then
+      rev=$(pick "$name" "$days" "$rev")
+    fi
+
+    # Refresh the pin, and the entry comment's trailing "(...)".
     if [[ $pending_comment =~ ^([[:space:]]*--[[:space:]].*[^[:space:]])[[:space:]]*\([^\(\)]*\)[[:space:]]*$ ]]; then
       pending_comment="${BASH_REMATCH[1]} ($(describe "$name" "$rev"))"
     elif [[ -n $pending_comment ]]; then

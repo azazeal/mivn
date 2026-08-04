@@ -63,25 +63,20 @@ jobs:
           neovim: true
           version: stable
 
-      # plugins.lua pins every plugin to a commit, and vim.pack.update()
-      # respects pins, so the pins are stripped first, to a semver range for
-      # plugins that cut releases and a branch for the rest; the update moves
-      # them, and repin writes the new revisions (and their tag comments)
-      # back. The PR carries plugins.lua and the lock file.
-      #
-      # The second update exists for the lock file alone: the first one ran
-      # with the pins stripped, so the lock it wrote records ranges and
-      # branches, not pins. Re-running it under the restored plugins.lua
-      # moves nothing and rewrites the lock as the cache of the pins it is
-      # documented to be.
+      # repin pick moves every pin to the newest release that has been out for
+      # at least 14 days, or the newest commit that old for the plugins that
+      # follow a branch, so nothing cut yesterday lands here. It reads the
+      # clones to do that, which is what the plain boot is for: vim.pack
+      # installs every plugin at the pin plugins.lua already carries. The
+      # update after the pick checks the picks out and rewrites the lock as
+      # the cache of them. The PR carries plugins.lua and the lock file.
       - name: Update the plugins
         run: |
           mkdir -p ~/.config
           ln -sfn "$PWD" ~/.config/nvim
 
-          ./.github/scripts/repin strip
-          nvim --headless "+lua vim.pack.update(nil, { force = true })" +qa
-          ./.github/scripts/repin write
+          nvim --headless +qa
+          ./.github/scripts/repin pick 14
           nvim --headless "+lua vim.pack.update(nil, { force = true })" +qa
           git diff --stat
 
@@ -95,6 +90,8 @@ jobs:
           commit-message: "plugins: updated pinned revisions"
           title: "plugins: updated pinned revisions"
           body: >
-            This PR updates the pinned plugin revisions in
-            `nvim-pack-lock.json`, from the weekly `vim.pack.update()` run.
-            Review the changelogs locally with `:lua vim.pack.update()`.
+            This PR updates the pinned plugin revisions in `plugins.lua` and
+            `nvim-pack-lock.json`, from the weekly run. Only releases that
+            have been out for at least 14 days are taken, so this is never
+            the newest of anything. Review the changelogs locally with
+            `:lua vim.pack.update()`.
