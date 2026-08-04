@@ -33,6 +33,23 @@ version="${1:?usage: release vMAJOR.MINOR.PATCH}"
 
 [[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "$version is not vMAJOR.MINOR.PATCH"
 
+# Reviewing the notes is the whole point of the editor below, and skipping
+# it is silent: an editor with no terminal returns at once, `true` as the
+# editor returns at once with one, and either way the notes come back
+# readable, so the release goes out with whatever the API wrote. What tells
+# a reviewed run from a skipped one is not the editor, which git allows to
+# be anything including `true`, but the terminal: the run has to be
+# interactive, and right before the tag the version is typed back on
+# /dev/tty, which no pipe, heredoc or no-op editor can answer for.
+[[ -t 0 && -t 1 ]] || die "there is no terminal, so the notes cannot be reviewed"
+
+# The terminal the confirmation reads from, opened this early so a run that
+# could never confirm fails now, before anything is fetched or generated. The
+# braces scope the 2>/dev/null (bash's own noise on failure) to this line;
+# hanging it on the exec directly would make it permanent on success and eat
+# every message after it. exec's own fd survives the group.
+{ exec 3</dev/tty; } 2>/dev/null || die "/dev/tty will not open, so the notes cannot be reviewed"
+
 # The tag names a commit everyone else can fetch, so this cuts from main at
 # exactly what the remote carries. Getting there is this script's job and not
 # mine to remember: whatever branch I am on, it switches and fast-forwards.
@@ -113,6 +130,14 @@ editor=$(git var GIT_EDITOR)
 eval "$editor \"\$notes\"" || die "the editor exited with an error, nothing released"
 
 grep -q '[^[:space:]]' "$notes" || die "the notes are empty, so nothing was released"
+
+# The backstop: after the notes were on screen, the version is typed back on
+# the terminal itself. fd 3 is /dev/tty from the top of the script, so no
+# pipe, heredoc or yes(1) can answer this; it asks for the version rather
+# than a y so muscle memory cannot either.
+read -r -u 3 -p "release: type $version to confirm: " typed || typed=""
+
+[[ $typed == "$version" ]] || die "that was not $version, so nothing was released"
 
 git tag -s "$version" -m "$version"
 
