@@ -42,8 +42,7 @@ local function git(args, on_exit)
   }, on_exit)
 end
 
---- git inside the config directory, for the questions with local answers.
-local function here(args)
+local function ask(args)
   local out = git(vim.list_extend({ "git", "-C", vim.fn.stdpath("config") }, args)):wait(5000)
   if out.code ~= 0 then
     return nil
@@ -51,6 +50,33 @@ local function here(args)
 
   local value = vim.trim(out.stdout)
   return value ~= "" and value or nil
+end
+
+--- git inside the config directory, for the questions with local answers, and
+--- only when that directory is a checkout in its own right.
+---
+--- The guard is the point: git searches upwards from -C, so a config directory
+--- that merely sits inside some other repository (a dotfiles repo holding all
+--- of ~/.config, say) answers every question below with that repository's tags
+--- and origin. Unguarded, this would go on to ask GitHub about the wrong
+--- project and offer to update a checkout that cannot be updated.
+---
+--- Comparing real paths and not the strings: running mivn through a
+--- ~/.config/mivn symlink makes toplevel report where the symlink leads, which
+--- never matches stdpath("config") as written.
+local rooted
+local function here(args)
+  if rooted == nil then
+    local top = ask({ "rev-parse", "--show-toplevel" })
+    local real = top and vim.uv.fs_realpath(top)
+    rooted = real ~= nil and real == vim.uv.fs_realpath(vim.fn.stdpath("config"))
+  end
+
+  if not rooted then
+    return nil
+  end
+
+  return ask(args)
 end
 
 --- The release this checkout is on, or nil when it is not a clone, has no
