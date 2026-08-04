@@ -1,14 +1,5 @@
 # TODO
 
-<!--toc:start-->
-- [TODO](#todo)
-  - [UI](#ui)
-  - [Languages](#languages)
-  - [Plugins](#plugins)
-  - [Dashboard](#dashboard)
-  - [Watching](#watching)
-<!--toc:end-->
-
 Ordered roughly by what blocks daily use. Done items are deleted, not
 checked off; git remembers them.
 
