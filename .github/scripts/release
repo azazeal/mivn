@@ -33,22 +33,41 @@ version="${1:?usage: release vMAJOR.MINOR.PATCH}"
 
 [[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "$version is not vMAJOR.MINOR.PATCH"
 
-# Reviewing the notes is the whole point of the editor below, and both of the
-# ways that review can be skipped are silent: an editor with no terminal to
-# draw on returns straight away, and so does an editor that is `true`. Neither
-# says anything, the notes come back unchanged and readable, and the release
-# goes out with whatever the API wrote. Both are checked here, before the tag
-# and before the API call, because a release cannot be taken back afterwards.
+# Reviewing the notes is the whole point of the editor below, and every way
+# of skipping that review is silent: an editor with no terminal to draw on
+# returns at once, an editor that is `true` does nothing at all, and either
+# way the notes come back readable, so the release goes out with whatever the
+# API wrote. Three guards stack against that, cheapest first: no terminal
+# refuses to run, a known no-op editor refuses to run, and right before the
+# tag the version has to be typed back on the terminal itself. The last one
+# is the backstop the first two cannot be, holding even against no-ops the
+# list below has never heard of, because /dev/tty is the one stream no pipe
+# or heredoc can answer for.
 [[ -t 0 && -t 1 ]] || die "there is no terminal, so the notes cannot be reviewed"
+
+# The terminal the confirmation reads from, opened this early so a run that
+# could never confirm fails now, before anything is fetched or generated. The
+# braces scope the 2>/dev/null (bash's own noise on failure) to this line;
+# hanging it on the exec directly would make it permanent on success and eat
+# every message after it. exec's own fd survives the group.
+{ exec 3</dev/tty; } 2>/dev/null || die "/dev/tty will not open, so the notes cannot be reviewed"
 
 # git var, not $EDITOR: it answers with core.editor, $GIT_EDITOR, $VISUAL and
 # $EDITOR in git's own order, so the editor here is the one every other part
 # of the workflow already opens.
 editor=$(git var GIT_EDITOR)
 
-case ${editor##*/} in
-  true | : | false | cat) die "the editor is $editor, which reviews nothing" ;;
-esac
+# Word by word, so `busybox true` is as caught as `true` alone. read instead
+# of a bare for, so a glob character in the value stays a character. The list
+# is only the no-ops within easy reach; anything craftier still has to get
+# past the typed confirmation at the end.
+read -ra editor_words <<<"$editor"
+
+for word in "${editor_words[@]}"; do
+  case ${word##*/} in
+    true | : | false | cat) die "the editor is $editor, which reviews nothing" ;;
+  esac
+done
 
 # The tag names a commit everyone else can fetch, so this cuts from main at
 # exactly what the remote carries. Getting there is this script's job and not
@@ -126,6 +145,14 @@ echo "release: review the notes; an editor error or empty notes cancels" >&2
 eval "$editor \"\$notes\"" || die "the editor exited with an error, nothing released"
 
 grep -q '[^[:space:]]' "$notes" || die "the notes are empty, so nothing was released"
+
+# The backstop: after the notes were on screen, the version is typed back on
+# the terminal itself. fd 3 is /dev/tty from the top of the script, so no
+# pipe, heredoc or yes(1) can answer this; it asks for the version rather
+# than a y so muscle memory cannot either.
+read -r -u 3 -p "release: type $version to confirm: " typed || typed=""
+
+[[ $typed == "$version" ]] || die "that was not $version, so nothing was released"
 
 git tag -s "$version" -m "$version"
 
