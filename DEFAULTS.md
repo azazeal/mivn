@@ -292,6 +292,7 @@ what it acts on.
 | `0` | Column zero |
 | `^` | First non-blank character |
 | `$` | End of line |
+| `{count}\|` | Column `{count}`, counted in characters _(mivn)_ |
 | `f{char}` | Forward onto the next `{char}` |
 | `F{char}` | Backward onto the previous `{char}` |
 | `t{char}` | Forward to just before `{char}` |
@@ -308,6 +309,11 @@ instead, and the WORD alone crosses a whole `foo::bar(baz(r, g, b))` in one
 press. This is what Ctrl+`→` does in every other editor, and what it already
 did in Insert mode. It works after an operator too, so `d`+Ctrl+`→` is `dw`,
 and `W` / `B` are untouched.
+
+`{count}|` counts its column in characters of text _(mivn)_, not Vim's screen
+cells: a tab is one character and an LSP inlay hint is nothing, so the column
+a compiler prints in file:line:col is the column `40|` reaches, and the same
+count the status line shows. `g|` keeps the screen-cell meaning.
 
 One deviation to know before the table: long lines do not wrap here _(mivn)_.
 Vim wraps by default; with the width markers saying when a line is too long,

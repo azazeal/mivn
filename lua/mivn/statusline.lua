@@ -208,13 +208,19 @@ end
 --- Where the cursor is: row and column, and nothing else.
 ---
 --- mini.statusline's own section_location reads `28|515 12|12`: four numbers
---- for a question that has two. The column here is the *virtual* one, `%v`,
---- where a tab counts as the width it looks like rather than one byte.
+--- for a question that has two.
 ---
---- The dash in `%-2v` pads it to two columns. Without it, crossing column 9
---- widens this block and shifts the whole right-hand group sideways while I am
---- moving along a line. The row only gains a digit when the file does.
-local LOCATION = "%l:%-2v"
+--- The column counts characters of text, not `%v`'s screen cells: a tab is
+--- one, an inlay hint is nothing, a Greek letter counts like a Latin one. It
+--- is the number `{count}|` takes (lua/mivn/margins.lua) and, on an all-ASCII
+--- line, the col a compiler prints, so the number read here can be typed
+--- right back.
+---
+--- The dash in `%-2{}` pads the column to two cells. Without it, crossing
+--- column 9 widens this block and shifts the whole right-hand group sideways
+--- while I am moving along a line. The row only gains a digit when the file
+--- does.
+local LOCATION = "%l:%-2{charcol('.')}"
 
 statusline.setup({
   use_icons = true,
