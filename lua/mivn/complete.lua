@@ -16,6 +16,8 @@ vim.o.autocomplete = true
 -- gives each source a slice of time and the earlier ones get more. `o` is the
 -- language server through 'omnifunc'; `.`, `w` and `b` are words already
 -- written, in this buffer, other windows, then the rest of the buffer list.
+-- This is the serverless default; a buffer a completing server attaches to
+-- narrows to `o` alone, in the LspAttach below.
 --
 -- The `^10` on the word sources is a match limit: without it a long file fills
 -- the menu with its own identifiers and pushes the server's answers off the
@@ -40,13 +42,39 @@ vim.o.completeopt = "menuone,noselect,popup,fuzzy"
 -- No `autotrigger`: it fires on the trigger characters the server names, which
 -- 'autocomplete' already covers, so both on means two requests racing on the
 -- same character.
+local group = vim.api.nvim_create_augroup("mivn.complete", { clear = true })
+
 vim.api.nvim_create_autocmd("LspAttach", {
-  group = vim.api.nvim_create_augroup("mivn.complete", { clear = true }),
+  group = group,
   callback = function(ev)
     local client = vim.lsp.get_client_by_id(ev.data.client_id)
     if client and client:supports_method("textDocument/completion") then
       vim.lsp.completion.enable(true, ev.data.client_id, ev.buf)
+
+      -- The server becomes the only source, which is Zed's rule. The word
+      -- sources would re-offer identifiers the server already answered with:
+      -- every call site is also a word, the server's entry carries the
+      -- signature while the word carries nothing, and Vim has no dedup
+      -- across sources (the LSP marks its items dup on purpose).
+      vim.bo[ev.buf].complete = "o"
     end
+  end,
+})
+
+vim.api.nvim_create_autocmd("LspDetach", {
+  group = group,
+  desc = "Give a buffer its word sources back when the last server leaves",
+  callback = function(ev)
+    for _, client in ipairs(vim.lsp.get_clients({ bufnr = ev.buf })) do
+      if client.id ~= ev.data.client_id and client:supports_method("textDocument/completion") then
+        return
+      end
+    end
+
+    -- Drops the buffer-local value, back to the global list above.
+    vim.api.nvim_buf_call(ev.buf, function()
+      vim.cmd("setlocal complete<")
+    end)
   end,
 })
 
@@ -104,24 +132,120 @@ end, {
   desc = "Accept the highlighted completion, or the first one, else indent",
 })
 
--- Ctrl+Space asks for the menu, the way it does in Zed and VS Code. It earns
--- its place where the automatic trigger has nothing to go on: a fresh line or
--- just after a space. `<C-n>` rather than `<C-x><C-o>`, so it is the same set
--- of sources as the automatic menu instead of the server alone.
+-- Ctrl+Space asks for the menu, the way it does in Zed and VS Code, and like
+-- there it arrives stepped in: the top match is highlighted, so Enter takes
+-- it, the arrows move from it, and PageUp and PageDown page the list
+-- (lua/mivn/page.lua). Asking is the signal that a match is wanted, which is
+-- the signal the automatic menu never has, and why that one stays unselected.
+-- It earns its place where the automatic trigger has nothing to go on: a
+-- fresh line or just after a space. `<C-n>` rather than `<C-x><C-o>`, so it
+-- is the same set of sources as the automatic menu instead of the server
+-- alone.
 --
+-- The menu `<C-n>` opens only shows up after the mapping returns, so the
+-- highlight is placed by the CompleteChanged below, armed by `requested`.
+-- TextChangedI disarms it when `<C-n>` found nothing: it fires on the next
+-- typed character, before 'autocomplete' can open a menu this key never asked
+-- for.
+local requested = false
+
+-- The highlighted match, remembered because a highlight does not survive a
+-- re-fill of the list: a source that answers late (the language server,
+-- usually) lands its matches after the menu is already up, and the selection
+-- resets to nothing. Measured with a server that takes 1.5s to answer. When
+-- that happens the highlight goes back onto its match, wherever the re-fill
+-- moved it, or to the top when the match is gone. This guards every
+-- highlight, the arrows' included, not only Ctrl+Space's.
+--
+-- `n` is the length of the list, and it is how a re-fill is told apart from
+-- me walking onto the "what I typed" entry, which is also "nothing selected":
+-- walking never changes the length.
+local kept = nil
+
+--- Highlight the match at `to` and remember it; the line is left alone. The
+--- remembering has to happen here: this runs inside CompleteChanged, and
+--- autocmds do not nest, so the handler cannot see its own selections.
+local function highlight(to, items, n)
+  kept = { word = items[to + 1].word, n = n }
+  vim.api.nvim_select_popupmenu_item(to, false, false, {})
+end
+
+vim.api.nvim_create_autocmd("CompleteChanged", {
+  group = group,
+  desc = "Step into the menu Ctrl+Space asked for, and stay in it",
+  callback = function()
+    local info = vim.fn.complete_info({ "selected", "items" })
+    local n = #info.items
+
+    if info.selected >= 0 then
+      requested = false
+      kept = { word = info.items[info.selected + 1].word, n = n }
+      return
+    end
+
+    if n == 0 then
+      return
+    end
+
+    if requested then
+      requested = false
+      highlight(0, info.items, n)
+      return
+    end
+
+    if not kept then
+      return
+    end
+
+    if n == kept.n then
+      -- Same list, so I walked here on purpose; from now on re-fills leave
+      -- the nothing-selected state alone too.
+      kept = nil
+      return
+    end
+
+    local to = 0
+    for i, item in ipairs(info.items) do
+      if item.word == kept.word then
+        to = i - 1
+        break
+      end
+    end
+
+    highlight(to, info.items, n)
+  end,
+})
+
+vim.api.nvim_create_autocmd({ "CompleteDone", "TextChangedI", "InsertLeave" }, {
+  group = group,
+  desc = "Forget the menu that just closed, or a Ctrl+Space that found nothing",
+  callback = function()
+    requested = false
+    kept = nil
+  end,
+})
+
 -- Bound twice for one key: a terminal sends Ctrl+Space as NUL, which arrives
 -- as `<C-@>`, while a GUI sends the key itself.
 local function complete_now()
-  return vim.fn.pumvisible() == 1 and "" or "<C-n>"
+  if vim.fn.pumvisible() == 1 then
+    if not selected() then
+      local info = vim.fn.complete_info({ "items" })
+      highlight(0, info.items, #info.items)
+    end
+
+    return
+  end
+
+  requested = true
+  vim.api.nvim_feedkeys(vim.keycode("<C-n>"), "n", false)
 end
 
 vim.keymap.set("i", "<C-Space>", complete_now, {
-  expr = true,
-  desc = "Open the completion menu here",
+  desc = "Open the completion menu here, top match highlighted",
 })
 
 vim.keymap.set("i", "<C-@>", complete_now, {
-  expr = true,
   desc = "Open the completion menu here (terminal spelling of Ctrl+Space)",
 })
 

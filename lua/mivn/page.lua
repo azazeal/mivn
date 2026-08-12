@@ -21,7 +21,8 @@ end
 --- Vim hands the menu PageUp and PageDown whenever it is open, and with
 --- 'autocomplete' that is most of Insert mode, which is how these keys came to
 --- do nothing while typing. So the menu only gets them once I have stepped
---- into it with an arrow, the same rule Enter follows.
+--- into it, with an arrow or by asking for it with Ctrl+Space, the same rule
+--- Enter follows.
 local function in_menu()
   if vim.fn.pumvisible() == 0 then
     return false
@@ -52,7 +53,7 @@ local function page_menu(step)
 end
 
 local function page(step)
-  local scroll = vim.keycode(step > 0 and "<C-f>" or "<C-b>")
+  local scroll = step > 0 and "<C-f>" or "<C-b>"
 
   return function()
     if in_menu() then
@@ -60,9 +61,15 @@ local function page(step)
     end
 
     -- A menu I have not stepped into is in the way rather than in use, so it
-    -- goes. Only when one is open: Ctrl+E without a menu copies the character
-    -- from the line below instead.
-    local keys = vim.fn.pumvisible() == 1 and vim.keycode("<C-e>") or ""
+    -- goes, back to what I typed. Item -1 with `finish` is the API spelling
+    -- of Ctrl+E, and it must be the API: Vim applies it as this function
+    -- returns, while a fed Ctrl+E runs later still, and ending completion
+    -- after the cursor has already moved below rewrites text around wherever
+    -- the cursor landed.
+    local dismissed = vim.fn.pumvisible() == 1
+    if dismissed then
+      vim.api.nvim_select_popupmenu_item(-1, false, true, {})
+    end
 
     -- Whether the cursor is still more than a page from the edge it heads for.
     -- "Can the view still scroll" is not the question: with a short file
@@ -86,19 +93,31 @@ local function page(step)
       -- A count belongs to the scroll. It can only be typed outside Insert
       -- mode, so feeding the digits back is safe wherever it is not 1.
       local count = vim.v.count1 > 1 and tostring(vim.v.count1) or ""
-      vim.api.nvim_feedkeys(keys .. count .. scroll, "n", false)
+
+      -- In Insert mode Ctrl+F and Ctrl+B are not scrolls: Ctrl+F reindents
+      -- the line where 'indentkeys' says so, an edit out of nowhere. Ctrl+O
+      -- runs the pair as the Normal-mode command it is meant as.
+      local keys = count .. scroll
+      if vim.api.nvim_get_mode().mode:sub(1, 1) == "i" then
+        keys = "<C-o>" .. keys
+      end
+
+      vim.api.nvim_feedkeys(vim.keycode(keys), "n", false)
       return
     end
 
-    if keys ~= "" then
-      vim.api.nvim_feedkeys(keys, "n", false)
+    local to = step > 0 and last or 1
+
+    -- Scheduled past the dismissal above; moving the cursor first would put
+    -- the completion's "what I typed" back in the wrong place.
+    if dismissed then
+      vim.schedule(function()
+        goto_line(to)
+      end)
+      return
     end
 
-    if step > 0 then
-      goto_line(last)
-    else
-      goto_line(1)
-    end
+    goto_line(to)
   end
 end
 
