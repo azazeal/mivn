@@ -1,4 +1,5 @@
--- How long lines are shown: the width markers, and the wrap toggle.
+-- How long lines are shown: the width markers, the wrap toggle, and the
+-- column the `|` motion goes to.
 --
 -- The markers: prose wraps hard at 80, code carries a soft 100 and a hard
 -- 120. Instead of colorcolumn's full stripe, the single character one column
@@ -56,6 +57,24 @@ local function mark(bufnr, row, line, tabstop)
         width = vim.fn.strdisplaywidth(line:sub(index, index + length - 1))
       end
 
+      -- A codepoint that adds no width to what it follows, a combining
+      -- accent or an emoji joiner, is part of this character: measured
+      -- alone it reads 1 and the count drifts. Absorb codepoints for as
+      -- long as the character's width stays put; multibyte ones only, an
+      -- ASCII follower is always its own character. Not after a tab, whose
+      -- width above is positional and would confuse the remeasurement.
+      while byte ~= 0x09 and index + length <= #line and line:byte(index + length) >= 0x80 do
+        local extra = char_length(line:byte(index + length))
+        local grown = vim.fn.strdisplaywidth(line:sub(index, index + length + extra - 1))
+
+        if grown > width then
+          break
+        end
+
+        width = grown
+        length = length + extra
+      end
+
       if column + width > limit.column then
         vim.api.nvim_buf_set_extmark(bufnr, ns, row, index - 1, {
           end_col = index - 1 + length,
@@ -83,17 +102,29 @@ vim.api.nvim_set_decoration_provider(ns, {
   end,
 
   on_line = function(_, _, bufnr, row)
-    local line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, true)[1]
+    -- Not strict: a row can vanish mid-redraw, and one error here would
+    -- disable this provider for good.
+    local line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1]
 
     -- Bytes are never fewer than the columns they display, tabs and control
     -- characters aside, so this is what most lines cost.
-    if #line < MARKS[1].column and not line:find("%c") then
+    if not line or (#line < MARKS[1].column and not line:find("%c")) then
       return
     end
 
     mark(bufnr, row, line, vim.bo[bufnr].tabstop)
   end,
 })
+
+-- `{count}|` goes to a column, and Vim counts that column in screen cells: a
+-- tab is its full display width and an inlay hint, which is not even text,
+-- counts too, so the col a compiler prints in file:line:col landed short of
+-- its target. Respelled to the character column: a tab is one, a hint is
+-- nothing, and the status line (lua/mivn/statusline.lua) reads the same
+-- number this takes. `g|` keeps the screen-cell meaning.
+vim.keymap.set({ "n", "x", "o" }, "|", function()
+  vim.fn.setcursorcharpos(vim.fn.line("."), vim.v.count1)
+end, { desc = "To the {count}'th character of the line" })
 
 -- Long lines run off the right edge ('wrap' is off in init.lua); this brings
 -- them back for the window I am in. Window-local, so a prose buffer can wrap
