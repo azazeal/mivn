@@ -4,11 +4,14 @@
 # the pull requests merged since the last one, opened in my editor first so I
 # can fix them before anyone sees them.
 #
-#   release v0.2.0
+#   release patch|minor|major
 #
-# Versions are semver with a leading v: minor for a monthly batch, patch for a
-# fix between batches. A tag that is not semver is invisible to anything that
-# compares versions.
+# The argument is the bump, not the version: the next version is computed
+# from the last tag once main is synced, minor for a monthly batch, patch for
+# a fix between batches. Versions are semver with a leading v, since a tag
+# that is not semver is invisible to anything that compares versions. The
+# confirmation before the tag asks for the computed version, typed back in
+# full, so which version is being cut is never left unread.
 #
 # `git tag -a` is never used here and must never be: -a on the command line
 # overrides tag.forceSignAnnotated, so it writes an unsigned annotated tag and
@@ -29,9 +32,12 @@ die() {
   exit 1
 }
 
-version="${1:?usage: release vMAJOR.MINOR.PATCH}"
+bump="${1:?usage: release patch|minor|major}"
 
-[[ $version =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "$version is not vMAJOR.MINOR.PATCH"
+case $bump in
+  patch | minor | major) ;;
+  *) die "$bump is not patch, minor or major" ;;
+esac
 
 # Reviewing the notes is the whole point of the editor below, and skipping
 # it is silent: an editor with no terminal returns at once, `true` as the
@@ -57,7 +63,11 @@ version="${1:?usage: release vMAJOR.MINOR.PATCH}"
 # would take my changes along with it.
 [[ -z $(git status --porcelain) ]] || die "the working tree is dirty"
 
-git fetch --quiet origin main
+# --tags because the next version is read off the last one: a release cut
+# elsewhere that never made it here would otherwise recompute an existing
+# version. The duplicate checks below would still catch that, but loudly and
+# late; fetching the tags makes the computed version right the first time.
+git fetch --quiet --tags origin main
 
 if [[ $(git branch --show-current) != "main" ]]; then
   echo "release: switching to main" >&2
@@ -66,17 +76,33 @@ fi
 
 git merge --quiet --ff-only origin/main || die "main has commits the remote does not"
 
+last=$(git describe --tags --abbrev=0 2>/dev/null || true)
+if [[ -n $last && $(git rev-list --count "$last..HEAD") -eq 0 ]]; then
+  die "nothing has landed since $last"
+fi
+
+major=0 minor=0 patch=0
+if [[ -n $last ]]; then
+  [[ $last =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "the last tag, $last, is not vMAJOR.MINOR.PATCH"
+  IFS=. read -r major minor patch <<<"${last#v}"
+fi
+
+case $bump in
+  major) version="v$((major + 1)).0.0" ;;
+  minor) version="v$major.$((minor + 1)).0" ;;
+  patch) version="v$major.$minor.$((patch + 1))" ;;
+esac
+
+echo "release: ${last:-nothing} -> $version" >&2
+
+# Both can still trip after the fetch above: describe walks HEAD's ancestry,
+# so a higher tag off on a side branch is invisible to it.
 if git rev-parse -q --verify "refs/tags/$version" >/dev/null; then
   die "$version already exists locally"
 fi
 
 if git ls-remote --exit-code --tags origin "refs/tags/$version" >/dev/null 2>&1; then
   die "$version already exists on the remote"
-fi
-
-last=$(git describe --tags --abbrev=0 2>/dev/null || true)
-if [[ -n $last && $(git rev-list --count "$last..HEAD") -eq 0 ]]; then
-  die "nothing has landed since $last"
 fi
 
 # The notes come first, because generating them creates nothing: the API reads
