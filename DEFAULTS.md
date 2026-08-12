@@ -498,8 +498,11 @@ mini.pairs with its defaults, and `lua/mivn/pairs.lua` is the whole of it.
 ## Completion
 
 The menu opens by itself as you type _(mivn)_, from Vim's own `'autocomplete'`
-rather than a plugin. It merges what the language server knows with the words
-already written in the open buffers, and the server's answers come first.
+rather than a plugin. In a buffer with a language server the matches are the
+server's alone; everywhere else they are the words already written in the open
+buffers, so completion still works where no server runs. That split is Zed's
+rule, adopted because Vim would otherwise list the same identifier twice, once
+with the server's signature and once as a bare word scraped from a call site.
 
 | Key | Does |
 |---|---|
@@ -508,27 +511,28 @@ already written in the open buffers, and the server's answers come first.
 | `Enter` | Take the highlighted match _(mivn)_ |
 | `Tab` | Take the highlighted match, or the top one if none is _(mivn)_ |
 | `Ctrl+Y` | Take it, and Vim's own spelling of that |
-| `Ctrl+Space` | Open the menu here _(mivn)_ |
+| `Ctrl+Space` | Open the menu here, top match highlighted _(mivn)_ |
 | `PageUp` / `PageDown` | A screenful of the menu once you are in it, else of the file _(mivn)_ |
 | `Ctrl+E` | Close the menu and put back what you typed |
 | `Esc` | Close the menu and leave Insert mode |
 
-Nothing is highlighted until you press an arrow, and that is what keeps `Enter`
-honest: while the menu is merely open it still breaks the line, which is what
-you meant by it. Only once you have said which match you want does `Enter` take
-one. `Tab` is the short way past that, since it takes the top match with no
-arrow first, and the literal tab it costs is only ever lost mid-word, where a
-tab was not what you wanted.
+Nothing is highlighted until you press an arrow (or ask, with `Ctrl+Space`,
+below), and that is what keeps `Enter` honest: while the menu is merely open it
+still breaks the line, which is what you meant by it. Only once you have said
+which match you want does `Enter` take one. `Tab` is the short way past that,
+since it takes the top match with no arrow first, and the literal tab it costs
+is only ever lost mid-word, where a tab was not what you wanted.
 
 `PageUp` and `PageDown` follow the same rule as `Enter`, and for the same
 reason. Vim hands them to the menu whenever the menu is open, which was fair
 when the menu only appeared on request; now that it comes on its own, that would
 mean the page keys stop moving through the file for as long as you are in Insert
 mode, which is most of the time. So they move through the file until you have
-stepped into the menu with an arrow, and through the menu after that. Pressing
-one before you have stepped in also closes the menu, rather than leaving it
-hanging over a view that has scrolled out from under it. [Motions](#motions) has
-what they do to the file, which is not quite what Vim does either.
+stepped into the menu, with an arrow or `Ctrl+Space`, and through it after
+that. Pressing one before you have stepped in also closes the menu, rather than
+leaving it hanging over a view that has scrolled out from under it.
+[Motions](#motions) has what they do to the file, which is not quite what Vim
+does either.
 
 Inside the menu they stop rather than wrap. Vim's menu is a ring with "what you
 typed" as one more entry on it, so a page past the end lands on nothing selected
@@ -540,6 +544,17 @@ line, which is not what a key for crossing a long list should leave you holding.
 earns its place is the spot the automatic trigger has nothing to go on: a fresh
 line, or just after a space, with no partial word yet. That is also the spot
 where "what can go here" is the actual question.
+
+A menu you asked for arrives stepped in, the way it does in VS Code and Zed:
+the top match is highlighted, so `Enter` takes it, the arrows move from it,
+and the page keys page the list. Asking is what says a match is wanted, and it
+is the signal the automatic menu never has. Pressing `Ctrl+Space` while an
+automatic menu is open steps into that one instead of opening anything, and
+typing on does not undo the step: the highlight follows its match while the
+list refilters, as it does after an arrow. A source that answers late (the
+language server, usually) redraws the list under any highlight, an arrow's as
+much as this key's; the highlight stays through that too, back on its match
+wherever it moved, or on the top one when the match is gone.
 
 ## Registers
 
