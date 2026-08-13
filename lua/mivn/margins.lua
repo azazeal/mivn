@@ -35,6 +35,27 @@ local function char_length(byte)
   return 4
 end
 
+--- The length in bytes of the character starting at `index`, as it is drawn:
+--- a multibyte sequence counts whole only when every continuation byte is in
+--- place, and a torn one is drawn, and so counted, one byte at a time.
+---
+--- This check is also what keeps a NUL out of every substring handed to
+--- strdisplaywidth: a NUL is never a valid continuation byte, so a sequence
+--- reaching one is cut at length 1, before the NUL.
+local function sequence_length(line, index)
+  local length = char_length(line:byte(index))
+
+  for i = index + 1, index + length - 1 do
+    local byte = line:byte(i)
+
+    if not byte or byte < 0x80 or byte >= 0xc0 then
+      return 1
+    end
+  end
+
+  return length
+end
+
 --- Mark the character standing on each limit `line` crosses.
 ---
 --- One pass over the line, stopping at the last limit or the end of the line,
@@ -44,6 +65,7 @@ end
 local function mark(bufnr, row, line, tabstop)
   local index = 1 -- where the character starts, in bytes
   local column = 1 -- and the display column it starts on
+  local nul_width -- what this window draws a NUL at, measured on first use
 
   for _, limit in ipairs(MARKS) do
     while index <= #line do
@@ -52,8 +74,18 @@ local function mark(bufnr, row, line, tabstop)
 
       if byte == 0x09 then
         width = tabstop - (column - 1) % tabstop
+      elseif byte == 0x00 then
+        -- The one byte strdisplaywidth cannot be asked about: a Lua string
+        -- carrying a NUL crosses into Vim as a Blob, and the call throws
+        -- E976 on every redraw the line is visible for (the crash any
+        -- binary file used to cause here). Vim stores a NUL in text as a
+        -- newline, and the newline character draws at the same width: ^@
+        -- and ^J plain, <00> and <0a> under 'display' uhex. So the newline
+        -- is measured in its stead.
+        nul_width = nul_width or vim.fn.strdisplaywidth("\n")
+        width = nul_width
       elseif byte < 0x20 or byte >= 0x7f then
-        length = char_length(byte)
+        length = sequence_length(line, index)
         width = vim.fn.strdisplaywidth(line:sub(index, index + length - 1))
       end
 
@@ -62,9 +94,10 @@ local function mark(bufnr, row, line, tabstop)
       -- alone it reads 1 and the count drifts. Absorb codepoints for as
       -- long as the character's width stays put; multibyte ones only, an
       -- ASCII follower is always its own character. Not after a tab, whose
-      -- width above is positional and would confuse the remeasurement.
-      while byte ~= 0x09 and index + length <= #line and line:byte(index + length) >= 0x80 do
-        local extra = char_length(line:byte(index + length))
+      -- width above is positional, nor a NUL, which no measured substring
+      -- may contain.
+      while byte ~= 0x09 and byte ~= 0x00 and index + length <= #line and line:byte(index + length) >= 0x80 do
+        local extra = sequence_length(line, index + length)
         local grown = vim.fn.strdisplaywidth(line:sub(index, index + length + extra - 1))
 
         if grown > width then
@@ -102,14 +135,30 @@ vim.api.nvim_set_decoration_provider(ns, {
   end,
 
   on_line = function(_, _, bufnr, row)
-    -- Not strict: a row can vanish mid-redraw, and one error here would
-    -- disable this provider for good.
+    -- Not strict: a row can vanish mid-redraw, and an error here is not
+    -- raised once. Nothing turns the provider off, so the line repeats it on
+    -- every redraw and the message area fills up.
     local line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1]
 
-    -- Bytes are never fewer than the columns they display, tabs and control
-    -- characters aside, so this is what most lines cost.
-    if not line or (#line < MARKS[1].column and not line:find("%c")) then
+    if not line then
       return
+    end
+
+    if #line < MARKS[1].column then
+      -- Printable ASCII draws one column per byte, so a short line of it
+      -- cannot reach the first limit; this is what most lines cost. The
+      -- escapes: a tab or a control character can draw wider than a column
+      -- each (mark measures those), and a byte 0x80 and up can stand alone
+      -- and draw as <xx>, four columns, so those lines get one whole-line
+      -- measurement instead. Safe, because a line without a %c match
+      -- carries no NUL.
+      if not line:find("[%c\128-\255]") then
+        return
+      end
+
+      if not line:find("%c") and vim.fn.strdisplaywidth(line) < MARKS[1].column then
+        return
+      end
     end
 
     mark(bufnr, row, line, vim.bo[bufnr].tabstop)
