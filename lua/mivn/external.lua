@@ -5,42 +5,47 @@
 -- loads the file at all; the cost is that a declined read is this module's
 -- to perform.
 --
--- Formats zipPlugin already browses (docx, epub and the rest of the zip
--- family) are left to it: those have a default, this covers the ones with
--- none. otf is the one deliberate overlap: zipPlugin claims it for
--- OpenDocument formula templates, but every .otf here is an OpenType font,
--- and this autocmd registers first, so it wins the tie (verified).
+-- Most formats zipPlugin already browses (epub, jars and the rest of the
+-- zip family) are left to it: those have a default, this covers the ones
+-- with none. The deliberate overlaps, claimed here because this autocmd
+-- registers first and wins the tie (verified): docx, xlsx and pptx, which
+-- read better in an office suite than as a zip listing, and otf, which
+-- zipPlugin takes for OpenDocument formula templates while every .otf
+-- here is an OpenType font.
 
 local EXTENSIONS = {
-  "pdf",
-  "png",
-  "jpg",
-  "jpeg",
-  "gif",
-  "webp",
-  "bmp",
-  "ico",
-  "tif",
-  "tiff",
-  "avif",
-  "mp4",
-  "mkv",
-  "webm",
-  "mov",
   "avi",
-  "mp3",
+  "avif",
+  "bmp",
+  "doc",
+  "docx",
   "flac",
-  "wav",
+  "gif",
+  "ico",
+  "jpeg",
+  "jpg",
+  "m4a",
+  "mkv",
+  "mov",
+  "mp3",
+  "mp4",
   "ogg",
   "opus",
-  "m4a",
-  "ttf",
   "otf",
+  "pdf",
+  "png",
+  "ppt",
+  "pptx",
+  "tif",
+  "tiff",
+  "ttf",
+  "wav",
+  "webm",
+  "webp",
   "woff",
   "woff2",
-  "doc",
   "xls",
-  "ppt",
+  "xlsx",
 }
 
 local patterns = {}

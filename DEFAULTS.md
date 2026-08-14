@@ -899,8 +899,9 @@ One more deviation _(mivn)_: opening a file Neovim cannot display, a PDF, an
 image, audio, video, a font, first asks whether to hand it to the system's
 own app for that format (what `gx` on a path does by hand). Yes opens it
 there and no buffer is loaded; No reads it in raw, which is the stock
-behavior for every file. Formats the built-in zip browsing already handles,
-`.docx`, `.epub` and the rest of the zip family, keep that default instead.
+behavior for every file. Office files (`.docx`, `.xlsx`, `.pptx`) are asked
+about too; `.epub` and the rest of the zip family keep the built-in zip
+browsing instead.
 
 One key is not on that list and looks like it belongs there: `Ctrl+Z`, which is
 `:suspend`. It stops Neovim and hands you back the shell that started it, a real
