@@ -58,6 +58,43 @@ checked off; git remembers them.
     support, and both cost a runtime. In-buffer polish:
     render-markdown.nvim prettifies headings and tables in place but renders
     no diagrams. A monthly-batch decision, not a today one.
+- [ ] Decide what replaces the store's guarantees, before the entry below
+    happens and before any release. The store promised one manifest in git,
+    an exact version and a sha256 per platform verified before anything ran,
+    and no install without a prompt. mise can give all of that back, and
+    none of it is on here today. Measured 2026-08-15, on this machine:
+
+      `mise settings lockfile`         not set, and no mise.lock anywhere,
+                                       so nothing records which version or
+                                       which bytes were installed
+      `sandbox.deny_all`, `deny_net`   false
+      `paranoid`                       false
+      `minimum_release_age`            not set, so no release-age damping,
+                                       the guard praktoras's notes already
+                                       argued for
+
+    bubblewrap may not be needed for half of it: mise has a sandbox of its
+    own in `src/sandbox/`, Landlock plus seccomp on Linux and the macOS
+    sandbox, with deny_read, deny_write, deny_net, deny_env and allow lists.
+
+    **It does not cover installs.** `with_sandbox` is called from
+    `cli/run.rs`, `cli/exec.rs` and `task/task_executor.rs` and from nowhere
+    in the install path, so the one moment foreign code actually runs, a
+    `go install` building a module, an npm postinstall, pipx, is the one
+    moment mise does not confine. That is where bwrap earns its place, or
+    else a rule that only download-shaped backends (aqua, github) are used
+    and never ones that build.
+
+    The other half is bigger and older: rust-analyzer runs a project's build
+    scripts and proc macros, so opening a repo someone else wrote runs their
+    code. That was equally true under the store; it was just behind a
+    prompt. mise's exec sandbox is the lever there, since shims go through
+    `Exec::run_with_toolset`.
+
+    Order to decide in: lockfile on, `minimum_release_age` set, then whether
+    the sandbox goes around installs (bwrap), around the servers (mise's
+    own), or both.
+
 - [ ] Stop installing language servers here. Decided 2026-08-14, and it
     supersedes the entry below: mise installs them and mivn finds them on
     PATH, until either praktoras is real or enough servers ship as single
