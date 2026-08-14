@@ -895,6 +895,13 @@ on `:bd`. And `:q` or `:x` on the last file window quits even while the tree
 is open, instead of Vim's answer of leaving you in the one window that cannot
 show a file. Unsaved changes still block every one of these paths.
 
+One more deviation _(mivn)_: opening a file Neovim cannot display, a PDF, an
+image, audio, video, a font, first asks whether to hand it to the system's
+own app for that format (what `gx` on a path does by hand). Yes opens it
+there and no buffer is loaded; No reads it in raw, which is the stock
+behavior for every file. Formats the built-in zip browsing already handles,
+`.docx`, `.epub` and the rest of the zip family, keep that default instead.
+
 One key is not on that list and looks like it belongs there: `Ctrl+Z`, which is
 `:suspend`. It stops Neovim and hands you back the shell that started it, a real
 Unix feature rather than a mistake, but it only means something when there is a
