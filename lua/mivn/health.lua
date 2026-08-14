@@ -129,6 +129,30 @@ function M.check()
     health.ok(("%s, the newest release"):format(update.current))
   end
 
+  health.start("the project's environment")
+  local env = require("mivn.env").state()
+  local present = {}
+  for _, tool in ipairs({ "mise", "direnv" }) do
+    if vim.fn.executable(tool) == 1 then
+      present[#present + 1] = tool
+    end
+  end
+
+  if #present == 0 then
+    health.info("neither mise nor direnv is here; nothing to read")
+  else
+    health.ok(
+      ("%s, read in %.0fms: %d variables set"):format(
+        table.concat(present, " and "),
+        env.ms,
+        vim.tbl_count(env.applied)
+      )
+    )
+    for _, pending in ipairs(env.asks) do
+      health.warn(("%s is not trusted"):format(pending.path), ":MivnEnv asks about it")
+    end
+  end
+
   health.start("managed language servers")
   local target, why = store.supported()
   if not target then

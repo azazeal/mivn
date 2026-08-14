@@ -57,6 +57,38 @@ checked off; git remembers them.
     both preview in the browser with mermaid support. In-buffer polish:
     render-markdown.nvim prettifies headings and tables in place but renders
     no diagrams. A monthly-batch decision, not a today one.
+- [ ] Stop installing language servers here. Decided 2026-08-14, and it
+    supersedes the entry below: mise installs them and mivn finds them on
+    PATH, until either praktoras is real or enough servers ship as single
+    binaries that neither is needed.
+
+    The reason is not that the store is bad. It works, and its failure
+    modes were paid for in real bugs. It is that it is a package manager
+    living inside an editor config, roughly 1300 lines of the 3900 here,
+    and mise does the same work for the whole machine, so every editor and
+    every shell gets the answer instead of this one. The coupling that
+    actually matters, gopls having been built by a Go at least as new as
+    the project's, is something mise gets right through GOBIN being per
+    install, and the store cannot express at all: it pins one binary per
+    platform and knows nothing about toolchains.
+
+    What goes when it goes: store.lua, lsp/managed.lua, the consent file
+    under stdpath("state"), the managed half of health.lua, `:MivnLsp`,
+    and the README paragraph. lsp.lua's `servers` table becomes the whole
+    list, and every entry in it is a PATH check.
+
+    What has to be true first, or a half-done day is a day with no
+    language servers at all: the dotfiles migration lands, every server in
+    the manifest has a home in mise or in a `go install` beside it, and
+    `:checkhealth mivn` finds all of them on PATH. lua/mivn/env.lua is the
+    first half of that and is already here.
+
+    Carry the knowledge out before deleting the code. The store's header
+    and health.lua's PROBES table hold things no document elsewhere
+    records: expert has no version flag, superhtml exits 0 on --version
+    while printing nothing useful, a rustup shim is an executable that is
+    not a program. praktoras wants all three.
+
 - [ ] Managed language servers, the rest. The engine lives in
     lua/mivn/store.lua and lua/mivn/lsp/managed.lua, and every server
     that ships as a binary is managed now; the full design (manifest,
