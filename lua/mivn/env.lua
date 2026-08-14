@@ -178,7 +178,7 @@ end
 --- leaves the question unanswered and :MivnEnv asks it again.
 local function ask(root)
   local choices = { "Trust it", "Show it first", "No, and do not ask again", "Ask me later" }
-  local prompt = ("%s is not trusted, so this workspace has no environment."):format(vim.fn.fnamemodify(root, ":~"))
+  local prompt = ("%s is not trusted by mise."):format(vim.fn.fnamemodify(root, ":~"))
 
   vim.ui.select(choices, { prompt = prompt }, function(choice)
     -- Both answers that settle a root re-resolve and ask again, because one

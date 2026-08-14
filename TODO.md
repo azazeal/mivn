@@ -49,12 +49,13 @@ checked off; git remembers them.
     install or say it in `:checkhealth mivn`.
 - [ ] Markdown: decide the writing set. Three things are missing today.
     Formatting: marksman does not format, and the formatter table has no
-    markdown entry, so tables stay as typed; `deno fmt` (deno is already
-    here as the TypeScript server) and `mdformat` (Python) are the
-    candidates, `prettier` would drag node in. Preview and mermaid: nothing
-    renders inside the
-    terminal or Neovide; peek.nvim (deno) and markdown-preview.nvim (node)
-    both preview in the browser with mermaid support. In-buffer polish:
+    markdown entry, so tables stay as typed and nothing runs on save.
+    `mdformat` (Python, and mise already provisions it) is the candidate now
+    that deno is gone; `deno fmt` would bring a runtime back for one file
+    type, and `prettier` would drag node in. Preview and mermaid: nothing
+    renders inside the terminal or Neovide; peek.nvim (deno) and
+    markdown-preview.nvim (node) both preview in the browser with mermaid
+    support, and both cost a runtime. In-buffer polish:
     render-markdown.nvim prettifies headings and tables in place but renders
     no diagrams. A monthly-batch decision, not a today one.
 - [ ] Stop installing language servers here. Decided 2026-08-14, and it

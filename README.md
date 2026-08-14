@@ -45,11 +45,10 @@ exist on the machine. That covers Python (`ty`, `ruff`), TypeScript and
 JavaScript (`tsgo`, the TypeScript 7 compiler with the LSP inside), Rust,
 Lua, Elixir, Markdown, TOML, HTML, Terraform, Protocol Buffers, templ, and
 the Docker files. The few still expected on `PATH` until their runtime
-passes land: `gopls` and `golangci-lint-langserver` (Go), `ruby-lsp`, and
-`deno` for Deno workspaces. `gleam` joins them for good: the compiler
-carries the server, and a Gleam project needs the compiler anyway, so the
-copy the project uses is the right one. `:MivnLsp` lists both kinds and what
-was found.
+passes land: `gopls` and `golangci-lint-langserver` (Go), and `ruby-lsp`.
+`gleam` joins them for good: the compiler carries the server, and a Gleam
+project needs the compiler anyway, so the copy the project uses is the right
+one. `:MivnLsp` lists both kinds and what was found.
 The external formatters (`stylua`, `shfmt`, `jq`, `taplo`, `xmllint`) and
 `gci` for Go imports are `PATH` tools still.
 

@@ -69,7 +69,7 @@ return {
   -- :MivnLsp shows the merged result. For example:
   --
   --   lsp = {
-  --     denols = false,   -- deno is here for other work; no LSP wanted
+  --     marksman = false, -- markdown needs no server on this machine
   --     ruff = true,
   --     ty = { path = "/some/path/ty" },    -- my own ty, not the store's
   --     basedpyright = { path = "basedpyright", probe = { "--version" } },

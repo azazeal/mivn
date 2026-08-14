@@ -13,17 +13,15 @@
 
 -- The waiting room. Everything still here waits on a store runtime pass
 -- (lua/mivn/store.lua manages the rest): gopls and golangci-lint-langserver
--- leave with the Go pass, ruby-lsp with the Ruby one. denols and gleam are
--- the deliberate stays, for the same reason: the server is inside the
--- toolchain the project needs anyway, so it should be the project's own
--- rather than a second copy the store pins. Keys are nvim-lspconfig's names,
--- values the executable to look for; the `lsp` overrides below add or
--- re-point anything else.
+-- leave with the Go pass, ruby-lsp with the Ruby one. gleam is the deliberate
+-- stay: the server is inside the toolchain a Gleam project needs anyway, so
+-- it should be the project's own rather than a second copy the store pins.
+-- Keys are nvim-lspconfig's names, values the executable to look for; the
+-- `lsp` overrides below add or re-point anything else.
 local servers = {
   gopls = "gopls",
   golangci_lint_ls = "golangci-lint-langserver", -- lint diagnostics beside gopls
   ruby_lsp = "ruby-lsp",
-  denols = "deno", -- Deno's own LSP; it only claims deno.json workspaces
   gleam = "gleam", -- the Gleam compiler's own LSP, `gleam lsp`
 }
 
