@@ -108,6 +108,75 @@ local function check_binary(label, binary, probe)
   health.info(("%s: %s"):format(label, first_line(result.stdout, result.stderr, path)))
 end
 
+--- The Go language version named anywhere in `text`, patch dropped, or nil.
+--- Both `go version` and gopls answer with a `go1.26.5` somewhere in a line.
+local function go_language_version(text)
+  local found = (text or ""):match("go(%d+%.%d+)")
+  return found and vim.version.parse(found, { strict = false }) or nil
+end
+
+--- Whether gopls can understand the toolchain it is pointed at.
+---
+--- gopls type-checks with the go/types compiled into it, so the Go that built
+--- it sets the language version ceiling, whatever the project asks for. A
+--- gopls behind its toolchain reports errors on code that builds, and says
+--- nothing about why: measured 2026-08-14, gopls built with go1.24.6 calls
+--- `new(42)` "42 is not a type" in a module declaring go 1.26, which compiles
+--- and runs. Nothing in gopls warns about this; its own version policy only
+--- looks for a Go that is too old.
+---
+--- Newer is fine in the other direction, since go/types applies the rules of
+--- the version in go.mod, so this only ever compares the two minors.
+local function check_gopls_toolchain()
+  local health = vim.health
+
+  if vim.fn.exepath("gopls") == "" or vim.fn.exepath("go") == "" then
+    return
+  end
+
+  --- What `cmd` printed, or nil unless it ran and succeeded.
+  local function output(cmd)
+    local ok, result = pcall(function()
+      return vim.system(cmd, { text = true }):wait(5000)
+    end)
+
+    return ok and result.code == 0 and result.stdout or nil
+  end
+
+  -- gopls carries the Go it was built with in its own version report; the
+  -- workspace's is whatever `go` PATH resolves to, which is mise's answer.
+  local reported = output({ "gopls", "version", "-json" })
+  local decoded = reported and select(2, pcall(vim.json.decode, reported))
+
+  local built = type(decoded) == "table" and go_language_version(decoded.GoVersion)
+  local using = go_language_version(output({ "go", "version" }))
+
+  if not built or not using then
+    return
+  end
+
+  if vim.version.lt(built, using) then
+    health.warn(
+      ("gopls was built with Go %d.%d and this workspace runs %d.%d"):format(
+        built.major,
+        built.minor,
+        using.major,
+        using.minor
+      ),
+      "It cannot type-check the newer language, and the errors it invents blame your code. Rebuild it: `mise install --force go:golang.org/x/tools/gopls`"
+    )
+  else
+    health.info(
+      ("gopls was built with Go %d.%d, and this workspace runs %d.%d"):format(
+        built.major,
+        built.minor,
+        using.major,
+        using.minor
+      )
+    )
+  end
+end
+
 function M.check()
   local health = vim.health
   local lsp = require("mivn.lsp")
@@ -129,27 +198,25 @@ function M.check()
     health.ok(("%s, the newest release"):format(update.current))
   end
 
-  health.start("the project's environment")
-  local env = require("mivn.env").state()
-  local present = {}
-  for _, tool in ipairs({ "mise", "direnv" }) do
-    if vim.fn.executable(tool) == 1 then
-      present[#present + 1] = tool
-    end
-  end
+  health.start("the workspace's environment")
+  local mise = require("mivn.env")
+  local env = mise.state()
 
-  if #present == 0 then
-    health.info("neither mise nor direnv is here; nothing to read")
+  if vim.fn.executable("mise") ~= 1 then
+    health.info("mise is not here, so this environment is whatever started Neovim")
+  elseif #env.asks > 0 then
+    for _, root in ipairs(env.asks) do
+      health.warn(("%s is not trusted"):format(vim.fn.fnamemodify(root, ":~")), ":MivnEnv asks about it")
+    end
   else
-    health.ok(
-      ("%s, read in %.0fms: %d variables set"):format(
-        table.concat(present, " and "),
-        env.ms,
-        vim.tbl_count(env.applied)
-      )
-    )
-    for _, pending in ipairs(env.asks) do
-      health.warn(("%s is not trusted"):format(pending.path), ":MivnEnv asks about it")
+    health.ok(("mise, read in %.0fms: %d variables set"):format(env.ms, vim.tbl_count(env.applied)))
+
+    -- Which version of what, so "the server disagrees with my terminal" has
+    -- an answer here instead of in a second shell.
+    for name, versions in vim.spairs(mise.tools() or {}) do
+      local first = versions[1] or {}
+      local missing = first.installed == false and "; not installed, `mise install` fetches it" or ""
+      health.info(("%s: %s%s"):format(name, first.version or "?", missing))
     end
   end
 
@@ -179,6 +246,8 @@ function M.check()
   for server, binary in vim.spairs(lsp.servers) do
     check_binary(server, binary, probe_for(server, binary))
   end
+
+  check_gopls_toolchain()
 
   health.start("clients in this session")
   local clients = vim.lsp.get_clients()

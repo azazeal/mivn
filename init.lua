@@ -275,7 +275,7 @@ vim.opt.langmap = table.concat({
 -- mivn's default theme; lives in colors/ next to this file.
 vim.cmd.colorscheme("basalt")
 
-require("mivn.env") -- the project's environment; before anything spawns a program
+require("mivn.env") -- the workspace's environment; before anything spawns a program
 require("mivn.plugins") -- vim.pack; every module below is one of its consumers
 require("mivn.treesitter") -- grammars, highlighting, injections
 require("mivn.lsp") -- language servers, diagnostics, format on save

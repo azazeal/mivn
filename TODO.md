@@ -126,53 +126,6 @@ checked off; git remembers them.
   - [ ] Steal from fresh: spawn backoff for a crash-looping server, and
       a stub log so "view log" always has something to open.
 
-- [ ] The project's environment, from mise and direnv, when both are on
-    PATH. The servers this config starts need the project's toolchain and
-    never ask for it: gopls and gci live in the Go version's own bin,
-    rust-analyzer shells out to cargo, expert needs elixir and erlang. A
-    Neovide started from wofi never ran a shell, so direnv never fired and
-    mise never activated, and those four get whatever the desktop session
-    had. Resolve once against the startup directory, the way overrides.lua
-    already does; one Neovim is one project.
-
-    Neither file is trusted blindly. direnv answers `direnv status --json`
-    with `state.foundRC` = `{ path, allowed }`, where allowed is 0 for
-    allowed and 1 for blocked (measured, direnv 2.37.1, 2026-08-14).
-    **Never run `direnv export json` without that gate**: on a blocked
-    directory it exits 1 and still prints DIRENV_DIFF and DIRENV_WATCHES
-    with none of the real variables, so applying what it printed leaves
-    Neovim believing direnv is loaded while nothing was.
-
-    mise has its own trust, and it is content-aware: a config carrying only
-    min_version, plain `[tools]` versions and plain `[tasks]` loads with no
-    prompt, since nothing in it runs at load time, while templates, tool
-    options (`postinstall` is one), `[env]` and `_.source` need trust.
-    `mise trust --show` prints `<path>: trusted` or `: untrusted` per config
-    root from the directory up. Worth knowing while reading that: a repo
-    shipping plain `[tools]` pins is honoured with no prompt at all, so a
-    project can choose the Go it gets without ever asking.
-
-    **Never let mise's own prompt run.** When it asks and the answer is no,
-    and stderr is a terminal, mise adds the config to its ignored list and
-    stops asking forever. Detect with `trust --show`, ask with our own
-    prompt, and run `mise trust <root>` on a yes.
-
-    Persist nothing of our own. direnv's approval is keyed to the file's
-    content hash and mise's to the trust root; a yes remembered here would
-    outlive an edit to either, which is the exact thing those hashes exist
-    to catch. Ask again each time, default to no, and offer to open the file
-    first, since a yes runs it.
-
-    Apply to the process (vim.env), not per client through `cmd_env`: the
-    gci pass in lsp.lua is a plain vim.system, `:terminal` wants the same
-    environment, and so do the external formatters. mise first, direnv
-    second, since an `.envrc` that says `use mise` already carries mise's
-    variables.
-
-    One ordering problem to solve first: lsp.lua enables servers at require
-    time, so the enable has to wait for this. Defer it rather than blocking
-    startup behind an `.envrc` that sets up doctl contexts.
-
 - [ ] Facts written twice, waiting to drift; found by the 2026-08-04
     review, parked for a monthly batch. find.lua's BUILTINS table
     hand-describes 21 Ex commands, and its prose-vs-code regex hides any
@@ -228,28 +181,26 @@ checked off; git remembers them.
     rule always loses. Never set the variable for the whole Neovim process,
     or `:terminal` loses the user's git config too.
 
-- [ ] Whether gopls and gci have a newer release, on the same line. They
-    arrive through mise's `postinstall` hook on the go tool rather than as
-    mise tools, so `mise outdated` never sees them and cannot answer this.
-    Go's own metadata can: `go version -m $(command -v gopls)` reports the
-    module path and version out of the binary, and
-    `https://proxy.golang.org/<module>/@latest` answers
-    `{"Version","Time"}`. That Time field makes the cooldown free: say
-    nothing until the release has aged a week, the way the store's own
-    updates should wait.
+- [ ] Whether the tools this workspace uses have newer releases, on the
+    same line. mise answers the whole question: `mise outdated --json`
+    gives `{name, requested, current, latest, source}` per tool, and the
+    global config declares gopls, gci, golangci-lint and its language
+    server alongside go and rust, so one call covers the servers and the
+    toolchains together.
 
     Same shape as the mivn check beside it: one call a day, the answer in
-    update.lua's cache under `stdpath("state")`, a notice and nothing more,
-    and a command as the explicit yes that runs `go install <module>@latest`.
+    update.lua's cache under `stdpath("state")`, a notice and nothing more.
+    No command to apply it: `mise upgrade` is the yes, and it belongs in a
+    terminal where its output is visible.
 
-    The notice has to name the Go version it checked. GOBIN is per install
-    under mise, so each Go version carries its own gopls and gci, and an
-    upgrade under 1.26 leaves 1.25's copies where they are.
+    No cooldown of ours. mise has `minimum_release_age` (24h by default,
+    absolute dates accepted too), so a week's wait is one line in the mise
+    config and applies to every tool on the machine rather than to the four
+    Neovim happens to care about.
 
-    `go version -m` reads the build info that `go install` leaves in, and
-    Homebrew strips it: measured 2026-08-14, brew's gopls answers "not a Go
-    executable". Treat a binary with no module line as one this check does
-    not own, not as a failure.
+    `current` is null for a tool that is declared and not installed, which
+    reads as "nothing to upgrade" and is really "nothing is there". Say
+    that case differently, or `mise install` never gets suggested.
 
 ## Watching
 
