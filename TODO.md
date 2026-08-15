@@ -58,24 +58,29 @@ checked off; git remembers them.
     support, and both cost a runtime. In-buffer polish:
     render-markdown.nvim prettifies headings and tables in place but renders
     no diagrams. A monthly-batch decision, not a today one.
-- [ ] Decide what replaces the store's guarantees, before the entry below
-    happens and before any release. The store promised one manifest in git,
-    an exact version and a sha256 per platform verified before anything ran,
-    and no install without a prompt. mise can give all of that back, and
-    none of it is on here today. Measured 2026-08-15, on this machine:
+- [ ] Sandbox the installs too, which is the last of the store's guarantees
+    with no replacement. The store promised one manifest in git, an exact
+    version and a sha256 per platform verified before anything ran, and no
+    install without a prompt. Two of the three replacements are decided, on
+    2026-08-15:
 
-      `mise settings lockfile`         not set, and no mise.lock anywhere,
-                                       so nothing records which version or
-                                       which bytes were installed
-      `sandbox.deny_all`, `deny_net`   false
-      `paranoid`                       false
-      `minimum_release_age`            not set, so no release-age damping,
-                                       the guard praktoras's notes already
-                                       argued for
+      release age    `minimum_release_age = "14d"` globally, with `"0"` on
+                     go and rust, which are trusted further. That is the
+                     worm case covered: a package compromised on Monday is
+                     never installed unless nobody notices for two weeks.
+      lockfile       **no**, deliberately. It would buy the same versions on
+                     both machines and a record of which bytes ran, and it
+                     would cost the thing the mise config is written for:
+                     nothing is pinned to a patch so a security release
+                     arrives on its own. Eventual consistency between the
+                     laptop and the macbook is fine. Do not revisit without
+                     a reason that is not tidiness.
+      servers        confined, see lua/mivn/sandbox.lua.
 
-    bubblewrap may not be needed for half of it: mise has a sandbox of its
-    own in `src/sandbox/`, Landlock plus seccomp on Linux and the macOS
-    sandbox, with deny_read, deny_write, deny_net, deny_env and allow lists.
+    What is left is the installs. mise has a sandbox of its own in
+    `src/sandbox/`, Landlock plus seccomp on Linux and the macOS sandbox,
+    with deny_read, deny_write, deny_net, deny_env and allow lists, and
+    lua/mivn/sandbox.lua already puts every server behind it.
 
     **It does not cover installs.** `with_sandbox` is called from
     `cli/run.rs`, `cli/exec.rs` and `task/task_executor.rs` and from nowhere
@@ -85,15 +90,16 @@ checked off; git remembers them.
     else a rule that only download-shaped backends (aqua, github) are used
     and never ones that build.
 
-    The other half is bigger and older: rust-analyzer runs a project's build
-    scripts and proc macros, so opening a repo someone else wrote runs their
-    code. That was equally true under the store; it was just behind a
-    prompt. mise's exec sandbox is the lever there, since shims go through
-    `Exec::run_with_toolset`.
+    Note what the server sandbox does not reach: rust-analyzer runs a
+    project's build scripts and proc macros as part of its job, so those run
+    confined but they do run. That was equally true under the store, behind
+    a prompt that only ever gated the download.
 
-    Order to decide in: lockfile on, `minimum_release_age` set, then whether
-    the sandbox goes around installs (bwrap), around the servers (mise's
-    own), or both.
+    So the one thing left to decide is whether `mise install` runs under
+    bwrap, or whether the rule is instead that only download-shaped backends
+    (aqua, github, http) are used and never ones that build. The second is
+    free and covers most of it; the Go backend is the exception, since
+    `go install` compiles.
 
 - [ ] Stop installing language servers here. Decided 2026-08-14, and it
     supersedes the entry below: mise installs them and mivn finds them on
