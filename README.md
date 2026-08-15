@@ -38,22 +38,20 @@ What has to be on the system:
 - **ripgrep** (or **fd**), optionally: `<Space>f` and `<Space>/` use whichever
   is installed, and fall back to slower built-ins otherwise.
 
-Most language servers are managed: opening a covered file offers to install
-the server, pinned and checksum-verified, into Neovim's data directory
-(`lua/mivn/store.lua` is the manifest), and no language runtime needs to
-exist on the machine. That covers Python (`ty`, `ruff`), TypeScript and
-JavaScript (`tsgo`, the TypeScript 7 compiler with the LSP inside), Rust,
-Lua, Elixir, Markdown, TOML, HTML, Terraform, Protocol Buffers, templ, and
-the Docker files. The few still expected on `PATH` until their runtime
-passes land: `gopls` and `golangci-lint-langserver` (Go), and `ruby-lsp`.
-`gleam` joins them for good: the compiler carries the server, and a Gleam
-project needs the compiler anyway, so the copy the project uses is the right
-one. So do `vscode-json-language-server` and `yaml-language-server`, which
-are Node programs and the only reason Node is here at all; what they buy is
-JSON Schema, so a workflow file or a `package.json` is checked against the
-schema its name matches. `:MivnLsp` lists both kinds and what was found.
+Every language server comes from [mise](https://mise.jdx.dev), which this
+config expects on `PATH` and reads the environment from. It installs none of
+them itself: a server missing from mise's config is a language with
+tree-sitter colors and nothing else, said once in `:checkhealth mivn`. The
+set in use is Go (`gopls`, `golangci-lint-langserver`), Python (`ty`,
+`ruff`), TypeScript (`tsgo`), Rust, Lua, Elixir, Gleam, Markdown, TOML,
+YAML, JSON, HTML, Terraform, Protocol Buffers, templ and the Docker files.
 The external formatters (`stylua`, `shfmt`, `jq`, `taplo`, `xmllint`) and
-`gci` for Go imports are `PATH` tools still.
+`gci` for Go imports come from the same place.
+
+What this config does own is the part mise cannot express: what each server
+is told once it starts, what runs after it (`gci` re-groups Go imports after
+the language server has formatted), which JSON Schema a file gets, and the
+sandbox every server runs under. `:checkhealth mivn` reports all of it.
 
 This is a plain Neovim configuration: clone it where Neovim looks and run
 `nvim`.

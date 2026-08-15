@@ -9,21 +9,15 @@
 -- this config and can tweak Neovim directly; vim.lsp.config() calls there
 -- merge over the defaults lua/mivn/lsp.lua ships.
 return {
-  -- Per-server tuning, one entry per nvim-lspconfig name. The value takes
-  -- three shapes, and declaring a server at all is consent: for the servers
-  -- the store manages (lua/mivn/store.lua), any entry but `false` means "I
-  -- want this", so there is no install dialog and an old No given there is
-  -- outranked. `false` turns the server off; for a store server that is
-  -- also what keeps the dialog from ever offering it, and for a `PATH`
-  -- server it matters when the binary is installed for other reasons and
-  -- keeps attaching. `true` gives the consent and says nothing more. A
-  -- table carries the finer knobs, all optional:
+  -- Per-server tuning, one entry per nvim-lspconfig name. mise installs the
+  -- servers; this is only how they are configured once they are there.
+  -- `false` turns one off, which matters when the binary is installed for
+  -- other reasons and keeps attaching. A table carries the finer knobs, all
+  -- optional:
   --
-  --   path      an executable of your own. For a store server this is the
-  --             escape hatch: mivn stops managing it and runs yours,
-  --             resolved in your environment, runtime and all. For any
-  --             other server it is the binary that proves it is installed;
-  --             naming a server lua/mivn/lsp.lua's table does not carry
+  --   path      an executable of your own, instead of the one PATH
+  --             resolves. It is also what proves the server is installed,
+  --             so naming a server lua/mivn/lsp.lua's table does not carry
   --             adds it.
   --
   --   config    handed to vim.lsp.config(<name>, ...) and deep-merged over
@@ -40,6 +34,9 @@ return {
   --             version: the extra arguments as a list, or false for a
   --             binary with no harmless one-shot flag, which is then only
   --             looked up and never run.
+  --
+  --   sandbox   false runs this server unconfined. lua/mivn/sandbox.lua
+  --             says what it is confined to otherwise, and why.
   --
   --   prefixes  gopls only: the Go import prefixes that count as "ours",
   --             as a list. Each prefix earns a gci block of its own, in
@@ -62,16 +59,13 @@ return {
   --   vim.lsp.enable("ty")
   --
   -- Leave the cmd out and the binary resolves from PATH as stock Neovim
-  -- would. One caveat: a store server turned off here has its files swept
-  -- eventually, so a project re-enabling one brings its own binary rather
-  -- than pointing into the store.
+  -- would.
   --
-  -- :MivnLsp shows the merged result. For example:
+  -- :checkhealth mivn shows the merged result. For example:
   --
   --   lsp = {
   --     marksman = false, -- markdown needs no server on this machine
-  --     ruff = true,
-  --     ty = { path = "/some/path/ty" },    -- my own ty, not the store's
+  --     ty = { path = "/some/path/ty" },    -- my own ty, not mise's
   --     basedpyright = { path = "basedpyright", probe = { "--version" } },
   --     gopls = {
   --       prefixes = { "github.com/my-org/" },

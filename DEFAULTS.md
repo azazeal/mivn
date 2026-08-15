@@ -965,13 +965,11 @@ window, so a paragraph with two links came out a hundred columns wide and
 broke its sentences in the middle. The link text stays; only the address is
 gone, so following one means searching docs.rs by hand.
 
-Most servers install themselves _(mivn)_: for the languages the store covers
-(Python, Rust, Lua, TypeScript, Markdown, TOML, HTML, Elixir and more; Go and
-Ruby still pend their runtime passes), opening a file with no server
-installed asks once, Yes / No / Ask me later, then downloads the pinned
-binary and attaches it to the file that asked. The answer is remembered per
-machine. `:MivnLsp` reviews and reverses all of it, and lists the few
-servers still expected on `PATH` beside the managed ones.
+Servers come from mise _(mivn)_, never from this config: it looks each one up
+on `PATH` and starts it if it is there. A language whose server mise does not
+carry keeps its tree-sitter colors and gets nothing else, which
+`:checkhealth mivn` names, along with the version of every server found and
+which of them run sandboxed.
 
 ## Folding
 

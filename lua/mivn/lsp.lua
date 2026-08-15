@@ -3,21 +3,23 @@
 -- Neovim ships the LSP client; nvim-lspconfig only supplies each server's
 -- connection details. A server whose binary is not installed is skipped
 -- quietly, and that must never become an error: no server means no LSP for
--- that language while tree-sitter carries on. `:MivnLsp` (defined in
--- lua/mivn/lsp/managed.lua) lists everything, on and off.
+-- that language while tree-sitter carries on. `:checkhealth mivn` lists
+-- everything, on and off, and says which of them are sandboxed.
+--
+-- Nothing here installs anything any more. mise owns that, so this file's
+-- whole job is the two things mise cannot express: what to tell a server
+-- once it starts, and what to run after it (lua/mivn/sandbox.lua wraps how
+-- they start, and the save chain at the bottom is the other half).
 --
 -- Format on save lives here because most of it *is* the language server:
 -- organize imports, then format. Completion is in lua/mivn/complete.lua.
 
 --- Which server handles what, and what binary proves it is installed ---------
 
--- The waiting room. Everything still here waits on a store runtime pass
--- (lua/mivn/store.lua manages the rest): gopls and golangci-lint-langserver
--- leave with the Go pass, ruby-lsp with the Ruby one. gleam is the deliberate
--- stay: the server is inside the toolchain a Gleam project needs anyway, so
--- it should be the project's own rather than a second copy the store pins.
--- Keys are nvim-lspconfig's names, values the executable to look for; the
--- `lsp` overrides below add or re-point anything else.
+-- Keys are nvim-lspconfig's names, values the executable to look for on
+-- PATH, where mise puts it. A name missing from mise's config is simply a
+-- language without a server, said once in `:checkhealth mivn`. The `lsp`
+-- overrides below add or re-point anything else.
 local servers = {
   gopls = "gopls",
   golangci_lint_ls = "golangci-lint-langserver", -- lint diagnostics beside gopls
@@ -48,6 +50,13 @@ local servers = {
   -- compiler. mise installs it under the name the release carries, `tsc`,
   -- and nvim-lspconfig looks for `tsgo`; the config below re-points it.
   tsgo = "tsc",
+
+  -- The last three out of the store, 2026-08-15. Python gets two servers
+  -- because they do different halves: ty types and navigates, ruff lints and
+  -- formats.
+  ruff = "ruff",
+  ty = "ty",
+  superhtml = "superhtml",
 }
 
 --- Local overrides ------------------------------------------------------------
@@ -56,15 +65,15 @@ local servers = {
 -- is optional, gitignored, and returns a table. The keys so far:
 --
 --   lsp                  per-server tuning, one entry per nvim-lspconfig
---                        name. `false` turns a server off; anything else
---                        declared also pre-gives install consent for a
---                        store server (`true` says just that). A table
---                        carries the finer knobs: `path` (an executable of
---                        your own), `config` (handed to vim.lsp.config(),
---                        deep-merged over the defaults here), `probe` (how
---                        :checkhealth mivn asks for a version), and gopls'
---                        `prefixes` (the Go import prefixes that count as
---                        ours). local.example.lua documents them all.
+--                        name. `false` turns a server off. A table carries
+--                        the finer knobs: `path` (an executable of your own,
+--                        instead of the one on PATH), `config` (handed to
+--                        vim.lsp.config(), deep-merged over the defaults
+--                        here), `probe` (how :checkhealth mivn asks for a
+--                        version), `sandbox = false` (this server runs
+--                        unconfined), and gopls' `prefixes` (the Go import
+--                        prefixes that count as ours). local.example.lua
+--                        documents them all.
 --
 -- Any key can also be scoped to a directory through local.lua's `projects`
 -- table; lua/mivn/overrides.lua resolves that against the startup directory,
@@ -80,16 +89,11 @@ local overrides = require("mivn.overrides")
 local gopls_overrides = (overrides.lsp or {}).gopls
 local import_prefixes = type(gopls_overrides) == "table" and gopls_overrides.prefixes or {}
 
--- The store's servers stay out of this table whatever the overrides say:
--- lua/mivn/lsp/managed.lua reads the same key and handles them itself.
-local managed = require("mivn.store").manifest
 for server, o in pairs(overrides.lsp or {}) do
-  if not managed[server] then
-    if o == false then
-      servers[server] = nil
-    elseif type(o) == "table" and o.path then
-      servers[server] = o.path
-    end
+  if o == false then
+    servers[server] = nil
+  elseif type(o) == "table" and o.path then
+    servers[server] = o.path
   end
 end
 
@@ -293,8 +297,8 @@ vim.api.nvim_create_autocmd("LspAttach", {
 
 -- `K` opens the documentation float and a second `K` steps into it. Neovim
 -- maps `q` in there to close it and leaves Esc doing nothing, which is the
--- one place in mivn where Esc is not the way back: the rename prompt and the
--- :MivnLsp dialog both take it. This is that key doing the same thing here.
+-- one place in mivn where Esc is not the way back: the rename prompt and
+-- the trust dialog both take it. This is that key doing the same thing here.
 -- `q` still works, and the mapping is on the float's own buffer, so it
 -- reaches nothing else.
 --

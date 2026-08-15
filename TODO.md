@@ -85,99 +85,33 @@ checked off; git remembers them.
     **It does not cover installs.** `with_sandbox` is called from
     `cli/run.rs`, `cli/exec.rs` and `task/task_executor.rs` and from nowhere
     in the install path, so the one moment foreign code actually runs, a
-    `go install` building a module, an npm postinstall, pipx, is the one
-    moment mise does not confine. That is where bwrap earns its place, or
-    else a rule that only download-shaped backends (aqua, github) are used
-    and never ones that build.
+    `go install` building a module or an npm postinstall, is the one moment
+    mise does not confine.
 
-    Note what the server sandbox does not reach: rust-analyzer runs a
+    The rule, decided 2026-08-15: **prefer backends that download a built
+    artifact (aqua, github, http) over ones that build**. It costs nothing,
+    it is checkable by reading the config, and npm installs already run with
+    `--ignore-scripts`, which is where that ecosystem's worms live.
+
+    Two standing exceptions, both because Go publishes no binaries at all:
+    `go:golang.org/x/tools/gopls` and `go:github.com/daixiang0/gci`. gci's
+    releases page has no assets whatsoever, so aqua's own recipe for it is a
+    go_install too. Those two are what bwrap would still be for, if it is
+    ever worth it.
+
+    Note what the server sandbox does not reach either: rust-analyzer runs a
     project's build scripts and proc macros as part of its job, so those run
     confined but they do run. That was equally true under the store, behind
     a prompt that only ever gated the download.
-
-    So the one thing left to decide is whether `mise install` runs under
-    bwrap, or whether the rule is instead that only download-shaped backends
-    (aqua, github, http) are used and never ones that build. The second is
-    free and covers most of it; the Go backend is the exception, since
-    `go install` compiles.
-
-- [ ] Stop installing language servers here. Decided 2026-08-14, and it
-    supersedes the entry below: mise installs them and mivn finds them on
-    PATH, until either praktoras is real or enough servers ship as single
-    binaries that neither is needed.
-
-    The reason is not that the store is bad. It works, and its failure
-    modes were paid for in real bugs. It is that it is a package manager
-    living inside an editor config, roughly 1300 lines of the 3900 here,
-    and mise does the same work for the whole machine, so every editor and
-    every shell gets the answer instead of this one. The coupling that
-    actually matters, gopls having been built by a Go at least as new as
-    the project's, is something mise gets right through GOBIN being per
-    install, and the store cannot express at all: it pins one binary per
-    platform and knows nothing about toolchains.
-
-    What goes when it goes: store.lua, lsp/managed.lua, the consent file
-    under stdpath("state"), the managed half of health.lua, `:MivnLsp`,
-    and the README paragraph. lsp.lua's `servers` table becomes the whole
-    list, and every entry in it is a PATH check.
-
-    What has to be true first, or a half-done day is a day with no
-    language servers at all: the dotfiles migration lands, every server in
-    the manifest has a home in mise or in a `go install` beside it, and
-    `:checkhealth mivn` finds all of them on PATH. lua/mivn/env.lua is the
-    first half of that and is already here.
-
-    Carry the knowledge out before deleting the code. The store's header
-    and health.lua's PROBES table hold things no document elsewhere
-    records: expert has no version flag, superhtml exits 0 on --version
-    while printing nothing useful, a rustup shim is an executable that is
-    not a program. praktoras wants all three.
-
-- [ ] Managed language servers, the rest. The engine lives in
-    lua/mivn/store.lua and lua/mivn/lsp/managed.lua, and every server
-    that ships as a binary is managed now; the full design (manifest,
-    store layout, lock, sweep, hook points) lives in those two files'
-    comments and in this entry's git history. Still to do, roughly in
-    order:
-  - [ ] Ruby, decided 2026-08-03: build the ruby runtime after the other
-      passes land. ruby-lsp (Shopify) is the server, a gem, so the store
-      needs a portable ruby plus a `gem install` at install time, the way
-      go will build gopls. Rails comes from the ruby-lsp-rails addon,
-      which activates from the project's Gemfile on its own.
-  - [ ] The node runtime as a store entry (one `bin/node`), plus the
-      node-only servers bundled to a single file with esbuild by the
-      weekly workflow and published as sha-pinned release assets of
-      mivn: yamlls and jsonls (SchemaStore.nvim returns with them),
-      cssls, bashls. npm runs only in CI; the user downloads two files.
-  - [ ] Go as a build-time runtime for gopls (`go install` at install
-      time, entry named `servers/gopls/v<ver>@go<ver>`), since gopls
-      publishes no binaries. gci comes along in the same pass: it
-      publishes no binaries either, it is the second half of the Go
-      format pipeline (gopls formats, gci re-groups the imports), and
-      one Go dialog should cover both. The store grows a small "tools"
-      notion for it: same staging, lock and sweep, but no client wiring;
-      lsp.lua's gci run resolves through the store by absolute path.
-  - [ ] Grow .github/scripts/repin (or a sibling) to bump the store's
-      manifest pins the way it bumps plugin pins, in the same weekly PR.
-      The 2026-08-04 review sharpened this into the store's single
-      highest-leverage change: move the manifest out of store.lua into a
-      machine-owned JSON next to nvim-pack-lock.json, have the weekly job
-      bump versions and compute every platform's sha256, and have it run
-      `M.install` for each server on the runner before opening the PR, so
-      a dead URL or wrong hash is caught in CI and not at first file open
-      on this machine. Until then the pins rot: ruff and ty release
-      near-weekly and are already behind.
-  - [ ] Steal from fresh: spawn backoff for a crash-looping server, and
-      a stub log so "view log" always has something to open.
 
 - [ ] Facts written twice, waiting to drift; found by the 2026-08-04
     review, parked for a monthly batch. find.lua's BUILTINS table
     hand-describes 21 Ex commands, and its prose-vs-code regex hides any
     real description that mentions a call like `foldexpr()`.
-    local.example.lua's long header mirrors the behavior of store.lua and
-    lsp.lua by hand. health.lua's PROBES table repeats what the manifest's
-    `smoke` fields already know, keyed by binary name instead of server
-    name. Each is fine today and wrong the day its twin changes.
+    local.example.lua's long header mirrors the behavior of lsp.lua by hand.
+    health.lua's PROBES table is keyed by binary name while everything
+    around it is keyed by server name. Each is fine today and wrong the day
+    its twin changes.
 
 ## Plugins
 

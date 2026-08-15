@@ -5,6 +5,9 @@
 -- that recurses until rustup gives up, so the server table said on while
 -- nothing worked. Each installed binary is run once here, with a version
 -- flag and a timeout, and what it answers is what gets reported.
+--
+-- mise installs all of them now, so a server that is off is a line missing
+-- from mise's config rather than anything this config can fix.
 
 local M = {}
 
@@ -41,8 +44,8 @@ local function first_line(...)
 end
 
 --- The probe for `server` running as `binary`: the override's `probe`
---- field when it is set, the built-in table otherwise. Managed binaries
---- arrive as absolute paths while the table is keyed by name, hence the
+--- field when it is set, the built-in table otherwise. The `path` escape
+--- hatch gives an absolute path while the table is keyed by name, hence the
 --- basename fallback.
 local function probe_for(server, binary)
   local o = (require("mivn.overrides").lsp or {})[server]
@@ -180,8 +183,7 @@ end
 function M.check()
   local health = vim.health
   local lsp = require("mivn.lsp")
-  local store = require("mivn.store")
-  local managed = require("mivn.lsp.managed")
+  local sandbox = require("mivn.sandbox")
 
   health.start("mivn")
   local update = require("mivn.update").report()
@@ -220,24 +222,12 @@ function M.check()
     end
   end
 
-  health.start("managed language servers")
-  local target, why = store.supported()
-  if not target then
-    health.warn("this host is unsupported: " .. why, "the `path` escape hatch under `lsp` in local.lua still works")
-  else
-    health.ok("platform " .. target)
-    for _, tool in ipairs({ "curl", "tar" }) do
-      if vim.fn.executable(tool) ~= 1 then
-        health.error(("%s is missing, and installs need it"):format(tool))
-      end
-    end
-  end
+  health.start("language servers")
 
   -- Which of them run confined, so a sandbox that quietly stopped applying
   -- is visible rather than assumed.
-  local sandbox = require("mivn.sandbox")
   local confined = {}
-  for name in vim.spairs(store.manifest) do
+  for name in vim.spairs(lsp.servers) do
     if sandbox.covers(name) then
       confined[#confined + 1] = name
     end
@@ -249,16 +239,6 @@ function M.check()
     health.ok(("sandboxed: %s"):format(table.concat(confined, ", ")))
   end
 
-  for name in vim.spairs(store.manifest) do
-    local cmd = store.resolve(name)
-    if cmd then
-      check_binary(name, cmd[1], probe_for(name, cmd[1]))
-    else
-      health.info(("%s: %s"):format(name, managed.state(name)))
-    end
-  end
-
-  health.start("language servers on PATH")
   for server, binary in vim.spairs(lsp.servers) do
     check_binary(server, binary, probe_for(server, binary))
   end
