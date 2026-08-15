@@ -380,12 +380,39 @@ gci_sections[#gci_sections + 1] = "localmodule"
 --- walking up from the file to its go.mod, which a temp copy elsewhere would
 --- not find. Spliced back with nvim_buf_set_lines rather than reloaded, so the
 --- change joins the undo history instead of clearing it.
+--- Said once, when a Go file from outside this workspace is saved.
+local warned_outside = false
+
 local function gci_format(buf)
   if vim.fn.executable("gci") ~= 1 then
     return
   end
 
   local path = vim.api.nvim_buf_get_name(buf)
+
+  -- One Neovim is one workspace, and the sections above were built for this
+  -- one. A file from another checkout, reached by a picker rather than by
+  -- opening an editor there, would be regrouped against the wrong prefixes:
+  -- measured 2026-08-15, a smallstep file saved from a session started in
+  -- ~/projects/azazeal gets `github.com/azazeal/` as its "ours" block, which
+  -- is silent churn in someone else's repository. The language servers are
+  -- unaffected, since each roots itself from the file.
+  --
+  -- So nothing happens instead, and it says so once. gopls has already
+  -- formatted and organised the imports by then; only the grouping is
+  -- missing.
+  if vim.fs.relpath(vim.fn.getcwd(), path) == nil then
+    if not warned_outside then
+      warned_outside = true
+      vim.notify(
+        "gci skipped: this file is outside the workspace this session started in, "
+          .. "and its import blocks are not the ones configured here.",
+        vim.log.levels.WARN
+      )
+    end
+
+    return
+  end
   local cmd = { "gci", "write", "--skip-generated", "--custom-order" }
   for _, section in ipairs(gci_sections) do
     cmd[#cmd + 1] = "-s"
