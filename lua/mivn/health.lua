@@ -233,6 +233,22 @@ function M.check()
     end
   end
 
+  -- Which of them run confined, so a sandbox that quietly stopped applying
+  -- is visible rather than assumed.
+  local sandbox = require("mivn.sandbox")
+  local confined = {}
+  for name in vim.spairs(store.manifest) do
+    if sandbox.covers(name) then
+      confined[#confined + 1] = name
+    end
+  end
+
+  if #confined == 0 then
+    health.warn("nothing is sandboxed", "mise is what applies it; `sandbox = false` in local.lua turns it off")
+  else
+    health.ok(("sandboxed: %s"):format(table.concat(confined, ", ")))
+  end
+
   for name in vim.spairs(store.manifest) do
     local cmd = store.resolve(name)
     if cmd then

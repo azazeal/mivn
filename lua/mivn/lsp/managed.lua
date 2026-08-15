@@ -16,6 +16,7 @@
 -- machine. :MivnLsp is where to review and reverse all of it.
 
 local store = require("mivn.store")
+local sandbox = require("mivn.sandbox")
 
 local lsp = require("mivn.overrides").lsp or {}
 local supported = store.supported()
@@ -51,7 +52,7 @@ local function install_and_enable(name)
   local version = store.manifest[name].version
 
   if store.resolve(name) then
-    vim.lsp.config(name, { cmd = store.resolve(name) })
+    vim.lsp.config(name, { cmd = sandbox.wrap(name, store.resolve(name)) })
     vim.lsp.enable(name)
     return
   end
@@ -63,7 +64,7 @@ local function install_and_enable(name)
       return
     end
 
-    vim.lsp.config(name, { cmd = store.resolve(name) })
+    vim.lsp.config(name, { cmd = sandbox.wrap(name, store.resolve(name)) })
     vim.lsp.enable(name)
     vim.notify(("%s %s is installed and on."):format(name, version))
   end)
@@ -87,13 +88,13 @@ for name, spec in pairs(store.manifest) do
     -- The escape hatch: the user's executable, the manifest's argv tail.
     local cmd = { path }
     vim.list_extend(cmd, spec.args or {})
-    vim.lsp.config(name, { cmd = cmd })
+    vim.lsp.config(name, { cmd = sandbox.wrap(name, cmd) })
 
     if vim.fn.executable(path) == 1 then
       enable[#enable + 1] = name
     end
   elseif store.resolve(name) then
-    vim.lsp.config(name, { cmd = store.resolve(name) })
+    vim.lsp.config(name, { cmd = sandbox.wrap(name, store.resolve(name)) })
     enable[#enable + 1] = name
   elseif supported then
     -- Any declared entry is consent by itself; only the undeclared go
