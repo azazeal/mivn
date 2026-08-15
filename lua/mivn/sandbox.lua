@@ -43,8 +43,13 @@ end
 --- The policy per server. Absent from this table means unwrapped, which is
 --- how a server joins deliberately rather than by being forgotten.
 ---
----   net    false denies it outright. Nothing here needs it: these servers
----          read a project and answer questions about it.
+---   net    false denies it outright. Most of these read a project and
+---          answer questions about it; the exception is a server that
+---          fetches JSON schemas, which is a network feature however it
+---          looks. Keeping the network also needs the resolver directory
+---          readable, since /etc/resolv.conf is a symlink into /run and
+---          mise's own read list stops at /etc. Named narrowly rather than
+---          granting /run, which holds the ssh agent's socket.
 ---   write  a list of extra writable paths; absent denies every write.
 ---          `/tmp` stays writable whatever this says, which is mise's own
 ---          floor, so treat it as public.
@@ -66,7 +71,12 @@ local POLICY = {
   lua_ls = { net = false, own = true },
   marksman = { net = false },
   superhtml = { net = false },
-  taplo = { net = false },
+
+  -- The one server here that keeps the network: it resolves the schema a
+  -- `#:schema` line names, or one its catalog matches by file name, and
+  -- validates against it. Denying the network turns every mise.toml and
+  -- Cargo.toml back into unchecked text (measured 2026-08-15).
+  taplo = {},
   terraformls = { net = false },
   tsgo = { net = false },
 }
@@ -106,15 +116,17 @@ function M.wrap(name, cmd)
     end
   end
 
-  if policy.net == false then
-    flag("--deny-net")
-  end
-
   -- Reads: the workspace, wherever the server itself lives, and whatever
   -- the entry adds. One --allow-read is what turns reads into a whitelist,
   -- so this list is also the whole of what it can see.
   local reads = { vim.fn.getcwd(), STORE }
   vim.list_extend(reads, policy.read or {})
+
+  if policy.net == false then
+    flag("--deny-net")
+  else
+    reads[#reads + 1] = "/run/systemd/resolve"
+  end
 
   local binary = home_of(cmd[1])
   if binary then
@@ -149,7 +161,14 @@ function M.wrap(name, cmd)
     flag("--deny-env")
   end
 
-  local wrapped = { "mise", "exec" }
+  -- MISE_SAFE, because the wrapper must not care what the workspace's own
+  -- mise config says. Without it, an untrusted or malformed mise.toml in the
+  -- project makes `mise exec` refuse before the server ever starts, and every
+  -- language server dies with an error about trust (measured 2026-08-15).
+  -- Safe mode makes that config inert, which is all this needs: the sandbox
+  -- comes from the flags, and the environment came from lua/mivn/env.lua
+  -- before any of this ran.
+  local wrapped = { "env", "MISE_SAFE=1", "mise", "exec" }
   vim.list_extend(wrapped, flags)
   wrapped[#wrapped + 1] = "--"
 
