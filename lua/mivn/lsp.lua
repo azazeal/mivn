@@ -83,9 +83,13 @@ local overrides = require("mivn.overrides")
 -- One list for the whole session, like every other override: `projects` in
 -- local.lua is the scoping mechanism, resolved by where Neovim started. The
 -- cost is deliberate and small: a file from another workspace edited in this
--- session gets this workspace's blocks. The list rides gopls' entry in the
--- `lsp` overrides because both consumers are Go plumbing: gopls' `local`
--- setting, and the gci run this module drives itself on save.
+-- session gets this workspace's blocks.
+--
+-- These stay in local.lua rather than shipping here, and that is the point:
+-- an organisation's private module roots are nobody else's business, while
+-- the settings below (the codelenses, the hints, the linter) are the config
+-- and belong in it. Both consumers are Go plumbing: gopls' `local` setting,
+-- and the gci run this module drives itself on save.
 local gopls_overrides = (overrides.lsp or {}).gopls
 local import_prefixes = type(gopls_overrides) == "table" and gopls_overrides.prefixes or {}
 

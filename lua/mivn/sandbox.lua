@@ -27,12 +27,6 @@ local M = {}
 
 local overrides = require("mivn.overrides")
 
---- Where servers live. Neither is under a path mise's sandbox allows by
---- default, so a server cannot execute itself without these.
---- The store. mise grants its own installs directory read access already,
---- so only Neovim's needs naming.
-local STORE = vim.fs.joinpath(vim.fn.stdpath("data"), "servers")
-
 --- A directory beside Neovim's own under XDG_CACHE_HOME, which is where the
 --- servers that keep a cache keep it. Normalised because a `..` left in the
 --- middle is a path Landlock takes literally.
@@ -78,12 +72,11 @@ local POLICY = {
   jsonls = {},
   yamlls = {},
 
-  -- The one server here that keeps the network: it resolves the schema a
-  -- `#:schema` line names, or one its catalog matches by file name, and
-  -- validates against it. Denying the network turns every mise.toml and
-  -- Cargo.toml back into unchecked text (measured 2026-08-15).
-  -- The read is Neovim's cache directory, where lua/mivn/schemas.lua keeps
-  -- the catalog taplo is pointed at.
+  -- Also keeps the network, and for the same reason: it resolves the schema
+  -- a `#:schema` line names, or one its catalog matches by file name.
+  -- Denying it turns every mise.toml and Cargo.toml back into unchecked text
+  -- (measured 2026-08-15). The read is Neovim's cache directory, where
+  -- lua/mivn/schemas.lua keeps the catalog taplo is pointed at.
   taplo = { read = { vim.fn.stdpath("cache") } },
   terraformls = { net = false },
   tsgo = { net = false },
@@ -106,22 +99,30 @@ local off
 --- than taking the servers down with it. It is also a way in: a repository
 --- that ships a config mise chokes on gets its language servers unconfined.
 --- That is why the notice is a warning and not a log line.
+---
+--- **MISE_AUTO_INSTALL=0 is what keeps this cheap.** `mise exec` installs a
+--- missing tool before it runs anything, so in a checkout whose go.mod names
+--- a toolchain this machine has never had, the probe becomes a toolchain
+--- download. Measured 2026-08-15: it fetched a whole Go and blew a
+--- five-second timeout, which stood the sandbox down for that session.
+--- Neither startup nor a server start may wait on a download; installing is
+--- `mise install`, run by me, in a terminal that shows it happening.
 local probed
 local function usable()
   if probed == nil then
     local ok, result = pcall(function()
       return vim
-        .system({ "env", "MISE_SAFE=1", "mise", "exec", "--deny-net", "--", "true" }, {
+        .system({ "env", "MISE_SAFE=1", "MISE_AUTO_INSTALL=0", "mise", "exec", "--deny-net", "--", "true" }, {
           text = true,
           cwd = vim.fn.getcwd(),
         })
-        :wait(5000)
+        :wait(10000)
     end)
 
     probed = ok and result.code == 0
 
     if not probed then
-      off = "mise cannot run in this workspace, most likely a mise.toml it cannot parse"
+      off = "mise cannot run here; `mise exec -- true` in this directory says why"
       vim.schedule(function()
         vim.notify(("Language servers are not sandboxed: %s."):format(off), vim.log.levels.WARN)
       end)
@@ -179,7 +180,7 @@ function M.wrap(name, cmd)
   -- Reads: the workspace, wherever the server itself lives, and whatever
   -- the entry adds. One --allow-read is what turns reads into a whitelist,
   -- so this list is also the whole of what it can see.
-  local reads = { vim.fn.getcwd(), STORE }
+  local reads = { vim.fn.getcwd() }
   vim.list_extend(reads, policy.read or {})
 
   if policy.net == false then
