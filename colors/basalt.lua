@@ -30,7 +30,7 @@ local c = {
   bg2 = "#171B24", -- current line
   bg3 = "#1E242E", -- panels, popups, active tab, separators, indent guides
   bg4 = "#2C313A", -- selection
-  bg5 = "#3E4452", -- scrollbar thumb
+  bg5 = "#3E4452", -- scrollbar thumb, listchars
   bg6 = "#495162", -- line numbers, inactive tab text
   bg7 = "#546178", -- comments, untracked files
   fg = "#ABB2BF",
@@ -123,7 +123,7 @@ hl({
   Title = { fg = c.blue, bold = true },
   Conceal = { fg = c.bg6 },
   NonText = { fg = c.bg3 },
-  Whitespace = { fg = c.bg3 },
+  Whitespace = { fg = c.bg5 },
   SpecialKey = { fg = c.bg5 },
   EndOfBuffer = { fg = c.bg },
   QuickFixLine = { bg = c.bg3, bold = true },
