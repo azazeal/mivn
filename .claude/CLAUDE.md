@@ -3,8 +3,17 @@
 A personal Neovim config. The repo root is the config directory, cloned to
 `~/.config/nvim` (or run isolated: symlink the repo to `~/.config/mivn` and
 set `NVIM_APPNAME=mivn`, which is how this working copy is tested without
-touching the real config). Launching, the Neovide-vs-terminal choice, and
-direnv are up to the executing environment and not this repo.
+touching the real config). Launching and the Neovide-vs-terminal choice are
+up to the executing environment and not this repo.
+
+The environment is this repo's business, though, and that is a deliberate
+reversal. Two launch paths matter: `nvim` in a terminal already inside the
+directory, where mise's shell hook has run, and Neovide from a launcher,
+where no shell ever ran. lua/mivn/env.lua asks mise directly so both come
+out the same, and the terminal path pays 6ms for an answer it already had.
+Tools come from mise too, all of them: nothing here installs a language
+server, and a server missing from mise's config is a language with
+tree-sitter colours and nothing else.
 
 ## Philosophy
 
