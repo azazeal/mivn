@@ -206,10 +206,8 @@ function M.check()
 
   if vim.fn.executable("mise") ~= 1 then
     health.info("mise is not here, so this environment is whatever started Neovim")
-  elseif #env.asks > 0 then
-    for _, root in ipairs(env.asks) do
-      health.warn(("%s is not trusted"):format(vim.fn.fnamemodify(root, ":~")), ":MivnEnv asks about it")
-    end
+  elseif env.refused then
+    health.warn(env.refused, "`mise trust` in this directory, then :MivnEnv")
   else
     health.ok(("mise, read in %.0fms: %d variables set"):format(env.ms, vim.tbl_count(env.applied)))
 

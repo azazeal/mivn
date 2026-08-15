@@ -18,8 +18,18 @@
 -- 2026-08-15: `mise env --json` answers in 6ms here, and refuses in 6ms.
 -- `:checkhealth mivn` reports what it cost, so the day it stops being cheap
 -- is visible.
+--
+-- Trust is not this module's business. A directory I edit in is a directory
+-- I have been in, and mise asks for trust there, once, and remembers it by
+-- path: it re-reads the file afterwards without asking again, since the
+-- content hash only matters under `paranoid`. So the editor expects an
+-- answered directory and says so plainly when it finds otherwise, rather
+-- than putting a dialog in front of a config I have not read. `mise trust`
+-- belongs in the terminal that is already open.
 
 local M = {}
+
+local overrides = require("mivn.overrides")
 
 -- Neovim's own. Nothing a workspace ships gets to move them.
 local KEEP = {
@@ -31,50 +41,14 @@ local KEEP = {
   VIMRUNTIME = true,
 }
 
-local IGNORED = vim.fs.joinpath(vim.fn.stdpath("state"), "env-ignored.json")
-
---- What happened, for :checkhealth mivn and :MivnEnv. `asks` holds the config
---- roots that need an answer before any of this workspace's variables can be
---- read; mise refuses the lot when one of them is untrusted.
+--- What happened, for :checkhealth mivn and :MivnEnv. `refused` is what mise
+--- said when it would not answer, which is usually an untrusted directory
+--- and occasionally a config it cannot parse.
 local state = {
   applied = {},
-  asks = {},
+  refused = nil,
   ms = 0,
 }
-
-local function slurp(path)
-  local file = io.open(path, "r")
-  if not file then
-    return nil
-  end
-
-  local body = file:read("*a")
-  file:close()
-
-  return body
-end
-
---- The roots I have said no to. Only a no is remembered: mise keys its own
---- approval to the trust root's contents, and a yes remembered here would
---- outlive an edit to the config, which is what that check exists to catch.
-local ignored
-local function load_ignored()
-  if not ignored then
-    local ok, decoded = pcall(vim.json.decode, slurp(IGNORED) or "")
-    ignored = ok and type(decoded) == "table" and decoded or {}
-  end
-
-  return ignored
-end
-
-local function ignore(path)
-  load_ignored()[path] = true
-
-  vim.fn.mkdir(vim.fs.dirname(IGNORED), "p")
-  local file = assert(io.open(IGNORED, "w"))
-  file:write(vim.json.encode(ignored), "\n")
-  file:close()
-end
 
 --- Run mise in the startup directory. Returns its result, or nil when mise is
 --- not installed or takes longer than it should.
@@ -100,43 +74,6 @@ local function decode(text)
   return ok and type(decoded) == "table" and decoded or nil
 end
 
---- Trust ----------------------------------------------------------------------
---
--- mise decides by content, so asking it for the environment is the only honest
--- test: a config carrying only min_version, plain [tools] versions and plain
--- [tasks] is read with no trust at all, since nothing in it runs at load time,
--- while templates, tool options, [env] and `_.source` are refused until
--- trusted. Measured on 2026-08-14: `trust --show` calls ~/projects untrusted
--- for a leftover .tool-versions and `mise env --json` reads it anyway, so
--- gating on the first would hide an environment mise was willing to give.
---
--- mise's own prompt must never reach a terminal: asked there, a no puts the
--- config on its ignored list and it stops asking forever. Nothing here runs
--- mise interactively, and `trust --show` answers without prompting at all.
-
---- The config roots mise wants an answer about, nearest last, minus the ones
---- already answered with a no.
-local function untrusted()
-  local shown = mise({ "trust", "--show" })
-
-  local roots = {}
-  for line in ((shown or {}).stdout or ""):gmatch("[^\r\n]+") do
-    -- mise writes these through its own display_path, which abbreviates the
-    -- home directory back to a tilde. vim.system runs no shell, so an
-    -- unexpanded one would reach `mise trust` as a literal directory name.
-    local path = line:match("^(.*): untrusted$")
-    path = path and vim.fs.normalize(path)
-
-    if path and not load_ignored()[path] then
-      roots[#roots + 1] = path
-    end
-  end
-
-  return roots
-end
-
---- Resolving ------------------------------------------------------------------
-
 --- Put `vars` on the process.
 local function apply(vars)
   for name, value in pairs(vars) do
@@ -147,79 +84,32 @@ local function apply(vars)
   end
 end
 
---- Read the environment, apply it, and remember what still needs an answer.
+--- Read the environment and apply it, or remember why not.
 function M.resolve()
   local started = vim.uv.hrtime()
 
-  state.applied, state.asks = {}, {}
+  state.applied, state.refused = {}, nil
 
   local env = mise({ "env", "--json" })
   if env and env.code == 0 then
     apply(decode(env.stdout) or {})
   elseif env then
-    -- It refused. A refusal with nothing untrusted behind it is some other
-    -- problem, and not one a dialog can fix.
-    state.asks = untrusted()
+    -- mise's own words, minus its prefix and its two closing lines about the
+    -- version and --verbose. The reason is rarely on the first line: an
+    -- untrusted directory opens with "error parsing config file" and only
+    -- says "are not trusted" underneath it.
+    local said = {}
+    for line in (env.stderr or ""):gmatch("[^\r\n]+") do
+      line = vim.trim((line:gsub("^mise ERROR%s*", "")))
+      if line ~= "" and not line:match("^Version:") and not line:match("^Run with") then
+        said[#said + 1] = line
+      end
+    end
 
-    -- `trust --show` names roots, which are directories; the refusal names
-    -- the file it choked on. Keep it for the dialog, so "show it" opens a
-    -- config rather than a directory listing.
-    local named = (env.stderr or ""):match("Config files in (.-) are not trusted")
-    state.named = named and vim.fs.normalize(named) or nil
+    state.refused = #said > 0 and table.concat(said, " ") or "mise would not answer"
   end
 
   state.ms = (vim.uv.hrtime() - started) / 1e6
-end
-
---- Asking ---------------------------------------------------------------------
-
---- Ask about one root, then carry on to the next. A yes runs whatever the
---- config does, so the file itself is one keystroke away; taking that option
---- leaves the question unanswered and :MivnEnv asks it again.
-local function ask(root)
-  local choices = { "Trust it", "Show it first", "No, and do not ask again", "Ask me later" }
-  local prompt = ("%s is not trusted by mise."):format(vim.fn.fnamemodify(root, ":~"))
-
-  vim.ui.select(choices, { prompt = prompt }, function(choice)
-    -- Both answers that settle a root re-resolve and ask again, because one
-    -- answer can leave the next root waiting: mise refuses the whole set
-    -- until every one of them is trusted.
-    if choice == choices[1] then
-      local result = mise({ "trust", root })
-      if not result or result.code ~= 0 then
-        vim.notify(("Could not trust %s"):format(root), vim.log.levels.WARN)
-        return
-      end
-    elseif choice == choices[2] then
-      -- The file mise named when it refused, when it is one of this root's;
-      -- the directory otherwise, which netrw lists.
-      local target = state.named
-      if not target or not vim.fs.relpath(root, target) then
-        target = root
-      end
-
-      vim.cmd.split(vim.fn.fnameescape(target))
-      return
-    elseif choice == choices[3] then
-      ignore(root)
-    else
-      return
-    end
-
-    M.resolve()
-    if #state.asks > 0 then
-      M.ask()
-    elseif choice == choices[1] then
-      vim.notify("Environment applied. Language servers already running keep the old one until :restart.")
-    end
-  end)
-end
-
---- Ask about the first root still waiting, if any.
-function M.ask()
-  if state.asks[1] then
-    ask(state.asks[1])
-  end
 end
 
 --- The tools this workspace resolves to, as mise reports them, or nil when it
@@ -240,20 +130,28 @@ end
 
 M.resolve()
 
--- The question waits for the UI. Startup is drawing a banner, and the answer
--- to it runs whatever a config from a directory I may have just cloned says.
-vim.api.nvim_create_autocmd("VimEnter", {
-  group = vim.api.nvim_create_augroup("mivn.env", { clear = true }),
-  callback = function()
-    vim.schedule(M.ask)
-  end,
-})
+-- Said once, after the UI is up, because an editor with no toolchain on PATH
+-- is about to look broken in a dozen small ways and the reason should arrive
+-- before the symptoms.
+if state.refused and overrides.quiet ~= true then
+  vim.api.nvim_create_autocmd("VimEnter", {
+    group = vim.api.nvim_create_augroup("mivn.env", { clear = true }),
+    callback = function()
+      vim.schedule(function()
+        vim.notify(
+          ("No environment here: %s\nRun `mise trust` in this directory, then :MivnEnv."):format(state.refused),
+          vim.log.levels.WARN
+        )
+      end)
+    end,
+  })
+end
 
 vim.api.nvim_create_user_command("MivnEnv", function()
   M.resolve()
 
-  if #state.asks > 0 then
-    M.ask()
+  if state.refused then
+    vim.notify(state.refused, vim.log.levels.WARN)
     return
   end
 
