@@ -59,6 +59,12 @@ local function go_caches()
   return go_dirs
 end
 
+--- A directory beside Neovim's own under XDG_DATA_HOME, for the servers that
+--- unpack themselves before they can run.
+local function data(name)
+  return vim.fs.normalize(vim.fs.joinpath(vim.fn.stdpath("data"), "..", name))
+end
+
 --- A directory in $HOME, for the toolchains that keep their caches there.
 local function home(name)
   return vim.fs.joinpath(vim.uv.os_homedir() or "~", name)
@@ -97,6 +103,9 @@ end
 ---          /proc, /sys and /home/linuxbrew.
 ---   env    the variable patterns that survive; absent keeps only mise's
 ---          floor of PATH, HOME, USER, SHELL, TERM, COLORTERM and LANG.
+---   setenv variables to set for this server, which are allowed through by
+---          name automatically. For the ones that have to be told something
+---          rather than merely permitted.
 local POLICY = {
   -- buf unpacks the well-known protobuf types into its cache and exits 1
   -- when it cannot (measured 2026-08-15).
@@ -181,7 +190,45 @@ local POLICY = {
     write = { home(".cargo") },
   },
 
-  expert = { env = { "MIX_*", "ELIXIR*", "ERL*" }, project = true },
+  -- expert is a burrito build: it unpacks a whole BEAM release beside
+  -- Neovim's data directory on first run and writes a cookie into it, so
+  -- without that grant it answers `error: AccessDenied` and never speaks
+  -- (measured 2026-08-15, on an umbrella project).
+  --
+  -- The two directories under $HOME are mix's, not expert's: converging an
+  -- umbrella's dependencies reads the hex registry and rebar's cache, and
+  -- without them the load fails inside Mix.Dep.Converger while the server
+  -- stays up and silent (measured 2026-08-15, and it does not happen
+  -- unsandboxed, which is how it was found).
+  expert = {
+    env = { "MIX_*", "ELIXIR*", "ERL*" },
+    project = true,
+    write = { data(".burrito"), cache("expert"), home(".hex"), home(".mix"), cache("rebar3") },
+
+    -- expert carries a dependency of its own, elixir_sense, which is in no
+    -- project's mix.exs: it adds it to the tree and clones it into deps/ the
+    -- first time it loads a project. So a language server runs git here, and
+    -- git without a global config is the only version of that worth having.
+    -- `/dev/null` for the same two reasons lua/mivn/update.lua uses it: a
+    -- `url.<base>.insteadOf` rewrite would turn the public clone into ssh
+    -- and need a key, and reading ~/.gitconfig is not something a language
+    -- server should be able to do. Measured 2026-08-15: without this the
+    -- load dies on `unable to access '/home/azazeal/.gitconfig'` and expert
+    -- stays up knowing nothing.
+    -- The excludes file needs saying separately: git defaults it to
+    -- $XDG_CONFIG_HOME/git/ignore with no configuration involved, and treats
+    -- being unable to read it as fatal rather than as "no ignores". Set
+    -- through git's own environment interface, which is the way to configure
+    -- git without a file it has to open.
+    setenv = {
+      GIT_CONFIG_GLOBAL = "/dev/null",
+      GIT_CONFIG_SYSTEM = "/dev/null",
+      GIT_TERMINAL_PROMPT = "0",
+      GIT_CONFIG_COUNT = "1",
+      GIT_CONFIG_KEY_0 = "core.excludesFile",
+      GIT_CONFIG_VALUE_0 = "/dev/null",
+    },
+  },
   gleam = { env = { "GLEAM*" }, project = true },
 }
 
@@ -297,8 +344,13 @@ function M.wrap(name, cmd)
     reads[#reads + 1] = binary
   end
 
+  -- mise warns about a rule for a path that is not there, and that warning
+  -- lands on the server's stderr and in the LSP log. Nothing is lost by
+  -- leaving out what does not exist yet.
   for _, path in ipairs(reads) do
-    flag("--allow-read", path)
+    if vim.uv.fs_stat(path) then
+      flag("--allow-read", path)
+    end
   end
 
   local writes = vim.list_slice(policy.write or {})
@@ -316,6 +368,10 @@ function M.wrap(name, cmd)
     -- same directory either way.
     writes[#writes + 1] = vim.fs.basename(binary) == "bin" and vim.fs.dirname(binary) or binary
   end
+
+  writes = vim.tbl_filter(function(path)
+    return vim.uv.fs_stat(path) ~= nil
+  end, writes)
 
   if #writes > 0 then
     for _, path in ipairs(writes) do
@@ -340,7 +396,13 @@ function M.wrap(name, cmd)
   -- Safe mode makes that config inert, which is all this needs: the sandbox
   -- comes from the flags, and the environment came from lua/mivn/env.lua
   -- before any of this ran.
-  local wrapped = { "env", "MISE_SAFE=1", "mise", "exec" }
+  local wrapped = { "env", "MISE_SAFE=1", "MISE_AUTO_INSTALL=0" }
+  for name, value in vim.spairs(policy.setenv or {}) do
+    wrapped[#wrapped + 1] = ("%s=%s"):format(name, value)
+    flag("--allow-env", name)
+  end
+
+  vim.list_extend(wrapped, { "mise", "exec" })
   vim.list_extend(wrapped, flags)
   wrapped[#wrapped + 1] = "--"
 
