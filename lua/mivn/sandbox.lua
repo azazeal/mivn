@@ -82,7 +82,9 @@ local POLICY = {
   -- `#:schema` line names, or one its catalog matches by file name, and
   -- validates against it. Denying the network turns every mise.toml and
   -- Cargo.toml back into unchecked text (measured 2026-08-15).
-  taplo = {},
+  -- The read is Neovim's cache directory, where lua/mivn/schemas.lua keeps
+  -- the catalog taplo is pointed at.
+  taplo = { read = { vim.fn.stdpath("cache") } },
   terraformls = { net = false },
   tsgo = { net = false },
 }

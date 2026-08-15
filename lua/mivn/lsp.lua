@@ -169,6 +169,22 @@ vim.lsp.config("jsonls", {
 
 vim.lsp.config("yamlls", { cmd = { "yaml-language-server", "--stdio" } })
 
+-- TOML's own catalog, so a `Cargo.toml` or a `mise.toml` gets its schema
+-- from its name the way JSON and YAML now do, rather than only from a
+-- `#:schema` line. `evenBetterToml` is the section taplo asks the editor
+-- for, named after its VS Code extension. lua/mivn/schemas.lua explains why
+-- the URL is a local file rather than SchemaStore's own.
+local taplo_catalog = require("mivn.schemas").taplo()
+if taplo_catalog then
+  vim.lsp.config("taplo", {
+    settings = {
+      evenBetterToml = {
+        schema = { enabled = true, catalogs = { taplo_catalog } },
+      },
+    },
+  })
+end
+
 -- Opening one .tf file outside a Terraform directory is normal here, and
 -- terraform-ls says so every time in a message long enough to raise the
 -- hit-enter prompt, which stops everything until a key arrives. The server
