@@ -34,6 +34,36 @@ local function cache(name)
   return vim.fs.normalize(vim.fs.joinpath(vim.fn.stdpath("cache"), "..", name))
 end
 
+--- Where the Go toolchain keeps what it downloads and what it builds. Asked
+--- once, because both move with GOPATH and with which Go mise resolved, and
+--- a wrong guess here is a server that cannot type-check anything. Empty
+--- when there is no `go` to ask, which is also when nothing needs them.
+local go_dirs
+local function go_caches()
+  if go_dirs == nil then
+    go_dirs = {}
+
+    local ok, result = pcall(function()
+      return vim.system({ "go", "env", "GOMODCACHE", "GOCACHE" }, { text = true }):wait(5000)
+    end)
+
+    if ok and result.code == 0 then
+      for line in (result.stdout or ""):gmatch("[^\r\n]+") do
+        if line ~= "" then
+          go_dirs[#go_dirs + 1] = line
+        end
+      end
+    end
+  end
+
+  return go_dirs
+end
+
+--- A directory in $HOME, for the toolchains that keep their caches there.
+local function home(name)
+  return vim.fs.joinpath(vim.uv.os_homedir() or "~", name)
+end
+
 --- The policy per server. Absent from this table means unwrapped, which is
 --- how a server joins deliberately rather than by being forgotten.
 ---
@@ -47,13 +77,23 @@ end
 ---   write  a list of extra writable paths; absent denies every write.
 ---          `/tmp` stays writable whatever this says, which is mise's own
 ---          floor, so treat it as public.
+---   project  the workspace itself is writable. The servers that compile
+---          need it: gopls' tidy, vendor and generate codelenses write into
+---          the repository, rust-analyzer's build scripts write `target/`,
+---          expert writes `_build/`. It also means those servers can rewrite
+---          any file in the checkout, which they can already do through the
+---          edits they hand back, so nothing is lost by admitting it.
+---   go     the Go module cache and build cache, read and written. Anything
+---          that runs `go list` needs both, and that is more servers than it
+---          sounds: templ proxies to gopls, and golangci-lint compiles.
 ---   own    lets the server write inside its own installed copy. Only
 ---          lua-language-server needs it: it keeps a parse cache and a lock
 ---          under `<entry>/log/cache/<pid>` and exits 1 when it cannot
 ---          create them (measured 2026-08-15). The grant is that one
 ---          version's directory, not the store.
 ---   read   extra readable paths, on top of the workspace and the install
----          directories above. mise already allows /usr, /lib, /bin, /etc,
+---          directories above, as a list or as a function of the workspace
+---          that returns one. mise already allows /usr, /lib, /bin, /etc,
 ---          /proc, /sys and /home/linuxbrew.
 ---   env    the variable patterns that survive; absent keeps only mise's
 ---          floor of PATH, HOME, USER, SHELL, TERM, COLORTERM and LANG.
@@ -80,6 +120,69 @@ local POLICY = {
   taplo = { read = { vim.fn.stdpath("cache") } },
   terraformls = { net = false },
   tsgo = { net = false },
+
+  -- Python. ruff formats, so it writes the checkout and keeps a cache in it;
+  -- ty only reads. Neither fetches anything: the environment they inspect is
+  -- already on disk.
+  ruff = { net = false, project = true },
+  ty = { net = false },
+
+  --- The compiler-backed servers ----------------------------------------------
+  --
+  -- These keep the network, deliberately. gopls already runs almost
+  -- everything with GOPROXY=off and opts in for exactly seven things, the
+  -- upgrade codelens, vulncheck, vendor, generate, the module graph and the
+  -- first load among them, and those are the ones worth having. What they
+  -- lose instead is the environment: `GO*` and the toolchains' own variables
+  -- survive, everything else does not, so a compromised build script has no
+  -- token to send anywhere.
+  --
+  -- GOPRIVATE has to be in that list for a reason beyond convenience:
+  -- without it the go command treats private module paths as public and asks
+  -- proxy.golang.org about them by name.
+  --
+  -- What they cannot do is read `~/.ssh`, `~/.aws` or another checkout, so a
+  -- private module that is not already in the cache fails here and gets
+  -- fetched in a terminal instead. That is the trade, and it is deliberate.
+  -- gopls keeps a cache of its own beside the build cache, and cannot work
+  -- without writing it: measured 2026-08-15, every hover in a large repo
+  -- came back empty while the log filled with "storing export data ...
+  -- permission denied".
+  gopls = { env = { "GO*" }, project = true, go = true, write = { cache("gopls") } },
+  templ = { env = { "GO*" }, project = true, go = true, write = { cache("gopls") } },
+
+  golangci_lint_ls = {
+    env = { "GO*" },
+    project = true,
+    go = true,
+    write = { cache("golangci-lint") },
+
+    -- golangci-lint walks up for its config, and an organisation's checkouts
+    -- often share one a directory above the repository. Granted as that one
+    -- file rather than the directory holding it, which would open every
+    -- sibling checkout at once. Without it every Go file reports "can't read
+    -- viper config: permission denied" (measured 2026-08-15).
+    read = function(dir)
+      local found = vim.fs.find({
+        ".golangci.yml",
+        ".golangci.yaml",
+        ".golangci.toml",
+        ".golangci.json",
+      }, { path = dir, upward = true, type = "file" })[1]
+
+      return found and vim.fs.relpath(dir, found) == nil and { found } or {}
+    end,
+  },
+
+  rust_analyzer = {
+    env = { "CARGO*", "RUST*" },
+    project = true,
+    read = { home(".rustup") }, -- the sysroot, and rust-src inside it
+    write = { home(".cargo") },
+  },
+
+  expert = { env = { "MIX_*", "ELIXIR*", "ERL*" }, project = true },
+  gleam = { env = { "GLEAM*" }, project = true },
 }
 
 --- Why the sandbox is off, when it is. Read by lua/mivn/health.lua.
@@ -181,7 +284,7 @@ function M.wrap(name, cmd)
   -- the entry adds. One --allow-read is what turns reads into a whitelist,
   -- so this list is also the whole of what it can see.
   local reads = { vim.fn.getcwd() }
-  vim.list_extend(reads, policy.read or {})
+  vim.list_extend(reads, type(policy.read) == "function" and policy.read(vim.fn.getcwd()) or policy.read or {})
 
   if policy.net == false then
     flag("--deny-net")
@@ -199,6 +302,14 @@ function M.wrap(name, cmd)
   end
 
   local writes = vim.list_slice(policy.write or {})
+  if policy.project then
+    writes[#writes + 1] = vim.fn.getcwd()
+  end
+
+  if policy.go then
+    vim.list_extend(writes, go_caches())
+  end
+
   if policy.own and binary then
     -- The entry rather than the bin/ inside it, since that is where the
     -- cache goes. Servers whose executable sits at the entry root get the
