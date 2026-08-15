@@ -72,6 +72,12 @@ local POLICY = {
   marksman = { net = false },
   superhtml = { net = false },
 
+  -- The two schema servers keep the network for the same reason taplo does:
+  -- a schema is a URL. yamlls fetches SchemaStore's catalog itself, which is
+  -- what makes a GitHub workflow file validate without being told anything.
+  jsonls = {},
+  yamlls = {},
+
   -- The one server here that keeps the network: it resolves the schema a
   -- `#:schema` line names, or one its catalog matches by file name, and
   -- validates against it. Denying the network turns every mise.toml and

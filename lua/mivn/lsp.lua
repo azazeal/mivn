@@ -23,6 +23,13 @@ local servers = {
   golangci_lint_ls = "golangci-lint-langserver", -- lint diagnostics beside gopls
   ruby_lsp = "ruby-lsp",
   gleam = "gleam", -- the Gleam compiler's own LSP, `gleam lsp`
+
+  -- JSON and YAML, both of them Node programs, which is the whole cost of
+  -- having them: mise installs node, the two servers, and nothing else uses
+  -- it. What they buy is JSON Schema, and for YAML that is mostly the
+  -- GitHub workflow schema over the several hundred workflow files here.
+  jsonls = "vscode-json-language-server",
+  yamlls = "yaml-language-server",
 }
 
 --- Local overrides ------------------------------------------------------------
@@ -136,6 +143,32 @@ vim.lsp.config("lua_ls", {
   },
 })
 
+-- Both of these ship a `cmd` **function** in nvim-lspconfig that prefers
+-- `<root>/node_modules/.bin/<server>` whenever the project has one, so
+-- opening a repository would run the language server that repository
+-- shipped. Replaced with the plain command, which also turns cmd back into
+-- a list, and a list is what lua/mivn/sandbox.lua can wrap.
+vim.lsp.config("jsonls", {
+  cmd = { "vscode-json-language-server", "--stdio" },
+
+  -- The catalog this server does not carry; lua/mivn/schemas.lua says why.
+  --
+  -- `validate.enable` is not optional here even though it reads like a
+  -- default. The server computes `validateEnabled = !!settings.json.validate
+  -- .enable` when configuration arrives, so sending any settings at all
+  -- without it turns validation off entirely, schemas and `$schema` lines
+  -- included. Measured 2026-08-15: adding the catalog alone made
+  -- package.json stop reporting anything.
+  settings = {
+    json = {
+      schemas = require("mivn.schemas").json(),
+      validate = { enable = true },
+    },
+  },
+})
+
+vim.lsp.config("yamlls", { cmd = { "yaml-language-server", "--stdio" } })
+
 -- Opening one .tf file outside a Terraform directory is normal here, and
 -- terraform-ls says so every time in a message long enough to raise the
 -- hit-enter prompt, which stops everything until a key arrives. The server
@@ -190,6 +223,17 @@ for server, binary in pairs(servers) do
   end
 end
 table.sort(enabled)
+
+-- Confined before any of them starts; lua/mivn/sandbox.lua decides which
+-- ones it covers and leaves the rest exactly as they were.
+local sandbox = require("mivn.sandbox")
+for _, server in ipairs(enabled) do
+  local cmd = (vim.lsp.config[server] or {}).cmd
+  if type(cmd) == "table" then
+    vim.lsp.config(server, { cmd = sandbox.wrap(server, cmd) })
+  end
+end
+
 vim.lsp.enable(enabled)
 
 --- Inlay hints ----------------------------------------------------------------

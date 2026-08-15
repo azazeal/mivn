@@ -48,7 +48,10 @@ the Docker files. The few still expected on `PATH` until their runtime
 passes land: `gopls` and `golangci-lint-langserver` (Go), and `ruby-lsp`.
 `gleam` joins them for good: the compiler carries the server, and a Gleam
 project needs the compiler anyway, so the copy the project uses is the right
-one. `:MivnLsp` lists both kinds and what was found.
+one. So do `vscode-json-language-server` and `yaml-language-server`, which
+are Node programs and the only reason Node is here at all; what they buy is
+JSON Schema, so a workflow file or a `package.json` is checked against the
+schema its name matches. `:MivnLsp` lists both kinds and what was found.
 The external formatters (`stylua`, `shfmt`, `jq`, `taplo`, `xmllint`) and
 `gci` for Go imports are `PATH` tools still.
 
