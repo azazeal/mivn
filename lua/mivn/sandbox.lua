@@ -87,10 +87,62 @@ local POLICY = {
   tsgo = { net = false },
 }
 
+--- Why the sandbox is off, when it is. Read by lua/mivn/health.lua.
+local off
+
+--- Whether `mise exec` can run anything at all here.
+---
+--- The wrapper is mise, so mise's opinion of this workspace decides whether
+--- any of these servers start. MISE_SAFE covers a config that is untrusted,
+--- and does not cover one mise cannot parse: measured 2026-08-15, a
+--- mise.toml with `idiomatic_version_file_enable_tools = "go"` (a string
+--- where a list belongs) made every wrapped server exit 1 before it spoke a
+--- word. Losing the sandbox is bad; losing every language server, on a file
+--- the servers exist to tell me about, is worse.
+---
+--- So this probes once, and a failure turns the wrapping off loudly rather
+--- than taking the servers down with it. It is also a way in: a repository
+--- that ships a config mise chokes on gets its language servers unconfined.
+--- That is why the notice is a warning and not a log line.
+local probed
+local function usable()
+  if probed == nil then
+    local ok, result = pcall(function()
+      return vim
+        .system({ "env", "MISE_SAFE=1", "mise", "exec", "--deny-net", "--", "true" }, {
+          text = true,
+          cwd = vim.fn.getcwd(),
+        })
+        :wait(5000)
+    end)
+
+    probed = ok and result.code == 0
+
+    if not probed then
+      off = "mise cannot run in this workspace, most likely a mise.toml it cannot parse"
+      vim.schedule(function()
+        vim.notify(("Language servers are not sandboxed: %s."):format(off), vim.log.levels.WARN)
+      end)
+    end
+  end
+
+  return probed
+end
+
 --- Whether the sandbox applies at all: `sandbox = false` in local.lua turns
 --- it off for this machine or, through `projects`, for one directory.
 local function enabled()
-  return overrides.sandbox ~= false and vim.fn.executable("mise") == 1
+  if overrides.sandbox == false then
+    off = "turned off in local.lua"
+    return false
+  end
+
+  if vim.fn.executable("mise") ~= 1 then
+    off = "mise is not installed"
+    return false
+  end
+
+  return usable()
 end
 
 --- The directory holding `binary`, so the server can execute itself when it
@@ -184,6 +236,13 @@ end
 --- Whether `name` is sandboxed, for lua/mivn/health.lua.
 function M.covers(name)
   return POLICY[name] ~= nil and enabled()
+end
+
+--- Why nothing is sandboxed, when nothing is; nil while it works. Also for
+--- lua/mivn/health.lua.
+function M.off()
+  enabled()
+  return off
 end
 
 return M

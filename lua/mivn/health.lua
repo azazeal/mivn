@@ -244,7 +244,7 @@ function M.check()
   end
 
   if #confined == 0 then
-    health.warn("nothing is sandboxed", "mise is what applies it; `sandbox = false` in local.lua turns it off")
+    health.warn(("nothing is sandboxed: %s"):format(sandbox.off() or "no server asks for it"))
   else
     health.ok(("sandboxed: %s"):format(table.concat(confined, ", ")))
   end
