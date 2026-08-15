@@ -30,6 +30,24 @@ local servers = {
   -- GitHub workflow schema over the several hundred workflow files here.
   jsonls = "vscode-json-language-server",
   yamlls = "yaml-language-server",
+
+  -- Moved out of the store on 2026-08-15, because mise installs every one of
+  -- them and two copies of a server is one copy too many. The store keeps
+  -- only what mise has no entry for yet.
+  buf_ls = "buf",
+  docker_language_server = "docker-language-server",
+  expert = "expert",
+  lua_ls = "lua-language-server",
+  marksman = "marksman",
+  rust_analyzer = "rust-analyzer",
+  taplo = "taplo",
+  templ = "templ",
+  terraformls = "terraform-ls",
+
+  -- The TypeScript 7 compiler, whose language server is a flag on the
+  -- compiler. mise installs it under the name the release carries, `tsc`,
+  -- and nvim-lspconfig looks for `tsgo`; the config below re-points it.
+  tsgo = "tsc",
 }
 
 --- Local overrides ------------------------------------------------------------
@@ -168,6 +186,11 @@ vim.lsp.config("jsonls", {
 })
 
 vim.lsp.config("yamlls", { cmd = { "yaml-language-server", "--stdio" } })
+
+-- Same two corrections for tsgo, which nvim-lspconfig also gives a `cmd`
+-- function that reaches into `<root>/node_modules/.bin`: the binary mise
+-- installs is called `tsc`, and a list is what the sandbox can wrap.
+vim.lsp.config("tsgo", { cmd = { "tsc", "--lsp", "--stdio" } })
 
 -- TOML's own catalog, so a `Cargo.toml` or a `mise.toml` gets its schema
 -- from its name the way JSON and YAML now do, rather than only from a
