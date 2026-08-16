@@ -13,9 +13,9 @@
 -- 1.0 instead of a size: 100% has to keep meaning "what that file asked
 -- for".
 
-if not vim.g.neovide then
-  return
-end
+-- The keys themselves are lua/mivn/keymaps.lua's, and it is the one that
+-- checks for Neovide before binding them: everything here writes
+-- g:neovide_scale_factor, which nothing outside Neovide reads.
 
 -- The step is foot's, near enough. foot moves a 12pt font by 0.5pt a press
 -- ('font-size-adjustment', its default), so one press is a 24th either way.
@@ -26,10 +26,6 @@ local STEP = 1 + 0.5 / 12
 -- Under half the text stops being readable and over triple the window holds
 -- nothing worth looking at, so the keys stop there rather than carry on.
 local MIN, MAX = 0.5, 3.0
-
--- Zooming while typing, while selecting and in the terminal panel too: the
--- window is the same window in all of them.
-local MODES = { "n", "i", "x", "s", "t" }
 
 local function by(step)
   return function()
@@ -43,18 +39,8 @@ local function reset()
   vim.g.neovide_scale_factor = 1.0
 end
 
--- Each action maps two keys, because the keypad sends its own codes and a
--- <C-=> map never sees <C-kPlus>. The keypad digits are <k0> through <k9> in
--- key notation, not spelled-out names: <C-kZero> parses as nothing and maps a
--- literal sequence no key sends.
-for _, zoom in ipairs({
-  { keys = { "<C-=>", "<C-kPlus>" }, to = by(STEP), desc = "Zoom in" },
-  { keys = { "<C-->", "<C-kMinus>" }, to = by(1 / STEP), desc = "Zoom out" },
-  { keys = { "<C-0>", "<C-k0>" }, to = reset, desc = "Zoom back to 100%" },
-}) do
-  for _, lhs in ipairs(zoom.keys) do
-    vim.keymap.set(MODES, lhs, zoom.to, {
-      desc = zoom.desc,
-    })
-  end
-end
+return {
+  into = by(STEP),
+  out = by(1 / STEP),
+  reset = reset,
+}

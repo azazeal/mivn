@@ -14,6 +14,8 @@
 -- the buffer text instead, and the marks are drawn per line as the window
 -- redraws.
 
+local M = {}
+
 local MARKS = {
   { column = 81, group = "MivnMargin80" },
   { column = 101, group = "MivnMargin100" },
@@ -165,19 +167,50 @@ vim.api.nvim_set_decoration_provider(ns, {
   end,
 })
 
--- `{count}|` goes to a column, and Vim counts that column in screen cells: a
--- tab is its full display width and an inlay hint, which is not even text,
--- counts too, so the col a compiler prints in file:line:col landed short of
--- its target. Respelled to the character column: a tab is one, a hint is
--- nothing, and the status line (lua/mivn/statusline.lua) reads the same
--- number this takes. `g|` keeps the screen-cell meaning.
-vim.keymap.set({ "n", "x", "o" }, "|", function()
-  vim.fn.setcursorcharpos(vim.fn.line("."), vim.v.count1)
-end, { desc = "To the {count}'th character of the line" })
+-- Prose in markdown wraps at 80, the first of the three markers above, so that
+-- `gq` reflows a paragraph to the width this repository is already written to.
+-- Vim's own ftplugin leaves 'textwidth' at 0, where `gq` falls back to the
+-- screen width and a reflowed paragraph is as wide as the window happens to
+-- be.
+--
+-- Auto-wrap while typing is deliberately off. Neovim's markdown ftplugin puts
+-- `t` in 'formatoptions', and with a width set that breaks the line under me
+-- as I cross column 80, which rewraps only the line being typed and leaves the
+-- paragraph around it ragged. `gq`, `gqip` for the paragraph I am in, does the
+-- whole thing when I ask, which is xileh's `text-width` too.
+vim.api.nvim_create_autocmd("FileType", {
+  group = vim.api.nvim_create_augroup("mivn.margins.prose", { clear = true }),
+  pattern = "markdown",
+  desc = "Reflow markdown to 80 columns, on gq rather than while typing",
+  callback = function()
+    vim.bo.textwidth = MARKS[1].column - 1
+    vim.opt_local.formatoptions:remove("t")
+  end,
+})
 
--- Long lines run off the right edge ('wrap' is off in init.lua); this brings
--- them back for the window I am in. Window-local, so a prose buffer can wrap
--- while the code beside it does not.
-vim.keymap.set("n", "<leader>w", function()
+--- The keys ------------------------------------------------------------------
+--
+-- lua/mivn/keymaps.lua binds both of these; this is the behavior behind them.
+
+--- To the {count}'th character of the line.
+---
+--- `{count}|` goes to a column, and Vim counts that column in screen cells: a
+--- tab is its full display width and an inlay hint, which is not even text,
+--- counts too, so the col a compiler prints in file:line:col landed short of
+--- its target. Respelled to the character column: a tab is one, a hint is
+--- nothing, and the status line (lua/mivn/statusline.lua) reads the same
+--- number this takes. `g|` keeps the screen-cell meaning.
+function M.to_char_column()
+  vim.fn.setcursorcharpos(vim.fn.line("."), vim.v.count1)
+end
+
+--- Wrap long lines in this window, or stop.
+---
+--- Long lines run off the right edge ('wrap' is off in init.lua); this brings
+--- them back for the window I am in. Window-local, so a prose buffer can wrap
+--- while the code beside it does not.
+function M.toggle_wrap()
   vim.wo.wrap = not vim.wo.wrap
-end, { desc = "Toggle wrapping of long lines" })
+end
+
+return M

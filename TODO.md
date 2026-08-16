@@ -26,7 +26,7 @@ checked off; git remembers them.
     2026-08-04: one Shift+Right, then Ctrl+Shift+Right, selects two words
     rather than one. With "startsel" in 'keymodel' and the selection still
     one character wide (the cursor sitting on its own anchor), Vim runs the
-    key's built-in `W` first and the mapping in lua/mivn/cua.lua then adds
+    key's built-in `W` first and the mapping in lua/mivn/keymaps.lua then adds
     its `w` on top; an `<Nop>` in place of the mapping still moves, so the
     built-in is not mine to stop. Every other order is right, including two
     Shift+Rights and then Ctrl+Shift+Right. Taking shift-selection off

@@ -28,27 +28,9 @@ tabline.setup({
   end,
 })
 
---- Stepping through the bar ---------------------------------------------------
+-- Stepping through the bar is Ctrl+Tab and Ctrl+Shift+Tab, in
+-- lua/mivn/keymaps.lua with the note on why it cannot be plain Tab.
 --
--- The tab bar's own two chords, and the only ones this configuration adds.
--- `Ctrl+Tab` is unbound in stock Vim, and `:bnext`/`:bprevious` wrap at both
--- ends, which is what makes this a cycle rather than two keys that stop at the
--- edges.
---
--- The trap is what these must *not* be mapped to. In the legacy encoding a
--- terminal cannot say Ctrl+Tab and sends a plain Tab, and Normal-mode Tab is
--- `Ctrl+I`, forward through the jumplist; mapping Tab would quietly cost the
--- other half of `Ctrl+O`. So `<C-Tab>` and `<C-S-Tab>` only: they arrive as
--- themselves from Neovide and from a terminal speaking the extended keyboard
--- protocol, and on anything older they do nothing while Tab keeps its job.
-vim.keymap.set("n", "<C-Tab>", "<Cmd>bnext<CR>", {
-  desc = "Next buffer in the tab bar",
-})
-
-vim.keymap.set("n", "<C-S-Tab>", "<Cmd>bprevious<CR>", {
-  desc = "Previous buffer in the tab bar",
-})
-
 -- The landing buffer stays out of the bar by being unlisted; nothing to do.
 
 --- Where the tabs begin -------------------------------------------------------

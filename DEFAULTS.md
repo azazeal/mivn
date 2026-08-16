@@ -128,7 +128,7 @@ most of them are discovered by pressing one by accident.
 | `Ctrl+Z` | Suspend |
 | `Ctrl+=` / `Ctrl+-` / `Ctrl+0` | Zoom in / out / back to 100%, Neovide only _(mivn)_ |
 | `Ctrl+numpad +` / `Ctrl+numpad -` / `Ctrl+numpad 0` | Zoom in / out / back to 100%, Neovide only _(mivn)_ |
-| `Ctrl+Shift+↑` / `Ctrl+Shift+↓` | Move the line, or the selected lines _(mivn)_ |
+| `Ctrl+↑` / `Ctrl+↓` | Move the line, or the selected lines _(mivn)_ |
 | `q` | Starts recording a macro into the next key you press |
 | `Ctrl+W` / `Ctrl+U` in Insert | Delete the word / the line before the cursor |
 
@@ -245,9 +245,10 @@ way. `Esc` drops the selection.
 
 What you land in is **Visual mode**, Vim's own, so a selection is only a
 selection and the whole grammar applies to it: `y` copies, `d` and `x` cut, `c`
-replaces, `>` indents, and a motion adjusts which text is picked out. With the
-clipboard setting in `init.lua`, that `y` and that `d` reach the system
-clipboard, so Ctrl+V in the browser gets what you just took.
+replaces, `>` indents, and a motion adjusts which text is picked out. That `y`
+reaches the system clipboard _(mivn)_, so Ctrl+V in the browser gets what you
+just took; that `d` deliberately does not, and `Alt+D` is the one that cuts to
+the clipboard. [Registers](#registers) is the whole account.
 
 The cost is that a stray letter is a command and not text. `X` deletes the whole
 line, `p` pastes over the selection, `u` lowercases it. Each of those is one `u`
@@ -397,6 +398,14 @@ other.
 Capital shortcuts for "to end of line": `D` = `d$`, `C` = `c$`, `Y` = `y$`
 _(nvim; in Vim `Y` meant `yy`)_.
 
+`gq` needs a width to reflow to, and stock Vim leaves `'textwidth'` at 0, where
+it falls back to however wide the window happens to be. Markdown sets it to 80
+here _(mivn)_, the first of the three width markers, so
+`gqip` lays a paragraph out the way this repository's own prose is written.
+Nothing wraps while you type: that is `'formatoptions'` `t`, deliberately
+removed, since it breaks the line under the cursor and leaves the rest of the
+paragraph ragged.
+
 ## Text objects
 
 Only valid after an operator or inside Visual mode. `i` means *inner*
@@ -437,7 +446,8 @@ is most of the daily payoff:
 | `s` / `S` | Substitute a character / a whole line, then Insert |
 | `~` | Toggle the case of one character |
 | `J` / `gJ` | Join with the next line, with / without a space |
-| `p` / `P` | Paste after / before the cursor |
+| `p` / `P` | Paste after / before the cursor: the system clipboard _(mivn)_ |
+| `Alt+D` / `Alt+C` | Delete / change, and put it on the clipboard _(mivn)_ |
 | `u` / `Ctrl+R` | Undo / redo |
 | `.` | Repeat the last change |
 | `Ctrl+A` / `Ctrl+X` | Increment / decrement the number under the cursor |
@@ -573,22 +583,36 @@ A register is a named clipboard. Prefix any yank, delete, or paste with
 `"+yy` copies a line to the system clipboard. `"_dd` deletes a line without
 clobbering what you just yanked. `:reg` lists them all.
 
-The trap worth knowing: a plain `dd` overwrites `""`, so pasting after a delete
-gives you the deleted text, not the thing you yanked earlier. `"0p` pastes the
-last *yank* and sidesteps it.
+The trap worth knowing in stock Vim: a plain `dd` overwrites `""`, so pasting
+after a delete gives you the deleted text, not the thing you yanked earlier.
+That one does not bite here, for the reason below.
 
-This config changes which register the unprefixed keys use _(mivn)_. Stock Vim
-gives them `""` and leaves the system clipboard to `"+`, so a copy meant for
-another window has to be typed as `"+y`. Here 'clipboard' is `unnamedplus`,
-which makes `""` and `"+` the same register: `y` copies out of the editor and
-`p` pastes whatever any other window last copied, with no prefix either way.
+This config changes which register the unprefixed **copy and paste** keys use,
+and only those _(mivn)_. Stock Vim gives them `""` and leaves the system
+clipboard to `"+`, so a copy meant for another window has to be typed as
+`"+y`. Here `y`, `Y`, `p` and `P` name `"+` themselves: `y` copies out of the
+editor and `p` pastes whatever any other window last copied, with no prefix
+either way.
 
-That is worth having and it sharpens the trap above rather than removing it,
-because `d`, `c` and `x` write to a register too. Each of them now replaces the
-system clipboard, so a delete can throw away something you copied an hour ago
-and in another application. The two registers just above are the whole answer:
-`"_d` for a delete you do not want kept, `"0p` to paste the last yank past any
-delete since.
+`d`, `c` and `x` are left alone, which is the point of doing it this way.
+Vim's `'clipboard'` option can only make `""` *be* the clipboard, and then
+every delete lands on it too, so a `d` throws away something copied an hour ago
+in another application. Here a delete fills `""` and the numbered registers as
+it always did, and the clipboard survives it.
+
+| Key | Does _(mivn)_ |
+|---|---|
+| `Alt+D` | Delete **and** put it on the clipboard: the deliberate cut |
+| `Alt+C` | The same for a change |
+| `"1p` | Paste the last line-wise delete; `"2p` the one before it |
+| `"-p` | Paste the last small delete (less than a line) |
+
+Two edges worth knowing. A register you name always wins, `"ay` and `"1p`
+included, because these are `<expr>` mappings that step aside the moment
+`v:register` is set; the single exception is a literal `""p`, which cannot be
+told apart from a bare `p` and so pastes the clipboard. And `"0` stays empty
+here, since Vim only fills it for a yank that names no register: `p` is the
+last yank now, so nothing was lost with it.
 
 ## Marks and jumps
 
@@ -755,9 +779,15 @@ tree in a state you later have to explain to yourself.
 
 The other set of keys here that are not Neovim's. `<leader>f` (files),
 `<leader>/` (search the project), `<leader>b` (buffers), `<leader>h` (help),
-`<leader>d` (diagnostics) and `<leader>:` (commands) all open the same floating
-window, from mini.pick, so this list is learned once and covers all six. You
-type to narrow the list; these keys act on it.
+`<leader>d` (diagnostics), `<leader>:` (commands) and `<leader>?` (every key
+there is, searchable) all open the same floating window, from mini.pick, so
+this list is learned once and covers all seven. You type to narrow the list;
+these keys act on it.
+
+`<leader>?` is the one to remember while learning: it lists every mapping this
+editor has, Vim's own grammar and the plugins' included, each with its
+description, and picking one runs it. `lua/mivn/keymaps.lua` is the same list
+as a file, for the keys mivn itself takes.
 
 Neovim's own "choose one of these" prompts come through the same window too,
 sized to fit their list _(mivn)_: `gra` code actions are the one you will

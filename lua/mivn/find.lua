@@ -1,7 +1,12 @@
--- Finding things: files, text, buffers, commands. These are the operations Vim
--- has no default key for, so this is the short list of additions, and the
--- command palette is what keeps it short: anything rare goes through it
--- instead of earning a key.
+-- Finding things: files, text, buffers, commands, keys. These are the
+-- operations Vim has no default key for, so this is the short list of
+-- additions, and the command palette is what keeps it short: anything rare
+-- goes through it instead of earning a key.
+--
+-- The keys that open these are lua/mivn/keymaps.lua's, which is also what
+-- <Space>? lists.
+
+local M = {}
 
 local pick = require("mini.pick")
 local extra = require("mini.extra")
@@ -87,11 +92,7 @@ vim.ui.select = function(items, opts, on_choice)
   })
 end
 
---- The bindings ---------------------------------------------------------------
-
-local function map(lhs, rhs, desc)
-  vim.keymap.set("n", lhs, rhs, { desc = desc, silent = true })
-end
+--- The pickers ----------------------------------------------------------------
 
 --- The command that lists the project's files, or nil if neither tool is here.
 ---
@@ -114,7 +115,7 @@ local function files_command()
   return nil
 end
 
-map("<leader>f", function()
+function M.files()
   local command = files_command()
 
   -- Neither tool present: mini.pick's own walk, which has no ignore rules but
@@ -131,10 +132,34 @@ map("<leader>f", function()
       end,
     },
   })
-end, "Find file")
+end
 
-map("<leader>/", pick.builtin.grep_live, "Search the project")
-map("<leader>b", pick.builtin.buffers, "Open buffers")
+function M.grep()
+  pick.builtin.grep_live()
+end
+
+function M.buffers()
+  pick.builtin.buffers()
+end
+
+function M.help()
+  pick.builtin.help()
+end
+
+function M.diagnostics()
+  extra.pickers.diagnostic()
+end
+
+--- Every mapping there is, searchable.
+---
+--- The list mivn adds is short and lua/mivn/keymaps.lua is the whole of it,
+--- but that file cannot answer "is this key taken", which is the question this
+--- one is for: Vim's own grammar, the plugins' keys and the buffer-local ones
+--- the current buffer carries are all in here, each with the description its
+--- mapping was given. Picking one runs it.
+function M.keymaps()
+  extra.pickers.keymaps()
+end
 
 --- Does this command's `definition` read as prose or as an implementation?
 ---
@@ -188,7 +213,7 @@ local BUILTINS = {
 ---
 --- Not mini.extra's commands picker: it lists bare names, and with 600-odd
 --- commands that only helps when I already know what a thing is called.
-local function palette()
+function M.palette()
   local meta = vim.tbl_deep_extend("force", vim.api.nvim_get_commands({}), vim.api.nvim_buf_get_commands(0, {}))
 
   local names = vim.fn.getcompletion("", "command")
@@ -229,10 +254,6 @@ local function palette()
   })
 end
 
-map("<leader>:", palette, "Command palette")
-map("<leader>h", pick.builtin.help, "Help")
-map("<leader>d", extra.pickers.diagnostic, "Diagnostics")
-
 -- The one deliberate override in the config. Stock `gd` jumps to a local
 -- declaration by searching the file, which the language server does properly
 -- and across files, and Neovim 0.11 ships `grn` `gra` `grr` `gri` `grt` but
@@ -246,3 +267,5 @@ vim.api.nvim_create_autocmd("LspAttach", {
     })
   end,
 })
+
+return M

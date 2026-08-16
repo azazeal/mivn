@@ -33,6 +33,12 @@ tree-sitter colours and nothing else.
 
 - One module per concern under `lua/mivn/`; the header comment carries the
   module's purpose and its trade-offs.
+- Every mapping that is on for the whole session lives in
+  `lua/mivn/keymaps.lua`, whatever module owns the behavior: that module
+  exports a function and this file picks the key. A mapping that exists only
+  while some buffer does (made inside an autocmd, `buffer = ...`) stays with
+  the module it belongs to. New keys go in that file, not beside the code
+  they call.
 - Comments are first person ("as I type"), plain common English, hard-wrapped
   at 80 columns, no em dashes. User-visible strings (`desc = ...`,
   `vim.notify`) address the user instead.

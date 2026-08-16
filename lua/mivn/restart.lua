@@ -54,14 +54,18 @@ vim.api.nvim_create_autocmd("CmdlineLeavePre", {
   end,
 })
 
--- ZR is :restart's Normal-mode spelling. It is a built-in, not a mapping, so
--- one mapping shadows it; the local case feeds the real ZR back through with
--- mappings skipped.
-vim.keymap.set("n", "ZR", function()
+--- What ZR does here; the key itself is in lua/mivn/keymaps.lua.
+---
+--- ZR is :restart's Normal-mode spelling. It is a built-in, not a mapping, so
+--- one mapping shadows it; the local case feeds the real ZR back through with
+--- mappings skipped.
+local function restart()
   if remote_ui() then
     vim.notify(MESSAGE, vim.log.levels.WARN)
     return
   end
 
   vim.api.nvim_feedkeys("ZR", "n", false)
-end, { desc = "Restart, unless the window is on another machine" })
+end
+
+return { restart = restart }

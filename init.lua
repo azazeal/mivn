@@ -149,46 +149,8 @@ vim.api.nvim_create_autocmd("CmdlineChanged", {
   end,
 })
 
--- The four keys, and the only mappings in this file. `:h
--- cmdline-autocompletion` gives this exact recipe with the two arms the other
--- way round; the menu is open most of the time here, and a menu I cannot walk
--- with the arrows is a menu I have to learn a key for.
---
--- Measured, in file completion: `Down` does nothing at all and `Up` moves the
--- completion out into the parent directory, silently turning `:e lua/mivn/tr`
--- into `:e lua/`. Shift+Up and Shift+Down are not reliably history either,
--- since an open file menu takes them too, so they get `Ctrl+E` first: the key
--- that ends completion and puts back what I typed.
---
--- Note the two kinds of history key differ. `Up` and `Down` recall only the
--- commands starting with what is on the line; Shift and the arrows walk the
--- whole history unfiltered. PageUp and PageDown are left alone, because while
--- the menu is open they page it.
-local function cmdline_key(in_menu, plain)
-  return function()
-    return vim.fn.wildmenumode() == 1 and in_menu or plain
-  end
-end
-
-vim.keymap.set("c", "<Down>", cmdline_key("<C-n>", "<Down>"), {
-  expr = true,
-  desc = "Next match while the menu is open, newer history otherwise",
-})
-
-vim.keymap.set("c", "<Up>", cmdline_key("<C-p>", "<Up>"), {
-  expr = true,
-  desc = "Previous match while the menu is open, older history otherwise",
-})
-
-vim.keymap.set("c", "<S-Down>", cmdline_key("<C-e><S-Down>", "<S-Down>"), {
-  expr = true,
-  desc = "Newer command-line history, menu or no menu",
-})
-
-vim.keymap.set("c", "<S-Up>", cmdline_key("<C-e><S-Up>", "<S-Up>"), {
-  expr = true,
-  desc = "Older command-line history, menu or no menu",
-})
+-- The four keys that walk that menu are in lua/mivn/keymaps.lua, with every
+-- other mapping.
 
 -- No history across sessions. shada holds :oldfiles, per-file marks and the
 -- jumplist, all keyed by path, so it is the thing that goes stale and starts
@@ -244,14 +206,11 @@ vim.opt.whichwrap:append("<,>,[,]")
 vim.opt.keymodel = "startsel,stopsel"
 vim.opt.selection = "exclusive"
 
--- The unnamed register and the system clipboard become one register, so `y`
--- copies out of the editor and `p` pastes what any other window put on the
--- clipboard. `:checkhealth provider` names the provider Neovim picked.
---
--- The cost: `d`, `c` and `x` write to a register too, so each of them now
--- overwrites the clipboard. `"_d` is the black hole register and avoids it,
--- and `"0p` still pastes the last *yank*, past any delete since.
-vim.opt.clipboard = "unnamedplus"
+-- 'clipboard' is deliberately left empty. It can only make the unnamed
+-- register *be* the clipboard, which puts every delete on the clipboard along
+-- with the copies; `y` and `p` reach it through mappings instead, and Vim's
+-- registers stay as they ship. lua/mivn/keymaps.lua has the whole account.
+-- `:checkhealth provider` names the provider Neovim picked either way.
 
 -- Greek layout. 'langmap' translates each Greek letter to the Latin one on the
 -- same physical key, but only in Normal, Visual, Select and Operator-pending
@@ -283,7 +242,6 @@ require("mivn.complete") -- the Insert-mode completion menu
 require("mivn.pairs") -- auto-closing pairs; complete.lua's Enter calls into it
 require("mivn.diff") -- git changes in the gutter
 require("mivn.page") -- PageUp and PageDown, over the file and over the menu
-require("mivn.cua") -- the CUA edit keys that are mappings rather than options
 require("mivn.restart") -- :restart, refused when the window is remote
 require("mivn.terminal") -- the terminal panel and its toggle
 require("mivn.margins") -- the 80/100/120 width markers
@@ -298,3 +256,4 @@ require("mivn.update") -- whether a newer mivn is out, said once on the banner
 require("mivn.tree") -- the file tree, loaded after the dashboard claims a window
 require("mivn.tabline") -- the buffer tab bar
 require("mivn.statusline") -- the status line, and where the mode is shown
+require("mivn.keymaps") -- every key mivn takes; last, so it can call into them

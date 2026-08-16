@@ -109,9 +109,5 @@ vim.api.nvim_create_autocmd("TermClose", {
   end,
 })
 
-vim.keymap.set("n", "<leader>`", M.toggle, {
-  desc = "Show or hide the terminal",
-  silent = true,
-})
-
+-- toggle is <leader>`'s, in lua/mivn/keymaps.lua.
 return M

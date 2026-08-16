@@ -79,45 +79,35 @@ vim.api.nvim_create_autocmd("LspDetach", {
 })
 
 --- The two keys ---------------------------------------------------------------
+--
+-- Which keys these are is lua/mivn/keymaps.lua's; this is what they do.
+
+local M = {}
 
 --- Whether a match in the open menu is currently highlighted.
 local function selected()
   return vim.fn.complete_info({ "selected" }).selected ~= -1
 end
 
--- Up and Down are not bound and must not be: they already walk the menu the
--- useful way, moving the highlight without writing the match into the buffer.
--- Ctrl+E closes the menu and gives back what I typed. `:h popupmenu-keys`.
-
--- Enter takes the highlighted match, and is a newline the rest of the time.
--- The condition is the point: `noselect` means nothing is highlighted until I
--- press an arrow, so Enter while the menu is merely *open* still breaks the
--- line. Acceptance goes through Ctrl+Y, the key the language server hangs its
--- extra edits off.
---
--- The newline path goes through mini.pairs, which is the integration its own
--- docs ask completion mappings to do; the plugin maps <CR> itself only when
--- nothing else has. MiniPairs.cr() returns raw termcodes, hence
--- `replace_keycodes = false` and vim.keycode() on the other branches. The
--- pcall keeps Enter a plain newline if mini.pairs is ever dropped.
-vim.keymap.set("i", "<CR>", function()
+--- Accept the highlighted completion, or break the line.
+---
+--- Acceptance goes through Ctrl+Y, the key the language server hangs its extra
+--- edits off. The newline path goes through mini.pairs, which is the
+--- integration its own docs ask completion mappings to do; the plugin maps
+--- <CR> itself only when nothing else has. MiniPairs.cr() returns raw
+--- termcodes, hence vim.keycode() on the other branches. The pcall keeps Enter
+--- a plain newline if mini.pairs is ever dropped.
+function M.enter()
   if selected() then
     return vim.keycode("<C-y>")
   end
 
   local ok, pairs = pcall(require, "mini.pairs")
   return ok and pairs.cr() or vim.keycode("<CR>")
-end, {
-  expr = true,
-  replace_keycodes = false,
-  desc = "Accept the highlighted completion, or break the line",
-})
+end
 
--- Tab takes a match without asking for the arrow first: the highlighted one if
--- there is one, otherwise the top of the list. What it costs is a literal Tab
--- while the menu happens to be open, which is close to free, since indentation
--- is settled by EditorConfig and applied on save.
-vim.keymap.set("i", "<Tab>", function()
+--- Accept the highlighted completion, or the first one, else indent.
+function M.tab()
   if selected() then
     return "<C-y>"
   end
@@ -127,20 +117,13 @@ vim.keymap.set("i", "<Tab>", function()
   end
 
   return "<Tab>"
-end, {
-  expr = true,
-  desc = "Accept the highlighted completion, or the first one, else indent",
-})
+end
 
--- Ctrl+Space asks for the menu, the way it does in Zed and VS Code, and like
--- there it arrives stepped in: the top match is highlighted, so Enter takes
--- it, the arrows move from it, and PageUp and PageDown page the list
--- (lua/mivn/page.lua). Asking is the signal that a match is wanted, which is
--- the signal the automatic menu never has, and why that one stays unselected.
--- It earns its place where the automatic trigger has nothing to go on: a
--- fresh line or just after a space. `<C-n>` rather than `<C-x><C-o>`, so it
--- is the same set of sources as the automatic menu instead of the server
--- alone.
+-- Ctrl+Space asks for the menu and it arrives stepped in: the top match is
+-- highlighted, so Enter takes it and the arrows move from it. It earns its
+-- place where the automatic trigger has nothing to go on: a fresh line or just
+-- after a space. `<C-n>` rather than `<C-x><C-o>`, so it is the same set of
+-- sources as the automatic menu instead of the server alone.
 --
 -- The menu `<C-n>` opens only shows up after the mapping returns, so the
 -- highlight is placed by the CompleteChanged below, armed by `requested`.
@@ -225,9 +208,8 @@ vim.api.nvim_create_autocmd({ "CompleteDone", "TextChangedI", "InsertLeave" }, {
   end,
 })
 
--- Bound twice for one key: a terminal sends Ctrl+Space as NUL, which arrives
--- as `<C-@>`, while a GUI sends the key itself.
-local function complete_now()
+--- Open the completion menu here, with the top match highlighted.
+function M.now()
   if vim.fn.pumvisible() == 1 then
     if not selected() then
       local info = vim.fn.complete_info({ "items" })
@@ -241,13 +223,4 @@ local function complete_now()
   vim.api.nvim_feedkeys(vim.keycode("<C-n>"), "n", false)
 end
 
-vim.keymap.set("i", "<C-Space>", complete_now, {
-  desc = "Open the completion menu here, top match highlighted",
-})
-
-vim.keymap.set("i", "<C-@>", complete_now, {
-  desc = "Open the completion menu here (terminal spelling of Ctrl+Space)",
-})
-
--- PageUp and PageDown are not here. They belong to the file as much as to the
--- menu, and which one they move is decided in lua/mivn/page.lua.
+return M
