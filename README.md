@@ -43,8 +43,9 @@ config expects on `PATH` and reads the environment from. It installs none of
 them itself: a server missing from mise's config is a language with
 tree-sitter colors and nothing else, said once in `:checkhealth mivn`. The
 set in use is Go (`gopls`, `golangci-lint-langserver`), Python (`ty`,
-`ruff`), TypeScript (`tsgo`), Rust, Lua, Elixir, Gleam, Markdown, TOML,
-YAML, JSON, HTML, Terraform, Protocol Buffers, templ and the Docker files.
+`ruff`), TypeScript (`tsgo`), Rust, Ruby, Lua, Elixir, Gleam, Markdown,
+TOML, YAML, JSON, HTML, Terraform, Protocol Buffers, templ and the Docker
+files.
 The external formatters (`stylua`, `shfmt`, `jq`, `taplo`, `xmllint`) and
 `gci` for Go imports come from the same place.
 

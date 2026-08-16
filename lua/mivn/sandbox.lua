@@ -11,8 +11,8 @@
 -- flags below. mise carries the sandbox: Landlock plus a seccomp filter on
 -- Linux, Seatbelt on macOS, which is why this is not bwrap (Linux only).
 -- mise applies the restrictions and then execs the real program, so nothing
--- stays resident and the cost is one config resolution, about 6ms, per
--- server start.
+-- stays resident and the cost is one config resolution per server start,
+-- about 30ms on 2026-08-16.
 --
 -- The property that makes it worth doing: **children inherit it, and cannot
 -- drop it**. The risk was never gopls itself, it is the `go` gopls runs. A
@@ -141,6 +141,19 @@ local POLICY = {
   -- already on disk.
   ruff = { net = false, project = true },
   ty = { net = false },
+
+  -- Ruby. **Reasoned, not measured**, unlike every other entry here: ruby-lsp
+  -- is in no mise config on this machine, so none of this has been watched
+  -- running. Treat a Ruby project that behaves oddly as this line's fault
+  -- first, and `sandbox = false` under `ruby_lsp` in local.lua is the way to
+  -- find out.
+  --
+  -- What it is given comes from what the server documents about itself: it
+  -- builds a bundle of its own under `.ruby-lsp/` inside the checkout, which
+  -- is the write, and installing that bundle fetches gems, which is the
+  -- network. It runs the project's Gemfile through bundler either way, which
+  -- is the reason it is here rather than left out.
+  ruby_lsp = { env = { "GEM*", "BUNDLE*", "RUBY*" }, project = true },
 
   --- The compiler-backed servers ----------------------------------------------
   --
@@ -432,9 +445,9 @@ function M.wrap(name, cmd)
   -- comes from the flags, and the environment came from lua/mivn/env.lua
   -- before any of this ran.
   local wrapped = { "env", "MISE_SAFE=1", "MISE_AUTO_INSTALL=0" }
-  for name, value in vim.spairs(policy.setenv or {}) do
-    wrapped[#wrapped + 1] = ("%s=%s"):format(name, value)
-    flag("--allow-env", name)
+  for key, value in vim.spairs(policy.setenv or {}) do
+    wrapped[#wrapped + 1] = ("%s=%s"):format(key, value)
+    flag("--allow-env", key)
   end
 
   vim.list_extend(wrapped, { "mise", "exec" })
