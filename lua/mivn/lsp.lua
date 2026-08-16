@@ -264,8 +264,8 @@ end
 -- A server that dies right after starting otherwise fails in silence: the
 -- client detaches, features quietly stop, and nothing says why. Measured
 -- with rust-analyzer behind a rustup shim with no component installed:
--- executable() said yes, the process recursed and died, and :MivnServers
--- kept reporting it on. Once per server per session, and not on shutdown.
+-- executable() said yes, the process recursed and died, and nothing said so.
+-- Once per server per session, and not on shutdown.
 local exit_warned = {}
 
 vim.lsp.config("*", {
