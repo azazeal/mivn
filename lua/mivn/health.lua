@@ -237,11 +237,52 @@ function M.check()
     health.ok(("sandboxed: %s"):format(table.concat(confined, ", ")))
   end
 
+  -- And which of them do not, which is the half that used to be invisible: a
+  -- server with no entry in the sandbox's policy table runs unconfined, and
+  -- the list above cannot say whether that was decided or forgotten. Only
+  -- the installed ones, since the rest are not running anything.
+  local loose = {}
+  for name, binary in vim.spairs(lsp.servers) do
+    if not sandbox.covers(name) and vim.fn.executable(binary) == 1 then
+      loose[#loose + 1] = name
+    end
+  end
+
+  if #loose > 0 and #confined > 0 then
+    health.warn(
+      ("installed and not sandboxed: %s"):format(table.concat(loose, ", ")),
+      "Each of these reads a project with none of the limits the others have. lua/mivn/sandbox.lua's POLICY table is where one joins."
+    )
+  end
+
   for server, binary in vim.spairs(lsp.servers) do
     check_binary(server, binary, probe_for(server, binary))
   end
 
   check_gopls_toolchain()
+
+  -- What earlier versions of this config left on disk. Nothing here deletes
+  -- anything on its way out, and once the code that knew a path is gone, no
+  -- other code will ever look at it again. Two retirements so far: the server
+  -- store (2026-08-15), and the patched SchemaStore catalog that taplo needed
+  -- before it was built from master (2026-08-16).
+  local leftovers = {}
+  for _, path in ipairs({
+    vim.fs.joinpath(vim.fn.stdpath("data"), "servers"),
+    vim.fs.joinpath(vim.fn.stdpath("state"), "lsp-consent.json"),
+    vim.fs.joinpath(vim.fn.stdpath("cache"), "schemastore-taplo.json"),
+  }) do
+    if vim.uv.fs_stat(path) then
+      leftovers[#leftovers + 1] = path
+    end
+  end
+
+  if #leftovers > 0 then
+    health.warn(
+      ("earlier versions of this config left these behind: %s"):format(table.concat(leftovers, ", ")),
+      ("Nothing reads them now; `rm -r %s` reclaims the space"):format(table.concat(leftovers, " "))
+    )
+  end
 
   health.start("clients in this session")
   local clients = vim.lsp.get_clients()
