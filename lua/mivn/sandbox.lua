@@ -102,12 +102,9 @@ end
 ---          create them (measured 2026-08-15). The grant is that one
 ---          version's directory, not the store.
 ---   read   extra readable paths, on top of the project and the install
----          directories above, as a list or as a function that is handed a
----          directory and returns one. That directory is this session's,
----          since the wrapping happens once at startup: unlike the grants
----          above, a rule computed from a path cannot follow a server to
----          another checkout. mise already allows /usr, /lib, /bin, /etc,
----          /proc, /sys and /home/linuxbrew.
+---          directories above, as a list or as a function that is handed the
+---          server's own root and returns one. mise already allows /usr,
+---          /lib, /bin, /etc, /proc, /sys and /home/linuxbrew.
 ---   env    the variable patterns that survive; absent keeps only mise's
 ---          floor of PATH, HOME, USER, SHELL, TERM, COLORTERM and LANG.
 ---   setenv variables to set for this server, which are allowed through by
@@ -258,6 +255,11 @@ local off
 --- than re-deriving the answer, so a server that dodged the sandbox for any
 --- reason (an override, a failed probe, a cmd that cannot be wrapped) reads
 --- as uncovered instead of assumed.
+---
+--- Per server name, and it latches: one confined start makes every later
+--- client of that server read as covered. That misses only the case where
+--- mise breaks between two starts in one session, and the second client is
+--- the unconfined one; `claims()` is the question everything else asks.
 local covered = {}
 
 --- Whether `mise exec` can run anything at all here.
@@ -307,6 +309,20 @@ local function usable()
   return probed
 end
 
+--- Whether `name` is meant to be confined at all: it has a policy, and
+--- nothing in local.lua turns the sandbox off for it. Answers without asking
+--- mise anything, so lua/mivn/lsp.lua can decide at startup whether to route
+--- a server through here, and lua/mivn/health.lua can say which servers the
+--- policy covers even when mise is having a bad day.
+function M.claims(name)
+  if not POLICY[name] or overrides.sandbox == false then
+    return false
+  end
+
+  local o = (overrides.lsp or {})[name]
+  return not (type(o) == "table" and o.sandbox == false)
+end
+
 --- Whether the sandbox applies at all: `sandbox = false` in local.lua turns
 --- it off for this machine or, through `projects`, for one directory.
 local function enabled()
@@ -331,19 +347,23 @@ local function home_of(binary)
   return path ~= "" and vim.fs.dirname(path) or nil
 end
 
---- Wrap `cmd` in the sandbox `name`'s policy asks for. Returns `cmd`
---- unchanged when there is no policy, when mise is missing, or when the
---- overrides turn it off, so every caller can wrap unconditionally.
-function M.wrap(name, cmd)
+--- Wrap `cmd` in the sandbox `name`'s policy asks for, around the project at
+--- `root`. Returns `cmd` unchanged when there is no policy, when mise is
+--- missing, or when the overrides turn it off, so every caller can wrap
+--- unconditionally.
+---
+--- `root` is the language server's own `root_dir`, which is why this runs as
+--- each server starts rather than once at startup: nvim-lspconfig picks a
+--- root per file, so opening a file from another checkout starts a second
+--- server rooted there, and the grants have to follow it. Defaults to this
+--- session's directory, for a server that found no root at all.
+function M.wrap(name, cmd, root)
   local policy = POLICY[name]
-  if not policy or not enabled() or type(cmd) ~= "table" or #cmd == 0 then
+  if not policy or not M.claims(name) or not enabled() or type(cmd) ~= "table" or #cmd == 0 then
     return cmd
   end
 
-  local o = (overrides.lsp or {})[name]
-  if type(o) == "table" and o.sandbox == false then
-    return cmd
-  end
+  root = root or vim.fn.getcwd()
 
   local flags = {}
   local function flag(...)
@@ -355,17 +375,8 @@ function M.wrap(name, cmd)
   -- Reads: the server's own project, wherever the server itself lives, and
   -- whatever the entry adds. One --allow-read is what turns reads into a
   -- whitelist, so this list is also the whole of what it can see.
-  --
-  -- The project is `.`, not this session's directory, and the dot is the
-  -- point. mise resolves a relative rule against its own working directory
-  -- (src/sandbox/mod.rs) and Neovim starts a server in that server's
-  -- `root_dir`, so the grant follows each server to the project it was
-  -- started for. Written out as a path here, this wrapping happens once at
-  -- startup and would hand every later server the first one's directory: open
-  -- a file from another checkout and its gopls is rooted there, confined
-  -- here, and silently unable to read the project it exists to read.
-  local reads = { "." }
-  vim.list_extend(reads, type(policy.read) == "function" and policy.read(vim.fn.getcwd()) or policy.read or {})
+  local reads = { root }
+  vim.list_extend(reads, type(policy.read) == "function" and policy.read(root) or policy.read or {})
 
   if policy.net == false then
     flag("--deny-net")
@@ -395,7 +406,7 @@ function M.wrap(name, cmd)
 
   local writes = vim.list_slice(policy.write or {})
   if policy.project then
-    writes[#writes + 1] = "." -- the server's own project; see the reads above
+    writes[#writes + 1] = root
   end
 
   if policy.go then

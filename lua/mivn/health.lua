@@ -222,36 +222,51 @@ function M.check()
 
   health.start("language servers")
 
-  -- Which of them run confined, so a sandbox that quietly stopped applying
-  -- is visible rather than assumed.
-  local confined = {}
-  for name in vim.spairs(lsp.servers) do
-    if sandbox.covers(name) then
-      confined[#confined + 1] = name
+  -- Which of them the sandbox covers, and which it does not, so a server
+  -- running with none of the limits the others have is visible rather than
+  -- forgotten. `claims` is the policy's answer, which every start consults
+  -- afresh; `covers` below is what actually happened to the ones running now.
+  local off = sandbox.off()
+  local confined, loose = {}, {}
+
+  -- Installed ones only, in both lists: a server that is not here runs
+  -- nothing, and saying it is sandboxed reads as a promise about a program
+  -- this machine does not have.
+  for name, binary in vim.spairs(lsp.servers) do
+    if vim.fn.executable(binary) == 1 then
+      local list = sandbox.claims(name) and confined or loose
+      list[#list + 1] = name
     end
   end
 
-  if #confined == 0 then
-    health.warn(("nothing is sandboxed: %s"):format(sandbox.off() or "no server asks for it"))
+  if off or #confined == 0 then
+    health.warn(("nothing is sandboxed: %s"):format(off or "no server asks for it"))
   else
     health.ok(("sandboxed: %s"):format(table.concat(confined, ", ")))
   end
 
-  -- And which of them do not, which is the half that used to be invisible: a
-  -- server with no entry in the sandbox's policy table runs unconfined, and
-  -- the list above cannot say whether that was decided or forgotten. Only
-  -- the installed ones, since the rest are not running anything.
-  local loose = {}
-  for name, binary in vim.spairs(lsp.servers) do
-    if not sandbox.covers(name) and vim.fn.executable(binary) == 1 then
-      loose[#loose + 1] = name
+  if #loose > 0 then
+    health.warn(
+      ("installed and not sandboxed: %s"):format(table.concat(loose, ", ")),
+      "These read a project with none of the limits the others have. lua/mivn/sandbox.lua's POLICY table is where one joins."
+    )
+  end
+
+  -- Assumed nowhere: a server that is up right now says for itself whether
+  -- the wrapping reached it. They can only disagree if something went wrong
+  -- between the policy and the spawn, which is exactly the case worth
+  -- hearing about.
+  local escaped = {}
+  for _, client in ipairs(vim.lsp.get_clients()) do
+    if sandbox.claims(client.name) and not sandbox.covers(client.name) then
+      escaped[#escaped + 1] = client.name
     end
   end
 
-  if #loose > 0 and #confined > 0 then
-    health.warn(
-      ("installed and not sandboxed: %s"):format(table.concat(loose, ", ")),
-      "Each of these reads a project with none of the limits the others have. lua/mivn/sandbox.lua's POLICY table is where one joins."
+  if #escaped > 0 then
+    health.error(
+      ("running unconfined although the policy covers them: %s"):format(table.concat(escaped, ", ")),
+      "Restart them with :MivnEnv, and if that does not take, `mise exec -- true` in this directory says why."
     )
   end
 

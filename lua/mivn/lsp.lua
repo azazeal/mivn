@@ -297,16 +297,41 @@ end
 table.sort(enabled)
 
 -- Confined before any of them starts; lua/mivn/sandbox.lua decides which
--- ones it covers and leaves the rest exactly as they were. A cmd that is a
--- function cannot be wrapped, so it runs unconfined, which :checkhealth
--- mivn shows by leaving it off the sandboxed list.
+-- ones it covers and leaves the rest exactly as they were. A server it has
+-- no policy for keeps the cmd it came with, which :checkhealth mivn shows by
+-- listing it as installed and not sandboxed.
+--
+-- The wrapping is a `cmd` **function**, which Neovim calls once per client
+-- with that client's own config, rather than a list built here. The reason is
+-- `root_dir`: nvim-lspconfig roots a server per file, so opening a file from
+-- another checkout starts a second gopls rooted over there, and a list built
+-- at startup would confine it to this session's directory instead, leaving it
+-- unable to read the project it was started for. This is also why a cmd that
+-- is already a function is left alone: it decides its own spawn, and there is
+-- nothing here to wrap.
+--
+-- What the function has to reproduce is small and copied from Neovim's own
+-- default (`vim.lsp.client`): start the RPC client on the command, in the
+-- root, with the client's environment.
 local sandbox = require("mivn.sandbox")
 
 local function confine(server)
   local cmd = (vim.lsp.config[server] or {}).cmd
-  if type(cmd) == "table" then
-    vim.lsp.config(server, { cmd = sandbox.wrap(server, cmd) })
+  if type(cmd) ~= "table" or not sandbox.claims(server) then
+    return
   end
+
+  vim.lsp.config(server, {
+    cmd = function(dispatchers, config)
+      local root = config.root_dir or vim.fn.getcwd()
+
+      return vim.lsp.rpc.start(sandbox.wrap(server, cmd, root), dispatchers, {
+        cwd = config.cmd_cwd or root,
+        env = config.cmd_env,
+        detached = config.detached,
+      })
+    end,
+  })
 end
 
 for _, server in ipairs(enabled) do
@@ -315,21 +340,18 @@ end
 
 vim.lsp.enable(enabled)
 
---- Try the sandbox again on every server running outside it, and restart
---- what it newly covers. For :MivnEnv: `mise trust` changes mise's answer
---- about this directory, and without this the startup wrapping above would
---- be the only one that ever happens.
+--- Restart every server that is running outside the sandbox but belongs in
+--- it. For :MivnEnv: `mise trust` changes mise's answer about this directory,
+--- and a server that started while mise was refusing is unconfined until
+--- something makes it start again. New starts need nothing from here, since
+--- the cmd above asks the sandbox afresh every time.
 local function rewrap()
   sandbox.rearm()
 
   for _, server in ipairs(enabled) do
-    if not sandbox.covers(server) then
-      confine(server)
-
-      if sandbox.covers(server) and #vim.lsp.get_clients({ name = server }) > 0 then
-        vim.lsp.enable(server, false)
-        vim.lsp.enable(server)
-      end
+    if sandbox.claims(server) and not sandbox.covers(server) and #vim.lsp.get_clients({ name = server }) > 0 then
+      vim.lsp.enable(server, false)
+      vim.lsp.enable(server)
     end
   end
 end
