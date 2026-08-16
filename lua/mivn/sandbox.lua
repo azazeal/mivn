@@ -76,19 +76,23 @@ end
 ---   net    false denies it outright. Most of these read a project and
 ---          answer questions about it; the exception is a server that
 ---          fetches JSON schemas, which is a network feature however it
----          looks. Keeping the network also needs the resolver directory
----          readable, since /etc/resolv.conf is a symlink into /run and
----          mise's own read list stops at /etc. Named narrowly rather than
----          granting /run, which holds the ssh agent's socket.
+---          looks. Keeping the network also needs the resolver readable:
+---          /etc/resolv.conf is usually a symlink into /run, its target
+---          moves with whatever manages it (systemd-resolved,
+---          NetworkManager, resolvconf), and mise's own read list stops at
+---          /etc. Resolved at wrap time and granted as the target's own
+---          directory rather than /run itself, which holds the ssh agent's
+---          socket.
 ---   write  a list of extra writable paths; absent denies every write.
 ---          `/tmp` stays writable whatever this says, which is mise's own
 ---          floor, so treat it as public.
----   project  the workspace itself is writable. The servers that compile
----          need it: gopls' tidy, vendor and generate codelenses write into
----          the repository, rust-analyzer's build scripts write `target/`,
----          expert writes `_build/`. It also means those servers can rewrite
----          any file in the checkout, which they can already do through the
----          edits they hand back, so nothing is lost by admitting it.
+---   project  the project this server was started for is writable. The ones
+---          that compile need it: gopls' tidy, vendor and generate codelenses
+---          write into the repository, rust-analyzer's build scripts write
+---          `target/`, expert writes `_build/`. It also means those servers
+---          can rewrite any file in the checkout, which they can already do
+---          through the edits they hand back, so nothing is lost by admitting
+---          it.
 ---   go     the Go module cache and build cache, read and written. Anything
 ---          that runs `go list` needs both, and that is more servers than it
 ---          sounds: templ proxies to gopls, and golangci-lint compiles.
@@ -97,9 +101,12 @@ end
 ---          under `<entry>/log/cache/<pid>` and exits 1 when it cannot
 ---          create them (measured 2026-08-15). The grant is that one
 ---          version's directory, not the store.
----   read   extra readable paths, on top of the workspace and the install
----          directories above, as a list or as a function of the workspace
----          that returns one. mise already allows /usr, /lib, /bin, /etc,
+---   read   extra readable paths, on top of the project and the install
+---          directories above, as a list or as a function that is handed a
+---          directory and returns one. That directory is this session's,
+---          since the wrapping happens once at startup: unlike the grants
+---          above, a rule computed from a path cannot follow a server to
+---          another checkout. mise already allows /usr, /lib, /bin, /etc,
 ---          /proc, /sys and /home/linuxbrew.
 ---   env    the variable patterns that survive; absent keeps only mise's
 ---          floor of PATH, HOME, USER, SHELL, TERM, COLORTERM and LANG.
@@ -121,12 +128,11 @@ local POLICY = {
   jsonls = {},
   yamlls = {},
 
-  -- Also keeps the network, and for the same reason: it resolves the schema
-  -- a `#:schema` line names, or one its catalog matches by file name.
-  -- Denying it turns every mise.toml and Cargo.toml back into unchecked text
-  -- (measured 2026-08-15). The read is Neovim's cache directory, where
-  -- lua/mivn/schemas.lua keeps the catalog taplo is pointed at.
-  taplo = { read = { vim.fn.stdpath("cache") } },
+  -- Also keeps the network, and for the same reason: it fetches SchemaStore's
+  -- catalog itself and then the schema a `#:schema` line names, or the one
+  -- the catalog matches by file name. Denying it turns every mise.toml and
+  -- Cargo.toml back into unchecked text (measured 2026-08-15).
+  taplo = {},
   terraformls = { net = false },
   tsgo = { net = false },
 
@@ -235,6 +241,12 @@ local POLICY = {
 --- Why the sandbox is off, when it is. Read by lua/mivn/health.lua.
 local off
 
+--- What wrap() actually confined, name to true. covers() reads this rather
+--- than re-deriving the answer, so a server that dodged the sandbox for any
+--- reason (an override, a failed probe, a cmd that cannot be wrapped) reads
+--- as uncovered instead of assumed.
+local covered = {}
+
 --- Whether `mise exec` can run anything at all here.
 ---
 --- The wrapper is mise, so mise's opinion of this workspace decides whether
@@ -327,16 +339,30 @@ function M.wrap(name, cmd)
     end
   end
 
-  -- Reads: the workspace, wherever the server itself lives, and whatever
-  -- the entry adds. One --allow-read is what turns reads into a whitelist,
-  -- so this list is also the whole of what it can see.
-  local reads = { vim.fn.getcwd() }
+  -- Reads: the server's own project, wherever the server itself lives, and
+  -- whatever the entry adds. One --allow-read is what turns reads into a
+  -- whitelist, so this list is also the whole of what it can see.
+  --
+  -- The project is `.`, not this session's directory, and the dot is the
+  -- point. mise resolves a relative rule against its own working directory
+  -- (src/sandbox/mod.rs) and Neovim starts a server in that server's
+  -- `root_dir`, so the grant follows each server to the project it was
+  -- started for. Written out as a path here, this wrapping happens once at
+  -- startup and would hand every later server the first one's directory: open
+  -- a file from another checkout and its gopls is rooted there, confined
+  -- here, and silently unable to read the project it exists to read.
+  local reads = { "." }
   vim.list_extend(reads, type(policy.read) == "function" and policy.read(vim.fn.getcwd()) or policy.read or {})
 
   if policy.net == false then
     flag("--deny-net")
   else
-    reads[#reads + 1] = "/run/systemd/resolve"
+    -- The header explains; a resolv.conf that is a real file lands this on
+    -- /etc, which mise grants anyway.
+    local resolv = vim.uv.fs_realpath("/etc/resolv.conf")
+    if resolv then
+      reads[#reads + 1] = vim.fs.dirname(resolv)
+    end
   end
 
   local binary = home_of(cmd[1])
@@ -345,8 +371,9 @@ function M.wrap(name, cmd)
   end
 
   -- mise warns about a rule for a path that is not there, and that warning
-  -- lands on the server's stderr and in the LSP log. Nothing is lost by
-  -- leaving out what does not exist yet.
+  -- lands on the server's stderr and in the LSP log. A read that does not
+  -- exist yet grants nothing, so leaving it out loses nothing; writes are
+  -- different, and get created below instead.
   for _, path in ipairs(reads) do
     if vim.uv.fs_stat(path) then
       flag("--allow-read", path)
@@ -355,7 +382,7 @@ function M.wrap(name, cmd)
 
   local writes = vim.list_slice(policy.write or {})
   if policy.project then
-    writes[#writes + 1] = vim.fn.getcwd()
+    writes[#writes + 1] = "." -- the server's own project; see the reads above
   end
 
   if policy.go then
@@ -369,8 +396,16 @@ function M.wrap(name, cmd)
     writes[#writes + 1] = vim.fs.basename(binary) == "bin" and vim.fs.dirname(binary) or binary
   end
 
+  -- Created rather than dropped: mise cannot grant a path that is not
+  -- there, and the write dirs a server has not made yet (a fresh machine's
+  -- ~/.cache/<server>) are exactly what the grants are for. Dropping one
+  -- degrades the server to --deny-write and it fails on first run.
   writes = vim.tbl_filter(function(path)
-    return vim.uv.fs_stat(path) ~= nil
+    if vim.uv.fs_stat(path) then
+      return true
+    end
+
+    return pcall(vim.fn.mkdir, path, "p") and vim.uv.fs_stat(path) ~= nil
   end, writes)
 
   if #writes > 0 then
@@ -406,12 +441,26 @@ function M.wrap(name, cmd)
   vim.list_extend(wrapped, flags)
   wrapped[#wrapped + 1] = "--"
 
+  covered[name] = true
+
   return vim.list_extend(wrapped, cmd)
 end
 
---- Whether `name` is sandboxed, for lua/mivn/health.lua.
+--- Whether `name` actually runs confined, for lua/mivn/health.lua.
 function M.covers(name)
-  return POLICY[name] ~= nil and enabled()
+  return covered[name] == true
+end
+
+--- Forget a failed probe, so the next wrap() asks mise again. `mise trust`
+--- changes mise's answer without a restart, and the memoized refusal would
+--- otherwise outlive its reason. The Go cache answer goes with it, since a
+--- refreshed environment can move those directories.
+function M.rearm()
+  if probed == false then
+    probed, off = nil, nil
+  end
+
+  go_dirs = nil
 end
 
 --- Why nothing is sandboxed, when nothing is; nil while it works. Also for
