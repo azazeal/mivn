@@ -15,9 +15,10 @@
 -- Synchronous on purpose. Anything else races: a file named on the command
 -- line reaches FileType during startup, and a server started before the
 -- environment lands would have to be restarted to see it. Measured on
--- 2026-08-15: `mise env --json` answers in 6ms here, and refuses in 6ms.
--- `:checkhealth mivn` reports what it cost, so the day it stops being cheap
--- is visible.
+-- 2026-08-16: `mise env --json` answers in 30ms here, and refuses about as
+-- fast; it was 6ms on 2026-08-15, against a smaller config and an older
+-- mise. `:checkhealth mivn` reports what it cost, so the day it stops being
+-- cheap is visible.
 --
 -- Trust is not this module's business. A directory I edit in is a directory
 -- I have been in, and mise asks for trust there, once, and remembers it by
@@ -50,6 +51,12 @@ local state = {
   ms = 0,
 }
 
+--- What each name held before mise first set it, so a name that falls out of
+--- a later answer goes back to the value the shell had rather than being
+--- deleted. vim.NIL stands for "there was nothing here". Kept past the
+--- restore, since the name can come back and leave again.
+local original = {}
+
 --- Run mise in the startup directory. Returns its result, or nil when mise is
 --- not installed or takes longer than it should.
 local function mise(args, timeout)
@@ -78,6 +85,10 @@ end
 local function apply(vars)
   for name, value in pairs(vars) do
     if not KEEP[name] then
+      if original[name] == nil then
+        original[name] = vim.env[name] or vim.NIL
+      end
+
       vim.env[name] = value ~= vim.NIL and value or nil
       state.applied[name] = true
     end
@@ -88,11 +99,31 @@ end
 function M.resolve()
   local started = vim.uv.hrtime()
 
-  state.applied, state.refused = {}, nil
+  state.refused = nil
 
   local env = mise({ "env", "--json" })
   if env and env.code == 0 then
+    -- The previous answer's names, kept so a variable this answer no longer
+    -- carries goes back to what it was rather than being left stale: without
+    -- this, deleting a line from mise.toml and running :MivnEnv changes
+    -- nothing. On a refusal the record survives instead, since the variables
+    -- do too.
+    --
+    -- Back to what it was, not gone: mise's answer usually *overrides*
+    -- something the shell already exported, PATH first among them, and
+    -- deleting one of those would leave the editor worse off than it was
+    -- before mise said anything.
+    local previous = state.applied
+    state.applied = {}
+
     apply(decode(env.stdout) or {})
+
+    for name in pairs(previous) do
+      if not state.applied[name] then
+        local was = original[name]
+        vim.env[name] = was ~= vim.NIL and was or nil
+      end
+    end
   elseif env then
     -- mise's own words, minus its prefix and its two closing lines about the
     -- version and --verbose. The reason is rarely on the first line: an
@@ -154,6 +185,11 @@ vim.api.nvim_create_user_command("MivnEnv", function()
     vim.notify(state.refused, vim.log.levels.WARN)
     return
   end
+
+  -- A refreshed environment can change mise's answer about this directory,
+  -- so the sandbox gets to try again too: this is the second half of the
+  -- "`mise trust`, then :MivnEnv" advice above.
+  require("mivn.lsp").rewrap()
 
   vim.notify(("Environment resolved in %.0fms; %d variables set."):format(state.ms, vim.tbl_count(state.applied)))
 end, { desc = "Re-read the workspace's mise environment" })
