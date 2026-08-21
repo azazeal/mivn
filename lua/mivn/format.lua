@@ -1,9 +1,13 @@
--- What happens when I save.
+-- Formatting, and what happens when I save.
 --
 -- Most of it *is* the language server: organize imports, then format. The
 -- exception is a language whose file in this directory names a formatter of
 -- its own, and that is an **override**, not a fallback: a server having a
 -- formatter does not make it the right one.
+--
+-- The same two halves are <leader>af and <leader>aF, so a formatting asked
+-- for by hand and one that happens on a write are the same code and cannot
+-- drift into disagreeing about which tool owns a filetype.
 --
 -- Each such command must read the file on stdin and write it to stdout. FILE
 -- stands for the buffer's path where a tool needs it, usually to find its own
@@ -15,11 +19,15 @@ local M = {}
 --- path when the command is built.
 M.FILE = "\0file\0"
 
+--- Filetype to the command that formats it, and the servers that must never
+--- be asked. Both arrive from the language files through setup() below.
+local formatters, muted = {}, {}
+
 --- Format `buf` with its external formatter. Returns whether one ran.
 ---
 --- Synchronous: these all read stdin, so there is no file on disk to wait
 --- for, and the write that follows has to see the result.
-local function external(formatters, buf)
+local function external(buf)
   local spec = formatters[vim.bo[buf].filetype]
   if type(spec) == "function" then
     spec = spec(buf)
@@ -120,15 +128,67 @@ local function organize_imports(buf, clients)
   end
 end
 
---- Wire the save chain. `formatters` is filetype to command, collected from
---- the language files; `muted` is the set of server names that must never be
+--- The one server that may format `buf`, or nil.
+---
+--- One, named outright. vim.lsp.buf.format() runs *every* client that
+--- matches, applying each one's edits over the last, so handing it a filter
+--- that two servers pass formats the file twice against a document only one
+--- of them has seen. `format = false` in a language file is how the wrong one
+--- steps aside.
+local function formatter_of(clients)
+  for _, client in ipairs(clients) do
+    if not muted[client.name] and client:supports_method("textDocument/formatting") then
+      return client
+    end
+  end
+
+  return nil
+end
+
+--- Format `buf` with the server chosen for it, if any.
+---
+--- Only when one of them can: vim.lsp.buf.format says "no matching language
+--- servers" into the message area otherwise, which would be every markdown
+--- write, marksman being attached and offering no formatter.
+local function by_server(buf)
+  local chosen = formatter_of(clients_of(buf))
+  if chosen then
+    vim.lsp.buf.format({ bufnr = buf, id = chosen.id, timeout_ms = 2000 })
+  end
+end
+
+--- Format `buf` now: its language's own formatter when there is one, and the
+--- one server that may otherwise. <leader>af in lua/mivn/keymaps.lua.
+---
+--- Not gated on the workspace being trusted, unlike the write below. This one
+--- was asked for by hand, and its language-server half cannot run in an
+--- untrusted workspace anyway, there being no server attached to ask.
+function M.buffer(buf)
+  buf = buf or vim.api.nvim_get_current_buf()
+
+  if not external(buf) then
+    by_server(buf)
+  end
+end
+
+--- Organize `buf`'s imports now; <leader>aF in lua/mivn/keymaps.lua.
+function M.imports(buf)
+  buf = buf or vim.api.nvim_get_current_buf()
+
+  organize_imports(buf, clients_of(buf))
+end
+
+--- Wire the save chain. `spec` is filetype to command, collected from the
+--- language files; `silent` is the set of server names that must never be
 --- asked to format, whatever they claim to support.
 ---
 --- Muting is by name rather than by capability because a capability can be a
 --- lie: nvim-lspconfig's yamlls config sets `documentFormattingProvider` back
 --- to true in `on_init`, since the server reports false while still
 --- formatting.
-function M.setup(formatters, muted)
+function M.setup(spec, silent)
+  formatters, muted = spec, silent
+
   local group = vim.api.nvim_create_augroup("mivn.format", { clear = true })
 
   vim.api.nvim_create_autocmd("BufWritePre", {
@@ -144,38 +204,15 @@ function M.setup(formatters, muted)
         return
       end
 
-      if external(formatters, ev.buf) then
+      -- A language that names a formatter of its own owns the write end to
+      -- end; nothing after this runs for it. Otherwise imports first, since
+      -- that edits the same region the formatter is about to lay out.
+      if external(ev.buf) then
         return
       end
 
-      local clients = clients_of(ev.buf)
-      if #clients == 0 then
-        return
-      end
-
-      -- Imports first, because that edits the same region the formatter is
-      -- about to lay out.
-      organize_imports(ev.buf, clients)
-
-      -- One server, named outright. vim.lsp.buf.format() runs *every* client
-      -- that matches, applying each one's edits over the last, so handing it
-      -- a filter that two servers pass formats the file twice against a
-      -- document only one of them has seen. `format = false` in a language
-      -- file is how the wrong one steps aside.
-      local chosen
-      for _, client in ipairs(clients) do
-        if not muted[client.name] and client:supports_method("textDocument/formatting") then
-          chosen = client
-          break
-        end
-      end
-
-      -- Only when one of them can. vim.lsp.buf.format says "no matching
-      -- language servers" into the message area otherwise, which is every
-      -- markdown save, marksman being attached and offering no formatter.
-      if chosen then
-        vim.lsp.buf.format({ bufnr = ev.buf, id = chosen.id, timeout_ms = 2000 })
-      end
+      M.imports(ev.buf)
+      by_server(ev.buf)
     end,
   })
 end

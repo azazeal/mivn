@@ -140,14 +140,18 @@ plugins bind.
 
 The whole custom key list: `<Space>f` find file, `<Space>/` search the project,
 `<Space>b` buffers, `<Space>:` command palette, `<Space>h` help, `<Space>d`
-diagnostics, `<Space>?` every key there is, `<Space>t` the toggles (`tt` the
-file tree, `` t` `` the terminal, `tw` wrapping long lines in this window, `th`
-and `ti` dotfiles and ignored files in both the tree and the finders), `gd` go
-to definition, `Ctrl+Del` delete the word ahead, `Ctrl+↑` / `Ctrl+↓` move the
-line or the selected lines, `Alt+D` / `Alt+C` delete or change onto the
-clipboard, and `Ctrl+Tab` / `Ctrl+Shift+Tab` along the tab bar. `y` and `p` are
-the system clipboard, `d` and `c` are not. `Esc` in Normal mode also clears
-leftover search highlighting. Everything else is stock Vim, or a stock option
-doing its documented job.
+diagnostics, `<Space>?` every key there is, `<Space>a` the code tasks (`aa` code
+action, `ar` rename, `af` format, `aF` organize imports, `ai` hover, `ad` / `aD`
+diagnostics here / everywhere), `<Space>g` where to go (`gd` / `gD` definition /
+declaration, `gi` implementation, `gt` type, `gr` references, `gs` / `gS`
+symbols here / everywhere), `<Space>t` the toggles (`tt` the file tree, `` t` ``
+the terminal, `tw` wrapping long lines in this window, `th` and `ti` dotfiles
+and ignored files in both the tree and the finders), `gd` go to definition,
+`Ctrl+Del` delete the word ahead, `Ctrl+↑` / `Ctrl+↓` move the line or the
+selected lines, `Alt+D` / `Alt+C` delete or change onto the clipboard, and
+`Ctrl+Tab` / `Ctrl+Shift+Tab` along the tab bar. `y` and `p` are the system
+clipboard, `d` and `c` are not. `Esc` in Normal mode also clears leftover search
+highlighting. Everything else is stock Vim, or a stock option doing its
+documented job.
 [DEFAULTS.md](DEFAULTS.md) is the full account, including what each bridge
 costs.

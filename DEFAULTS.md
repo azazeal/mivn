@@ -975,6 +975,37 @@ list, so mivn binds `gd` over the stock file-local declaration search when a
 server attaches. `:h lsp-defaults` is the authority on the rest for your
 exact version.
 
+The same operations have a leader chain of their own _(mivn)_, and the stock
+keys above keep working: `<Space>a` is what to ask the server to do to this
+code, `<Space>g` is where to ask it to take you. A prefix panel then lists
+what a language server can do, rather than leaving it as five letters
+scattered through the g-commands.
+
+| Key | Does |
+|---|---|
+| `<Space>aa` | Code action |
+| `<Space>ar` | Rename symbol |
+| `<Space>af` | Format this buffer |
+| `<Space>aF` | Organize imports |
+| `<Space>ai` | Hover documentation |
+| `<Space>ad` / `<Space>aD` | Diagnostics, this buffer / the workspace |
+| `<Space>gd` / `<Space>gD` | Go to definition / declaration |
+| `<Space>gi` | Go to implementation |
+| `<Space>gt` | Go to type definition |
+| `<Space>gr` | Find references |
+| `<Space>gs` / `<Space>gS` | Symbols, this document / the workspace |
+
+`<Space>af` is the formatting half of a write, and the same code: the
+language's own formatter where its file names one, and the single server
+chosen to do it otherwise. `<Space>aF` is the imports half. Neither can drift
+from what saving does, because saving calls them.
+
+Two of these are quieter than they look. `<Space>gD` is answered by very few
+servers, since declaration and definition are the same place in most
+languages; C is the one where they are not. `<Space>aD` is the diagnostics
+already known, not a request for more: gopls and golangci-lint push their
+findings rather than answering a pull, so there is nothing to ask for.
+
 `grn` asks for the new name in a one-line float at the symbol _(mivn)_ rather
 than on the bottom bar, prefilled and preselected: typing replaces the old
 name, Enter applies the rename, `Esc` backs out with nothing changed.

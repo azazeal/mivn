@@ -39,6 +39,8 @@ wk.setup({
   spec = {
     { "<leader>:", icon = { icon = "󰘳", color = "purple" } },
     { "<leader>h", icon = { icon = "󰋖", color = "cyan" } },
+    { "<leader>a", group = "code" },
+    { "<leader>g", group = "goto" },
     { "<leader>t", group = "toggle" },
     { "<leader>tt", icon = { icon = "󰙅", color = "blue" } },
 

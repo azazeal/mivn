@@ -21,6 +21,7 @@
 local complete = require("mivn.complete")
 local filters = require("mivn.filters")
 local find = require("mivn.find")
+local format = require("mivn.format")
 local margins = require("mivn.margins")
 local page = require("mivn.page")
 local restart = require("mivn.restart")
@@ -342,6 +343,33 @@ leader("<leader>t`", terminal.toggle, "Show or hide the terminal")
 leader("<leader>tw", margins.toggle_wrap, "Wrap long lines in this window, or stop")
 leader("<leader>th", filters.toggle_dotfiles, "Show or hide dotfiles, in the tree and the finders")
 leader("<leader>ti", filters.toggle_ignored, "Show or hide ignored files, in the tree and the finders")
+
+-- <leader>a is what I ask the language server to do to this code, and
+-- <leader>g is where I ask it to take me. Neovim's own gr-keys still work and
+-- are left alone: these are a second way in, grouped so the panel under a
+-- prefix is the list of what a server can do rather than five letters
+-- scattered through the g-commands.
+--
+-- Both are set here rather than on LspAttach, which is what Neovim does with
+-- its own: without a server they answer "no clients attached", which is a
+-- better thing to meet than a key that silently is not there.
+leader("<leader>aa", vim.lsp.buf.code_action, "Code action")
+leader("<leader>ar", vim.lsp.buf.rename, "Rename symbol")
+leader("<leader>af", format.buffer, "Format this buffer")
+leader("<leader>aF", format.imports, "Organize imports")
+leader("<leader>ai", vim.lsp.buf.hover, "Hover documentation")
+leader("<leader>ad", find.buffer_diagnostics, "Diagnostics in this buffer")
+leader("<leader>aD", find.diagnostics, "Diagnostics in the workspace")
+
+leader("<leader>gd", vim.lsp.buf.definition, "Go to definition")
+leader("<leader>gD", vim.lsp.buf.declaration, "Go to declaration")
+leader("<leader>gi", vim.lsp.buf.implementation, "Go to implementation")
+leader("<leader>gt", vim.lsp.buf.type_definition, "Go to type definition")
+leader("<leader>gr", vim.lsp.buf.references, "Find references")
+leader("<leader>gs", vim.lsp.buf.document_symbol, "Symbols in this document")
+leader("<leader>gS", function()
+  vim.lsp.buf.workspace_symbol("")
+end, "Symbols in the workspace")
 
 --- The window -----------------------------------------------------------------
 

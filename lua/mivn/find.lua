@@ -173,8 +173,14 @@ function M.help()
   pick.builtin.help()
 end
 
+--- Everything the servers have said about the whole workspace.
 function M.diagnostics()
-  extra.pickers.diagnostic()
+  extra.pickers.diagnostic({ scope = "all" })
+end
+
+--- The same, narrowed to the file I am in.
+function M.buffer_diagnostics()
+  extra.pickers.diagnostic({ scope = "current" })
 end
 
 --- Every mapping there is, searchable.
