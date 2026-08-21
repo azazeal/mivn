@@ -291,12 +291,11 @@ what it acts on.
 | `b` / `B` | Start of previous word / WORD |
 | Ctrl+`→` / Ctrl+`←` | Past the end of the word / start of the previous one _(mivn)_ |
 | Alt+`→` / Alt+`←` | The same, by subword _(mivn)_ |
-| `e` | Past the end of the word _(mivn)_ |
-| `ge` | Past the end of the previous word _(mivn)_ |
-| `E` / `gE` | End of WORD / previous WORD, as Vim has them |
+| `e` / `E` | End of word / WORD |
+| `ge` / `gE` | End of the previous word / WORD |
 | `0` | Column zero |
 | `^` | First non-blank character |
-| `$` | Past the end of the line _(mivn)_ |
+| `$` | End of line |
 | `{count}\|` | Column `{count}`, counted in characters _(mivn)_ |
 | `f{char}` | Forward onto the next `{char}` |
 | `F{char}` | Backward onto the previous `{char}` |
@@ -338,33 +337,49 @@ this reason; this is that reasoning carried into Normal mode. What it costs is
 `r` and `~`, which act on the character to the right of the bar without
 showing which one that is.
 
-`$` and `End` move past the end of the line for the same reason _(mivn)_, in
-Normal mode only, so `d$` still stops at the end. It cannot take a line break with
+`End` moves past the end of the line for the same reason _(mivn)_, in Normal
+mode only; `$` is Vim's and stops on the last character. It cannot take a line break with
 it: the boundary after the last character is still on that line, before the
 newline, so `v$`, Shift+End and the rest yank the line's text and it takes one
 more press to cross.
 
-`Home` goes to the first character that is not whitespace _(mivn)_, which is
-where a line actually starts, and to column zero from there: three presses
-walk indent, zero, indent. That is Zed's `stop_at_indent` rule, read off its
-movement code rather than guessed, and Shift+Home selects to the same place.
-Vim has both halves as `^` and `0` and no key that alternates between them.
+`Home` alternates between the indent and column zero _(mivn)_, which is Zed's
+`stop_at_indent` rule taken from its movement code rather than guessed, and
+Shift+Home selects to wherever it would have gone. Where you start decides
+which comes first, and the third case is the one worth knowing:
 
-The letters keep step with the arrows, because the model has to hold whichever
-key reaches for it _(mivn)_. `b` needs nothing, being what Ctrl+`←` runs. `w`
-needs nothing either and is a different motion, landing on the first letter of
-the next word rather than after the last of this one. `e` and `ge` were the
-pair one column short and now land past the end, in Normal mode only: after an
-operator `de` already covers the word and no more, and in Visual exclusive
-selection has been giving `e` its extra column all along. `E` and `gE` are
-untouched.
+| Cursor | `Home` | then |
+|---|---|---|
+| In the text | The indent | Column zero |
+| On the indent | Column zero | The indent |
+| Inside the indentation | Column zero | The indent |
+| At column zero | The indent | Column zero |
+
+So from the text it takes two presses to reach the real start of the line, and
+from inside the indentation only one. Vim has the two halves as `^` and `0`
+and no key that alternates between them.
+
+The letters are untouched, and that is deliberate. `w`, `e`, `b` and their
+capitals do what Vim ships, landing *on* the last character where the arrows
+land past it. Only the arrow family moved, so the block model survives
+wherever Vim's own grammar is what you typed, and the two never have to be
+kept in step with each other.
 
 Alt and an arrow does the same by **subword**, the piece of an identifier a
 camel hump or an underscore marks off _(mivn)_. `parseHTTPUrl` is `parse`,
-`HTTP` and `Url`; `foo_bar` is two; `::` is a piece of its own. Vim has no such
-motion, so `lua/mivn/words.lua` is where it lives, and it is the one pair here
-that is not an operator-pending motion: select with Alt+Shift and operate on
-that instead.
+`HTTP` and `Url`; `foo_bar` is two; `::` is a piece of its own.
+
+Both granularities are parsed in `lua/mivn/words.lua` rather than borrowed
+from `e`, because borrowing leaves a hole: `e` moves to the end of the *next*
+word when the cursor already sits at the end of one, which in this model is
+every time a word ends against the next. Measured on `foo (bar) baz`, the
+borrowed version crossed `)` and `baz` in a single press. The parsed one stops
+after every word, punctuation included: `parseHTTPUrl`, `(`, `foo_bar`, `,`,
+`baz2Qux`, `)`.
+
+Neither is an operator-pending motion. After an operator the Ctrl pair falls
+back to Vim's own `e` and `b`, which cover the same text, and the Alt pair has
+no operator form at all: select with Alt+Shift and operate on that.
 
 `{count}|` counts its column in characters of text _(mivn)_, not Vim's screen
 cells: a tab is one character and an LSP inlay hint is nothing, so the column

@@ -1,19 +1,22 @@
--- Moving by a word, and by a piece of one.
+-- Moving by a word, and by a piece of one. The arrows' business alone: `w`,
+-- `e`, `b` and their capitals are Vim's and stay exactly as they ship.
 --
 -- The shape is Zed's, because it is the one my hands have: going right lands
--- on the end of a word, going left on the start of one. That asymmetry is not
--- an oversight in either editor. Travel in a direction should stop at the far
--- side of what it crossed, and the far side of a word is its end going right
--- and its start going left.
+-- past the end of a word, going left on the start of one. That asymmetry is
+-- not an oversight in either editor. Travel in a direction should stop at the
+-- far side of what it crossed, and the far side of a word is its end going
+-- right and its start going left.
 --
--- Vim has both as `e` and `b`, so the word half of this file is only the keys.
--- What it has none of is the subword, the piece of an identifier a camel hump
--- or an underscore marks off, so that half is here.
+-- Both granularities are parsed here rather than borrowed from `e`, and the
+-- reason is a hole that borrowing leaves. `e` moves to the end of the *next*
+-- word when the cursor already sits at the end of one, which in this model is
+-- every time a word ends against the next: on `foo (bar) baz` the arrow
+-- crossed `)` and `baz` in one press, since the caret was already on `)` and
+-- `)` had therefore already ended. Measured, and the reason this file grew.
 --
--- The WORD, Vim's whitespace-delimited kind, is bound to nothing: it crosses
--- `foo::bar(baz(r, g, b))` in one press, which is never the distance I mean.
--- `W`, `B`, `E` and `gE` still exist, unbound and unremoved, because they are
--- Vim's grammar and this file takes nothing away from it.
+-- The WORD, Vim's whitespace-delimited kind, is not here and reaches no
+-- arrow. It crosses `foo::bar(baz(r, g, b))` in one press, which is never the
+-- distance I mean. `W`, `B`, `E` and `gE` still exist and are untouched.
 
 local M = {}
 
@@ -36,22 +39,26 @@ local function kind(char)
   return "punct"
 end
 
---- Where the subwords of `line` are, as {first, last} byte columns, 1-based
---- and inclusive.
+--- Where the pieces of `line` are, as {first, last} byte columns, 1-based and
+--- inclusive.
 ---
---- Underscores and whitespace are separators and belong to no piece, so
---- `parse_http_url` is three. A hump starts a piece, so `parseHTTPUrl` is
---- `parse`, `HTTP` and `Url`: a run of capitals is one piece until the last
---- of them turns out to be the head of a word, which is only knowable from
---- the letter after it.
-local function subwords(line)
+--- `small` asks for subwords. Underscores and whitespace are then separators
+--- and belong to no piece, so `parse_http_url` is three, and a hump starts a
+--- piece, so `parseHTTPUrl` is `parse`, `HTTP` and `Url`: a run of capitals
+--- is one piece until the last of them turns out to be the head of a word,
+--- which is only knowable from the letter after it.
+---
+--- Without it the pieces are words, Vim's own kind: letters, digits and
+--- underscores run together and punctuation is its own piece, so
+--- `foo_bar(baz` is three. Whitespace separates either way.
+local function spans_of(line, small)
   local spans = {}
   local i, n = 1, #line
 
   while i <= n do
     local here = kind(line:sub(i, i))
 
-    if here == "space" or here == "under" then
+    if here == "space" or (small and here == "under") then
       i = i + 1
     elseif here == "punct" then
       -- One piece per run of punctuation, so `::` is a stop and `(` after it
@@ -60,6 +67,18 @@ local function subwords(line)
       while i <= n and kind(line:sub(i, i)) == "punct" do
         i = i + 1
       end
+      spans[#spans + 1] = { first, i - 1 }
+    elseif not small then
+      -- A word: everything a keyword is made of, in one run.
+      local first = i
+      while i <= n do
+        local what = kind(line:sub(i, i))
+        if what ~= "upper" and what ~= "lower" and what ~= "under" then
+          break
+        end
+        i = i + 1
+      end
+
       spans[#spans + 1] = { first, i - 1 }
     else
       local first = i
@@ -101,14 +120,14 @@ end
 --- between characters rather than a character, and a selection back to the
 --- start of the piece then holds the piece and nothing else. 'virtualedit'
 --- is what lets that boundary exist at the end of a line.
-local function target(forward)
+local function target(forward, small)
   local row, col = unpack(vim.api.nvim_win_get_cursor(0))
   local last = vim.api.nvim_buf_line_count(0)
   local from = col + 1 -- nvim_win_get_cursor is 0-based on the column
 
   while row >= 1 and row <= last do
     local line = vim.api.nvim_buf_get_lines(0, row - 1, row, false)[1] or ""
-    local spans = subwords(line)
+    local spans = spans_of(line, small)
 
     if forward then
       for _, span in ipairs(spans) do
@@ -133,14 +152,15 @@ local function target(forward)
   return nil
 end
 
---- Move to the end of the next subword, or the start of the previous one.
+--- Move past the end of the next piece, or to the start of the previous one.
 ---
 --- Not an operator-pending motion: `d` and one of these would need a real
---- motion rather than a cursor put somewhere, and the shifted keys already
---- cover selecting a piece and doing something to it.
-function M.subword(forward)
+--- motion rather than a cursor put somewhere. After an operator the arrows
+--- fall back to Vim's own `e` and `b`, which cover the same text, and the
+--- shifted keys cover selecting a piece and doing something to it.
+function M.move(forward, small)
   return function()
-    local to = target(forward)
+    local to = target(forward, small)
     if to then
       vim.api.nvim_win_set_cursor(0, to)
     end
@@ -149,8 +169,8 @@ end
 
 --- Open a Visual selection and then move, for a shifted key pressed with
 --- nothing selected yet.
-function M.select_subword(forward)
-  local move = M.subword(forward)
+function M.select(forward, small)
+  local move = M.move(forward, small)
 
   return function()
     vim.cmd("normal! v")

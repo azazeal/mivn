@@ -186,58 +186,32 @@ vim.keymap.set("n", "<Esc>", "<Cmd>nohlsearch<CR><Esc>", {
 -- a mapping would keep it alive instead. Operator-pending takes plain `e`,
 -- since an inclusive motion already covers the same text: `d<C-Right>` is
 -- `de`, the word and no more.
-vim.keymap.set("n", "<C-Right>", "el", {
+vim.keymap.set("n", "<C-Right>", words.move(true, false), {
   desc = "Move past the end of the word",
 })
 
+vim.keymap.set("n", "<C-Left>", words.move(false, false), {
+  desc = "Move to the start of the previous word",
+})
+
+vim.keymap.set("n", "<A-Right>", words.move(true, true), {
+  desc = "Move past the end of the subword",
+})
+
+vim.keymap.set("n", "<A-Left>", words.move(false, true), {
+  desc = "Move to the start of the previous subword",
+})
+
+-- After an operator the arrows fall back to Vim's own, which cover the same
+-- text: `e` is inclusive, so `d<C-Right>` is the word and no more, and `b` is
+-- what Ctrl+Left runs anyway. The Alt pair has no operator form; select with
+-- Alt+Shift and operate on that.
 vim.keymap.set("o", "<C-Right>", "e", {
   desc = "Through the end of the word",
 })
 
-vim.keymap.set({ "n", "o" }, "<C-Left>", "b", {
-  desc = "Move to the start of the previous word",
-})
-
-vim.keymap.set("n", "<A-Right>", words.subword(true), {
-  desc = "Move past the end of the subword",
-})
-
-vim.keymap.set("n", "<A-Left>", words.subword(false), {
-  desc = "Move to the start of the previous subword",
-})
-
--- The letters kept in step with the arrows, since the model has to hold
--- whichever key reaches for it. `b` needs nothing: it *is* what Ctrl+Left
--- runs. `w` needs nothing either, and is not the same motion, landing on the
--- first letter of the next word rather than after the last of this one, which
--- is a boundary too and one the arrows do not offer.
---
--- `e` and `ge` are the pair that were one column short, so they take the same
--- `l`. Normal mode alone: after an operator `de` already covers the word and
--- no more, and in Visual exclusive selection has been giving `e` its extra
--- column since long before any of this.
---
--- `E` and `gE` are left where Vim put them, WORD and all. Nothing here is
--- bound to them and nothing here changes them.
-vim.keymap.set("n", "e", "el", {
-  desc = "Move past the end of the word",
-})
-
-vim.keymap.set("n", "ge", "gel", {
-  desc = "Move past the end of the previous word",
-})
-
--- And the end of the line, for the same reason: `$` stops on the last
--- character, which under a bar reads as being before it. Normal mode only, so
--- `d$` still deletes to the end and no further.
---
--- It cannot take a line break with it. The boundary after the last character
--- is still on that line, before the newline rather than after it, so a
--- selection reaching it holds the line's text: measured, `v$`, `v$l` and
--- Shift+End all yank `foo bar baz` with no newline, and it takes one more
--- press to cross.
-vim.keymap.set("n", "$", "$l", {
-  desc = "Move past the end of the line",
+vim.keymap.set("o", "<C-Left>", "b", {
+  desc = "To the start of the previous word",
 })
 
 -- Home and End, on the same model and with Zed's rule for the indent.
@@ -252,14 +226,23 @@ vim.keymap.set("n", "$", "$l", {
 -- an operator `d<End>` already covers the line, and in Visual exclusive
 -- selection gives it the extra column. Zed has no indent notion at that end,
 -- and neither does this.
+--- Zed's three branches, in its own order (`indented_line_beginning` in
+--- crates/editor/src/movement.rs): past the indent goes to the indent, and so
+--- does column zero, while anything else, meaning the indent itself or a
+--- column inside the whitespace, goes to column zero.
+---
+--- So from the text it is one press to the indent and a second to column
+--- zero, and from inside the indentation it is one press to column zero. A
+--- line that is all whitespace has no indent to go to.
 local function home()
   local indent = vim.api.nvim_get_current_line():find("%S")
-
-  if not indent or vim.fn.col(".") == indent then
+  if not indent then
     return "0"
   end
 
-  return "^"
+  local col = vim.fn.col(".")
+
+  return (col > indent or col == 1) and "^" or "0"
 end
 
 vim.keymap.set({ "n", "x", "o" }, "<Home>", home, {
@@ -305,37 +288,17 @@ end, {
 -- replace the selection with the letter. In Visual it is the plain motion.
 -- After an operator the key is left alone: `d` and a shifted arrow is not
 -- something I press.
---
--- `e` and not the `el` the Normal-mode key uses: exclusive selection already
--- gives an inclusive motion its extra column inside Visual, so `ve` stops
--- after the word on its own. Measured on `parseHTTPUrl(`: `ve` selects
--- `parseHTTPUrl` and `vel` takes the bracket with it.
 for _, sel in ipairs({
-  { lhs = "<C-S-Right>", motion = "e", to = "past the end of the word" },
-  { lhs = "<C-S-Left>", motion = "b", to = "to the start of the previous word" },
+  { lhs = "<C-S-Right>", forward = true, small = false, to = "past the end of the word" },
+  { lhs = "<C-S-Left>", forward = false, small = false, to = "to the start of the previous word" },
+  { lhs = "<A-S-Right>", forward = true, small = true, to = "past the end of the subword" },
+  { lhs = "<A-S-Left>", forward = false, small = true, to = "to the start of the previous subword" },
 }) do
-  vim.keymap.set("n", sel.lhs, "v" .. sel.motion, {
+  vim.keymap.set("n", sel.lhs, words.select(sel.forward, sel.small), {
     desc = "Select " .. sel.to,
   })
 
-  vim.keymap.set("x", sel.lhs, sel.motion, {
-    desc = "Extend the selection " .. sel.to,
-  })
-
-  vim.keymap.set("s", sel.lhs, "<C-o>" .. sel.motion, {
-    desc = "Extend the selection " .. sel.to,
-  })
-end
-
-for _, sel in ipairs({
-  { lhs = "<A-S-Right>", forward = true, to = "past the end of the subword" },
-  { lhs = "<A-S-Left>", forward = false, to = "to the start of the previous subword" },
-}) do
-  vim.keymap.set("n", sel.lhs, words.select_subword(sel.forward), {
-    desc = "Select " .. sel.to,
-  })
-
-  vim.keymap.set("x", sel.lhs, words.subword(sel.forward), {
+  vim.keymap.set("x", sel.lhs, words.move(sel.forward, sel.small), {
     desc = "Extend the selection " .. sel.to,
   })
 end
