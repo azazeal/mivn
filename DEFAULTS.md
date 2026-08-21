@@ -667,6 +667,20 @@ and `Ctrl+Shift+W` reaches it as well: the shift is discarded on the way in.
 | `:ls` | List buffers |
 | `:b {name}` | Switch by name; partial matches work |
 | `:bd` | Close a buffer |
+| `:bdo` | Close every other buffer _(mivn)_ |
+| `:bda` | Close them all _(mivn)_ |
+
+`:bdo` and `:bda` are the two helix has and Vim does not, under names Vim
+leaves free: its own shortest spellings are `bd` for bdelete and `bufd` for
+bufdo, so neither of these completes to anything of Vim's. `:%bd` is the same
+command as `:bda`. All three close the **files** and leave the panels standing,
+which plain `:%bd` would not: its range walks every buffer number, so it used
+to take the file tree down with them.
+
+A buffer with unsaved changes is kept rather than closed, counted, and named in
+the message; the bang takes those too. `:bdo` keeps the file you are looking
+at, or the one you looked at last if you run it from the tree, since the tree
+itself is not a file to keep.
 
 `Ctrl+Tab` and `Ctrl+Shift+Tab` are the one pair of chords the tab bar adds, and
 they are the meaning every other editor gives them. Nothing is displaced: Vim
