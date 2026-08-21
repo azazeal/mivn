@@ -269,6 +269,16 @@ return {
             -- same finding on one line is one copy too many.
             staticcheck = false,
 
+            analyses = {
+              -- Structs whose fields would take less memory in another order,
+              -- with the order to use. Off in gopls and off in golangci-lint,
+              -- where it would fail a build over a layout that is fine; here
+              -- it is a thing to notice while I am already in the file and to
+              -- act on when the struct is one I care about the size of.
+              -- <leader>aa on the line offers the reordering as an edit.
+              fieldalignment = true,
+            },
+
             -- The codelenses are the ones I use.
             codelenses = {
               generate = true,
