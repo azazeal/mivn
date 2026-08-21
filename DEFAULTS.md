@@ -707,7 +707,7 @@ Not Neovim's: these come from nvim-tree, and like the picker's below they work
 **only while the cursor is inside the tree window**. Outside
 it every one of them means what the rest of this document says it means, so `H`
 is still "top of the screen" in a file. `Ctrl+W h` and `Ctrl+W l` are how you
-get in and out. `<leader>t` _(mivn)_ shows or hides the tree itself, without
+get in and out. `<leader>tt` _(mivn)_ shows or hides the tree itself, without
 moving focus.
 
 The highlighted row is the selection, and no cursor is drawn in the tree on
@@ -752,13 +752,19 @@ runs normally.
 
 ### Showing and hiding
 
-Three filters, each on its own key:
+Three filters. The first two have a key inside the tree and a key outside it,
+and both spellings do the same thing:
 
-| Key | Toggles |
-|---|---|
-| `H` | Dotfiles |
-| `I` | Files git ignores |
-| `U` | `.git/` |
+| Inside the tree | Anywhere | Toggles |
+|---|---|---|
+| `H` | `<leader>th` _(mivn)_ | Dotfiles |
+| `I` | `<leader>ti` _(mivn)_ | Files the SCM ignores |
+| `U` | | `.git/` |
+
+The first two reach the finders as well _(mivn)_, not only the tree: `<leader>f`
+and `<leader>/` list what the tree draws, because they are two views of one
+directory and a file present in one and missing from the other is a worse lie
+than either rule on its own. `U` is the tree's alone.
 
 The starting state is **dotfiles shown, ignored files hidden**, which is what
 you want almost always: a dotfile is usually project configuration worth seeing,
@@ -769,11 +775,13 @@ the same kind of hidden.
 `.git/` is the one both rules miss. It is a dotfile, so showing dotfiles shows
 it, and git does not ignore its own directory, so hiding ignored files does not
 hide it either. It is named on its own and hidden, because it is machinery
-rather than part of the project. `<leader>f` leaves it out for the same reason.
+rather than part of the project. The finders leave it out for the same reason,
+whatever the other two are set to.
 
-Both are view state, not settings. They last as long as the session and reset
-on the next start, so flipping one to go and look at something cannot leave the
-tree in a state you later have to explain to yourself.
+All of it is view state, not settings. A flip lasts as long as the session and
+belongs to that session alone, so a second window keeps the starting state and
+the next start begins there again. Going to look at something cannot leave a
+state you later have to explain to yourself.
 
 ## The picker
 

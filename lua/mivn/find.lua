@@ -96,20 +96,47 @@ end
 
 --- The command that lists the project's files, or nil if neither tool is here.
 ---
---- Both apply .gitignore themselves, which is the same rule the file tree
---- follows: ignored files hidden, dotfiles shown. `.git/` is excluded by hand
---- because it is neither ignored nor worth seeing.
+--- What it shows is lua/mivn/filters.lua's answer, the one the tree draws, so
+--- the two views of a directory agree. Both tools apply .gitignore themselves,
+--- which is the ignored half of it; `.git/` is excluded by hand whatever the
+--- answer, because it is neither ignored nor worth seeing.
+---
+--- Spelled out here rather than left to the ripgrep configuration that module
+--- writes, because `fd` reads no configuration file at all and this is the
+--- only place its flags can come from.
 ---
 --- Not mini.extra's git_files picker: that lists what git *tracks*, which is
 --- nothing in a repository with no commits yet, so the finder would open empty
 --- on the day a project starts.
 local function files_command()
+  local shown = require("mivn.filters")
+
   if vim.fn.executable("rg") == 1 then
-    return { "rg", "--files", "--hidden", "--glob", "!.git/", "--color=never" }
+    local command = { "rg", "--files", "--glob", "!.git/", "--color=never" }
+
+    if shown.dotfiles() then
+      table.insert(command, "--hidden")
+    end
+
+    if shown.ignored() then
+      table.insert(command, "--no-ignore")
+    end
+
+    return command
   end
 
   if vim.fn.executable("fd") == 1 then
-    return { "fd", "--type=f", "--hidden", "--exclude", ".git", "--color=never" }
+    local command = { "fd", "--type=f", "--exclude", ".git", "--color=never" }
+
+    if shown.dotfiles() then
+      table.insert(command, "--hidden")
+    end
+
+    if shown.ignored() then
+      table.insert(command, "--no-ignore")
+    end
+
+    return command
   end
 
   return nil
