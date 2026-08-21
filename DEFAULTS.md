@@ -338,11 +338,17 @@ this reason; this is that reasoning carried into Normal mode. What it costs is
 `r` and `~`, which act on the character to the right of the bar without
 showing which one that is.
 
-`$` moves past the end of the line for the same reason _(mivn)_, in Normal
-mode only, so `d$` still stops at the end. It cannot take a line break with
+`$` and `End` move past the end of the line for the same reason _(mivn)_, in
+Normal mode only, so `d$` still stops at the end. It cannot take a line break with
 it: the boundary after the last character is still on that line, before the
 newline, so `v$`, Shift+End and the rest yank the line's text and it takes one
 more press to cross.
+
+`Home` goes to the first character that is not whitespace _(mivn)_, which is
+where a line actually starts, and to column zero from there: three presses
+walk indent, zero, indent. That is Zed's `stop_at_indent` rule, read off its
+movement code rather than guessed, and Shift+Home selects to the same place.
+Vim has both halves as `^` and `0` and no key that alternates between them.
 
 The letters keep step with the arrows, because the model has to hold whichever
 key reaches for it _(mivn)_. `b` needs nothing, being what Ctrl+`←` runs. `w`

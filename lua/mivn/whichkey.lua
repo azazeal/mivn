@@ -15,6 +15,18 @@ wk.setup({
   -- Vim's own grammar, which has never had one.
   notify = false,
 
+  -- Entering Visual mode is not a question, so nothing is answered.
+  --
+  -- Stock defers the panel only for `V` and Ctrl+V, which leaves plain Visual
+  -- opening it the moment a selection starts: `v`, and every shifted arrow,
+  -- Home and End with 'keymodel' the way it is here, all landed on a panel
+  -- covering the selection they had just made. Deferring for every mode this
+  -- reaches keeps the help where it belongs, on a prefix actually pressed:
+  -- `g` or `[` inside a selection still opens it.
+  defer = function()
+    return true
+  end,
+
   icons = {
     mappings = true,
     -- Only the leader is spelled out: "<Space>" reads better than a glyph.

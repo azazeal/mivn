@@ -240,6 +240,60 @@ vim.keymap.set("n", "$", "$l", {
   desc = "Move past the end of the line",
 })
 
+-- Home and End, on the same model and with Zed's rule for the indent.
+--
+-- Home goes to the first character that is not whitespace, which is where a
+-- line actually starts, and to column zero from there: three presses walk
+-- indent, zero, indent. Zed's own is `stop_at_indent`, and its rule is this
+-- one exactly, taken from its movement code rather than guessed. Vim has both
+-- halves as `^` and `0` and no key that alternates.
+--
+-- End takes the same `l` as `$`, in Normal only for the same reasons: after
+-- an operator `d<End>` already covers the line, and in Visual exclusive
+-- selection gives it the extra column. Zed has no indent notion at that end,
+-- and neither does this.
+local function home()
+  local indent = vim.api.nvim_get_current_line():find("%S")
+
+  if not indent or vim.fn.col(".") == indent then
+    return "0"
+  end
+
+  return "^"
+end
+
+vim.keymap.set({ "n", "x", "o" }, "<Home>", home, {
+  expr = true,
+  desc = "Move to the first character of the line, or to column zero",
+})
+
+vim.keymap.set("n", "<End>", "$l", {
+  desc = "Move past the end of the line",
+})
+
+-- Shift with either needs saying outright: 'keymodel' opens the selection and
+-- then runs Vim's own meaning of the key, which for Home is column zero.
+-- Shift+End needs nothing, since exclusive selection already carries `$` to
+-- the end of the line.
+vim.keymap.set("n", "<S-Home>", function()
+  return "v" .. home()
+end, {
+  expr = true,
+  desc = "Select to the first character of the line",
+})
+
+vim.keymap.set("x", "<S-Home>", home, {
+  expr = true,
+  desc = "Extend the selection to the first character of the line",
+})
+
+vim.keymap.set("s", "<S-Home>", function()
+  return "<C-o>" .. home()
+end, {
+  expr = true,
+  desc = "Extend the selection to the first character of the line",
+})
+
 -- Ctrl or Alt with Shift selects by the same step. 'keymodel' opens a
 -- selection on its own and reaches for Vim's own meaning of the key, which is
 -- the WORD, so the opening happens here instead.
