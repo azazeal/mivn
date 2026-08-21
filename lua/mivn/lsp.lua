@@ -129,7 +129,14 @@ vim.lsp.config("*", {
       return
     end
 
+    -- One that was asked to go is not news, whatever it exits with. gopls
+    -- leaves with 2 when the client in front of its daemon is shut down, and
+    -- taking a directory's trust back stops every server it had.
     local client = vim.lsp.get_client_by_id(client_id)
+    if client and client._is_stopping then
+      return
+    end
+
     local name = client and client.name or ("client %d"):format(client_id)
     if exit_warned[name] then
       return
@@ -150,7 +157,10 @@ for _, name in ipairs(enabled) do
   configure(name, servers[name])
 end
 
-vim.lsp.enable(enabled)
+-- Enabled by the workspace's answer rather than here: none of them starts
+-- until the directory this editor was opened in is trusted, and that answer
+-- can change while it runs. lua/mivn/trust.lua says why and owns both.
+require("mivn.trust").gate(enabled)
 
 require("mivn.format").setup(formatters, muted)
 

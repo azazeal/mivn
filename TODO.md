@@ -77,34 +77,13 @@ checked off; git remembers them.
     artifact keeps `go install` and npm postinstalls off the machine in the
     first place.
 
-    What that does not cover, deliberately and worth writing down: opening a
-    repository still runs its code. rust-analyzer builds `build.rs` and
-    expands proc macros, expert compiles `mix.exs`, gopls shells out to the
-    toolchain, and ruby-lsp runs a Gemfile through bundler. Release age is
-    about what gets installed, not about what a checkout does once it is
-    open.
-
-- [ ] Ask before starting servers in a directory I have not been in, which
-    is the cheap half of what the sandbox was reaching for and the half
-    every other editor has. VS Code and Zed prompt; helix has
-    `[editor.workspace-trust]`, and this machine's helix runs it at `level =
-    "none"`, i.e. prompt for every new workspace. Neovim has nothing:
-    `'exrc'`, `:trust` and `vim.secure` gate `.nvim.lua` and stop there, and
-    `lsp.txt` never mentions trust.
-
-    Not to be confused with the store's old `lsp-consent.json`, which is
-    still on this machine and which the leftovers check names: that was
-    keyed by server name and asked "may I download this", not "do I trust
-    this directory". There is no prior art here to copy.
-
-    mivn does gate one thing already, and it is the wrong half: 'exrc' is
-    on, so a project's .nvim.lua needs Neovim's trust list before it runs,
-    while the servers that execute what the project ships start unasked.
-
-    The shape, if it happens: one answer per directory, remembered by path,
-    no answer meaning tree-sitter colours and no servers. It costs one
-    prompt per new checkout and it is a dozen lines, against a policy table
-    that needed a measurement per server.
+    What that does not cover: opening a repository still runs its code.
+    rust-analyzer builds `build.rs` and expands proc macros, expert compiles
+    `mix.exs`, gopls shells out to the toolchain, and ruby-lsp runs a
+    Gemfile through bundler. Release age is about what gets installed, not
+    about what a checkout does once it is open. That half is gated instead,
+    by lua/mivn/trust.lua: a directory answers for itself before anything
+    starts for it.
 
 - [ ] Facts written twice, waiting to drift; found by the 2026-08-04
     review, parked for a monthly batch. find.lua's BUILTINS table

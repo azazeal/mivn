@@ -1000,6 +1000,32 @@ up and starts it if it is there. A language whose server is not installed
 keeps its tree-sitter colors and gets nothing else, which `:checkhealth mivn`
 names, along with the version of every server found.
 
+Servers wait for the workspace to be trusted _(mivn)_. A language server is
+not a viewer: rust-analyzer builds the crate, build scripts and proc macros
+included, expert compiles `mix.exs`, and gopls drives the Go toolchain. So
+opening somebody else's checkout runs their code, and until the workspace is
+trusted no server starts and nothing formats on save. Everything else works as
+always, and a file no server covers, a `.txt` among them, opens in silence:
+nothing was going to run for it, so nothing is said about it.
+
+The workspace is the directory the editor is working in, the one `:pwd` names
+and `:cd` moves, and it is the whole of the question. Not the root a language
+server picks for itself, which is a different thing chosen out of whatever
+markers that server likes, and which lands above the checkout as readily as
+inside it. So everything under the workspace is covered by one answer, and a
+file reached from outside it, a dependency's source or the standard library,
+is carried by that same answer rather than asked about again.
+
+The first time a file turns up that a server would have started for, one line
+says nothing is running and names the way in. `:MivnTrust` is that way, taking
+`allow`, `deny`, `forget` and `status`, and it acts on the workspace unless
+given another directory. Trusting starts the servers there and then, without a
+restart; denying, or moving to an untrusted workspace, stops the ones already
+running. Answers are kept in Neovim's own trust list, the one `:trust` writes
+for `.nvim.lua`, and the nearest answer above a directory wins, so trusting a
+checkout covers everything in it. `~/projects` is trusted a level down, per
+organization, so the question only comes up for somebody else's code.
+
 Writing a file formats it _(mivn)_. Vim writes the buffer as it stands; here
 the language server is asked to organize the imports and then to format, and
 a language that names a formatter of its own runs that instead of the

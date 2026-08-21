@@ -134,6 +134,16 @@ function M.setup(formatters, muted)
   vim.api.nvim_create_autocmd("BufWritePre", {
     group = group,
     callback = function(ev)
+      -- Nothing runs on save in a workspace I have not trusted. The server
+      -- half of this is already covered, since none is even started there,
+      -- and the formatters are named here rather than by the project; the
+      -- rule is the one that stays right the day one of them starts reading
+      -- a project's own configuration for plugins to load.
+      local trust = require("mivn.trust")
+      if not trust.allows(trust.workspace()) then
+        return
+      end
+
       if external(formatters, ev.buf) then
         return
       end

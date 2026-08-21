@@ -195,6 +195,30 @@ function M.check()
     )
   end
 
+  health.start("workspace trust")
+  local trust = require("mivn.trust")
+
+  -- The workspace, which is the same directory :MivnTrust would act on, so
+  -- what this reports and what that changes cannot be two different places.
+  local here = trust.here()
+  local state, decided_by = trust.status(here)
+  if state == "allowed" then
+    health.ok(("%s runs language servers%s"):format(here, decided_by ~= here and (", trusted at " .. decided_by) or ""))
+  else
+    health.warn(
+      ("this workspace %s, so no server runs in it: %s"):format(
+        state == "denied" and "is denied" or "has not been trusted",
+        here
+      ),
+      ":MivnTrust allows it, :MivnTrust deny refuses it for good"
+    )
+  end
+
+  -- info for the same reason check_binary uses it: these rows scan by name.
+  for _, entry in ipairs(trust.decided()) do
+    health.info(("%s: %s (%s)"):format(entry.path, entry.state, entry.by == "mivn" and "this config" or ":MivnTrust"))
+  end
+
   health.start("clients in this session")
   local clients = vim.lsp.get_clients()
   if #clients == 0 then

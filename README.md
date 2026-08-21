@@ -55,11 +55,18 @@ language server has formatted), and which JSON Schema a file gets. One file
 per language under `lua/mivn/languages/` holds all of it for that language.
 `:checkhealth mivn` reports the lot.
 
-Servers run with the permissions you do, which is worth knowing before you
-open someone else's repository: several of them run that repository's code
-to answer questions about it. rust-analyzer builds `build.rs` and expands
-proc macros, expert compiles `mix.exs`, gopls shells out to the toolchain.
-Neovim has no workspace-trust prompt, and this config adds none.
+Servers run with the permissions you do, and several of them run the
+repository's own code to answer questions about it: rust-analyzer builds
+`build.rs` and expands proc macros, expert compiles `mix.exs`, gopls shells
+out to the toolchain. So opening a repository is running it, and the workspace
+has to be trusted before any of that starts. The workspace is the directory
+the editor is working in, not the root each server picks for itself, so one
+answer covers everything under it. Nothing is said about a file no server
+covers; the rest gets one line and `:MivnTrust`, which trusts the workspace
+and starts its servers there and then. `:checkhealth mivn` shows where you
+stand, and the decisions live in Neovim's own trust list beside the
+`.nvim.lua` ones. It is a gate and not a sandbox: a server that does start
+runs as you.
 
 This is a plain Neovim configuration: clone it where Neovim looks and run
 `nvim`.
@@ -90,8 +97,9 @@ per-screen choice, and an editor config has no way to make that choice well;
 Neovim cannot even ask the compositor for the monitor's physical size.
 
 Under Neovide, `Ctrl+=`, `Ctrl+-` and `Ctrl+0` zoom in, out and back to 100%;
-the numpad's `+`, `-` and `0` do the same. They scale what that file asked for rather than writing a size anywhere, so
-100% keeps meaning whatever the file says. The step is foot's, near enough,
+the numpad's `+`, `-` and `0` do the same. They scale what that file asked
+for rather than writing a size anywhere, so 100% keeps meaning whatever the
+file says. The step is foot's, near enough,
 and it stops at half and at triple. In a terminal the keys are not mivn's to
 take: foot has them and resizes its own font.
 
