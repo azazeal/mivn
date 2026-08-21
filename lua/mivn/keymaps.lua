@@ -7,7 +7,7 @@
 --
 -- What is deliberately not here: a mapping that exists only while some buffer
 -- does. It is made when that buffer is, and it belongs with the thing it acts
--- on. `gd` and the hover float's Esc are lua/mivn/lsp.lua's, the message
+-- on. `gd` and the hover float's Esc are lua/mivn/languages/'s, the message
 -- pager's Esc is init.lua's, the tree's keys are lua/mivn/tree.lua's, the
 -- dashboard's are lua/mivn/dashboard.lua's, the floating prompt's are
 -- lua/mivn/prompt.lua's, and the picker's keys are mini.pick's own key loop

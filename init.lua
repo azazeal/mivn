@@ -12,9 +12,8 @@ vim.g.editorconfig = true
 
 -- A project can carry its own editor config: a .nvim.lua in the project or
 -- any directory above it runs after this file, so vim.lsp.config() calls
--- there merge over lua/mivn/lsp.lua's defaults. Guarded by Neovim's trust
--- prompt on first load; :trust manages the answers. Personal, machine-side
--- knobs live in lua/mivn/local.lua instead.
+-- there merge over lua/mivn/languages/'s defaults. Guarded by Neovim's trust
+-- prompt on first load; :trust manages the answers.
 vim.o.exrc = true
 
 -- The fallback, for files no .editorconfig covers.
@@ -72,7 +71,7 @@ end)
 if ui2 then
   -- ui2's message pager (`g<`, :messages) is a window I land in, and ui2
   -- only maps q to close it. Esc closes it too, the way it closes the hover
-  -- float (lua/mivn/lsp.lua): one reflex for every transient view. The
+  -- float (lua/mivn/languages/): one reflex for every transient view. The
   -- mapping is buffer-local and the buffer outlives the window, so FileType
   -- fires once and covers every visit.
   vim.api.nvim_create_autocmd("FileType", {
@@ -234,10 +233,9 @@ vim.opt.langmap = table.concat({
 -- mivn's default theme; lives in colors/ next to this file.
 vim.cmd.colorscheme("basalt")
 
-require("mivn.env") -- the workspace's environment; before anything spawns a program
 require("mivn.plugins") -- vim.pack; every module below is one of its consumers
 require("mivn.treesitter") -- grammars, highlighting, injections
-require("mivn.lsp") -- language servers, diagnostics, format on save
+require("mivn.lsp") -- language servers, diagnostics, format on save; one file per language
 require("mivn.complete") -- the Insert-mode completion menu
 require("mivn.pairs") -- auto-closing pairs; complete.lua's Enter calls into it
 require("mivn.diff") -- git changes in the gutter

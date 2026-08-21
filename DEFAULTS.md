@@ -995,11 +995,21 @@ window, so a paragraph with two links came out a hundred columns wide and
 broke its sentences in the middle. The link text stays; only the address is
 gone, so following one means searching docs.rs by hand.
 
-Servers come from mise _(mivn)_, never from this config: it looks each one up
-on `PATH` and starts it if it is there. A language whose server mise does not
-carry keeps its tree-sitter colors and gets nothing else, which
-`:checkhealth mivn` names, along with the version of every server found and
-which of them run sandboxed.
+Servers come from `PATH` _(mivn)_, never from this config: it looks each one
+up and starts it if it is there. A language whose server is not installed
+keeps its tree-sitter colors and gets nothing else, which `:checkhealth mivn`
+names, along with the version of every server found.
+
+Writing a file formats it _(mivn)_. Vim writes the buffer as it stands; here
+the language server is asked to organize the imports and then to format, and
+a language that names a formatter of its own runs that instead of the
+server's, since a server having a formatter does not make it the right one.
+Those are `stylua`, `shfmt`, `jq`, `taplo`, `yamlfmt`, `dockerfmt` and
+`xmllint` today. Go takes a second pass after the write, where `gci` re-splits
+the imports into blocks: the standard library, everything else, then one
+block per prefix in `$GOIMPORTPREFIXES`, then this module's own packages. A
+formatter that is not installed is skipped and the file is written as typed;
+one that refuses says so and changes nothing.
 
 ## Folding
 

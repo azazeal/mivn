@@ -70,22 +70,6 @@ local grammars = {
   "zig",
 }
 
--- The same kind of hatch lsp.lua's `lsp` overrides give: `treesitter_grammars`
--- in the local overrides maps a grammar name to true (add) or false (drop).
-local overrides = require("mivn.overrides")
-for name, wanted in pairs(overrides.treesitter_grammars or {}) do
-  if wanted == false then
-    for i, grammar in ipairs(grammars) do
-      if grammar == name then
-        table.remove(grammars, i)
-        break
-      end
-    end
-  elseif not vim.tbl_contains(grammars, name) then
-    grammars[#grammars + 1] = name
-  end
-end
-
 vim.api.nvim_create_user_command("MivnInstallGrammars", function()
   ts.install(grammars)
 end, { desc = "Compile the tree-sitter grammars mivn knows about" })
@@ -100,7 +84,7 @@ end, { desc = "Update every installed tree-sitter grammar" })
 vim.treesitter.language.register("json", "jsonc")
 
 -- Compose files earn a filetype of their own, because that is the name the
--- Docker language server (lua/mivn/lsp.lua) claims them by; nothing else
+-- Docker language server (lua/mivn/languages/dockerfile.lua) claims them by; nothing else
 -- produces it, so it is declared here. The yaml grammar keeps highlighting
 -- them: the dotted name means "yaml, then more specific", and the register
 -- call is what tells tree-sitter that.

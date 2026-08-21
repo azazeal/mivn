@@ -38,21 +38,28 @@ What has to be on the system:
 - **ripgrep** (or **fd**), optionally: `<Space>f` and `<Space>/` use whichever
   is installed, and fall back to slower built-ins otherwise.
 
-Every language server comes from [mise](https://mise.jdx.dev), which this
-config expects on `PATH` and reads the environment from. It installs none of
-them itself: a server missing from mise's config is a language with
-tree-sitter colors and nothing else, said once in `:checkhealth mivn`. The
-set in use is Go (`gopls`, `golangci-lint-langserver`), Python (`ty`,
-`ruff`), TypeScript (`tsgo`), Rust, Ruby, Lua, Elixir, Gleam, Markdown,
-TOML, YAML, JSON, HTML, Terraform, Protocol Buffers, templ and the Docker
-files.
-The external formatters (`stylua`, `shfmt`, `jq`, `taplo`, `xmllint`) and
-`gci` for Go imports come from the same place.
+Every language server comes from `PATH`, and this config installs none of
+them: a server that is not on it is a language with tree-sitter colors and
+nothing else, said once in `:checkhealth mivn`. Which toolchain a session
+gets is the launcher's business, not this config's. The set in use is Go
+(`gopls`, `golangci-lint-langserver`), Python (`ty`, `ruff`), TypeScript
+(`tsgo`), Rust, Ruby, Lua, Elixir, Gleam, Shell, Markdown, TOML, YAML
+(`yaml-language-server`, `actions-languageserver`, `zizmor`), JSON, HTML,
+Terraform, Protocol Buffers, templ and the Docker files. The external
+formatters (`stylua`, `shfmt`, `jq`, `taplo`, `yamlfmt`, `dockerfmt`,
+`xmllint`) and `gci` for Go imports are looked up the same way.
 
-What this config does own is the part mise cannot express: what each server
-is told once it starts, what runs after it (`gci` re-groups Go imports after
-the language server has formatted), which JSON Schema a file gets, and the
-sandbox every server runs under. `:checkhealth mivn` reports all of it.
+What this config owns is everything around that: what each server is told
+once it starts, what runs after it (`gci` re-groups Go imports after the
+language server has formatted), and which JSON Schema a file gets. One file
+per language under `lua/mivn/languages/` holds all of it for that language.
+`:checkhealth mivn` reports the lot.
+
+Servers run with the permissions you do, which is worth knowing before you
+open someone else's repository: several of them run that repository's code
+to answer questions about it. rust-analyzer builds `build.rs` and expands
+proc macros, expert compiles `mix.exs`, gopls shells out to the toolchain.
+Neovim has no workspace-trust prompt, and this config adds none.
 
 This is a plain Neovim configuration: clone it where Neovim looks and run
 `nvim`.
@@ -62,9 +69,9 @@ git clone https://github.com/azazeal/mivn.git ~/.config/nvim
 ```
 
 The first start clones the plugins at their pinned revisions, which takes a
-few seconds; then run `:MivnInstallGrammars` once for the grammars. Personal
-settings, if any, go into `lua/mivn/local.lua` (see
-[Local overrides](#local-overrides)).
+few seconds; then run `:MivnInstallGrammars` once for the grammars. There is
+nothing else to fill in: this config has no personal-settings file, because
+it is itself the settings.
 
 To try it without touching an existing configuration, clone it anywhere and
 run it isolated under a different name:
@@ -104,19 +111,6 @@ it. Without the variable, a remote Neovide is still recognized by the
 clipboard bridge it registers, but the variable is the supported switch: it
 survives Neovide configuration changes and covers UIs this config has never
 heard of.
-
-## Local overrides
-
-`lua/mivn/local.lua` is optional, gitignored, and returns a table of personal
-settings the config reads when the file exists;
-`lua/mivn/local.example.lua` is the committed template to copy from, and it
-documents every key. Two kinds today: `lsp`, per-server tuning (turn one
-off, point one at an executable of your own, add settings, set a health
-probe, and for gopls the import prefixes that count as yours), and
-`treesitter_grammars`, additions and drops to the grammar list. Any key can
-be scoped to a directory through `projects`, so
-different clients can carry different values. Without the file, everything
-runs on the defaults the repo ships.
 
 ## Layout
 

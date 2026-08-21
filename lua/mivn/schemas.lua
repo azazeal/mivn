@@ -13,34 +13,18 @@
 -- to the server as `json.schemas`. Zed does the same thing by vendoring a
 -- snapshot of it; VS Code downloads it.
 --
--- Never on the startup path. The cache is read if it is there, refreshed in
--- the background when it is stale, and absent on a first run, which costs
--- that one session its name-matched schemas and nothing else. 470KB, a
--- little over 1400 entries.
+-- The network is never on the startup path. The cache is read if it is
+-- there, refreshed in the background when it is stale, and absent on a
+-- first run, which costs that one session its name-matched schemas and
+-- nothing else. Reading it is a startup cost, so lua/mivn/languages/json.lua only asks
+-- when the server that would use the answer is installed. 470KB, a little
+-- over 1400 entries.
 
 local M = {}
 
 local CATALOG = "https://www.schemastore.org/api/json/catalog.json"
 local CACHE = vim.fs.joinpath(vim.fn.stdpath("cache"), "schemastore.json")
 local TTL = 7 * 24 * 60 * 60
-
---- The same catalog, with one string changed, for taplo.
----
---- taplo cannot read the catalog as published. It checks the catalog's own
---- `$schema` field against a URL compiled into it, SchemaStore moved from
---- json.schemastore.org to www.schemastore.org, and the comparison is an
---- equality test, so every TOML file loses its schema:
----
----   failed to fetch catalog error=error decoding response body:
----   data did not match any variant of untagged enum SchemaCatalog
----
---- Fixed upstream on 2026-07-28 (`fix: update schemastore URL`) and not in
---- any release: taplo's newest is 0.10.0, from 2025-05-23, thirteen commits
---- behind. So this writes a copy with that one field set back to what 0.10.0
---- expects and points taplo at the file. Delete all of it the day taplo
---- releases; nothing else here depends on it.
-local TAPLO = vim.fs.joinpath(vim.fn.stdpath("cache"), "schemastore-taplo.json")
-local TAPLO_EXPECTS = "https://json.schemastore.org/schema-catalog.json"
 
 local function slurp(path)
   local file = io.open(path, "r")
@@ -92,44 +76,6 @@ local function refresh()
       end
     end
   )
-end
-
---- Write taplo's copy from the cached catalog. Cheap enough to redo whenever
---- the catalog is newer than it.
-local function rewrite_for_taplo()
-  local body = slurp(CACHE)
-  if not body then
-    return
-  end
-
-  local ok, decoded = pcall(vim.json.decode, body)
-  if not ok or type(decoded) ~= "table" then
-    return
-  end
-
-  decoded["$schema"] = TAPLO_EXPECTS
-
-  local file = io.open(TAPLO, "w")
-  if not file then
-    return
-  end
-
-  file:write(vim.json.encode(decoded))
-  file:close()
-end
-
---- Where taplo should look, as a URL, or nil when there is no catalog yet.
-function M.taplo()
-  local catalog, patched = vim.uv.fs_stat(CACHE), vim.uv.fs_stat(TAPLO)
-  if not catalog then
-    return nil
-  end
-
-  if not patched or patched.mtime.sec < catalog.mtime.sec then
-    rewrite_for_taplo()
-  end
-
-  return vim.uv.fs_stat(TAPLO) and ("file://" .. TAPLO) or nil
 end
 
 --- The catalog as vscode-json-language-server wants it under `json.schemas`:

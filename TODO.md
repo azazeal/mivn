@@ -58,60 +58,63 @@ checked off; git remembers them.
     support, and both cost a runtime. In-buffer polish:
     render-markdown.nvim prettifies headings and tables in place but renders
     no diagrams. A monthly-batch decision, not a today one.
-- [ ] Sandbox the installs too, which is the last of the store's guarantees
-    with no replacement. The store promised one manifest in git, an exact
-    version and a sha256 per platform verified before anything ran, and no
-    install without a prompt. Two of the three replacements are decided, on
-    2026-08-15:
+- [x] Confine the language servers. **No**, decided 2026-08-20, after
+    shipping it and taking it out again. What it did: `mise exec` with
+    Landlock and seccomp on Linux, Seatbelt on macOS, one allowlist per
+    server, applied to the whole process tree under it.
 
-      release age    `minimum_release_age = "14d"` globally, with `"0"` on
-                     go and rust, which are trusted further. That is the
-                     worm case covered: a package compromised on Monday is
-                     never installed unless nobody notices for two weeks.
-      lockfile       **no**, deliberately. It would buy the same versions on
-                     both machines and a record of which bytes ran, and it
-                     would cost the thing the mise config is written for:
-                     nothing is pinned to a patch so a security release
-                     arrives on its own. Eventual consistency between the
-                     laptop and the macbook is fine. Do not revisit without
-                     a reason that is not tidiness.
-      servers        confined, see lua/mivn/sandbox.lua.
+    Why it went. The allowlists were the wrong granularity and the failures
+    were silent. Blocking `~/.config/go` bought nothing and cost the
+    toolchain: inside the sandbox `go env` never saw `GOPATH`, fell back to
+    `~/go`, and every gopls ran with a module cache the grant did not cover.
+    That shipped, and nothing said a word. Half the policy table was
+    archaeology from failures of the same shape, found one empty hover at a
+    time, and every new server meant more of it.
 
-    What is left is the installs. mise has a sandbox of its own in
-    `src/sandbox/`, Landlock plus seccomp on Linux and the macOS sandbox,
-    with deny_read, deny_write, deny_net, deny_env and allow lists, and
-    lua/mivn/sandbox.lua already puts every server behind it.
+    What replaced it is upstream of the editor: `minimum_release_age =
+    "14d"` means a compromised package is never installed unless nobody
+    notices for two weeks, and preferring backends that download a built
+    artifact keeps `go install` and npm postinstalls off the machine in the
+    first place.
 
-    **It does not cover installs.** `with_sandbox` is called from
-    `cli/run.rs`, `cli/exec.rs` and `task/task_executor.rs` and from nowhere
-    in the install path, so the one moment foreign code actually runs, a
-    `go install` building a module or an npm postinstall, is the one moment
-    mise does not confine.
+    What that does not cover, deliberately and worth writing down: opening a
+    repository still runs its code. rust-analyzer builds `build.rs` and
+    expands proc macros, expert compiles `mix.exs`, gopls shells out to the
+    toolchain, and ruby-lsp runs a Gemfile through bundler. Release age is
+    about what gets installed, not about what a checkout does once it is
+    open.
 
-    The rule, decided 2026-08-15: **prefer backends that download a built
-    artifact (aqua, github, http) over ones that build**. It costs nothing,
-    it is checkable by reading the config, and npm installs already run with
-    `--ignore-scripts`, which is where that ecosystem's worms live.
+- [ ] Ask before starting servers in a directory I have not been in, which
+    is the cheap half of what the sandbox was reaching for and the half
+    every other editor has. VS Code and Zed prompt; helix has
+    `[editor.workspace-trust]`, and this machine's helix runs it at `level =
+    "none"`, i.e. prompt for every new workspace. Neovim has nothing:
+    `'exrc'`, `:trust` and `vim.secure` gate `.nvim.lua` and stop there, and
+    `lsp.txt` never mentions trust.
 
-    Two standing exceptions, both because Go publishes no binaries at all:
-    `go:golang.org/x/tools/gopls` and `go:github.com/daixiang0/gci`. gci's
-    releases page has no assets whatsoever, so aqua's own recipe for it is a
-    go_install too. Those two are what bwrap would still be for, if it is
-    ever worth it.
+    Not to be confused with the store's old `lsp-consent.json`, which is
+    still on this machine and which the leftovers check names: that was
+    keyed by server name and asked "may I download this", not "do I trust
+    this directory". There is no prior art here to copy.
 
-    Note what the server sandbox does not reach either: rust-analyzer runs a
-    project's build scripts and proc macros as part of its job, so those run
-    confined but they do run. That was equally true under the store, behind
-    a prompt that only ever gated the download.
+    mivn does gate one thing already, and it is the wrong half: 'exrc' is
+    on, so a project's .nvim.lua needs Neovim's trust list before it runs,
+    while the servers that execute what the project ships start unasked.
+
+    The shape, if it happens: one answer per directory, remembered by path,
+    no answer meaning tree-sitter colours and no servers. It costs one
+    prompt per new checkout and it is a dozen lines, against a policy table
+    that needed a measurement per server.
 
 - [ ] Facts written twice, waiting to drift; found by the 2026-08-04
     review, parked for a monthly batch. find.lua's BUILTINS table
     hand-describes 21 Ex commands, and its prose-vs-code regex hides any
     real description that mentions a call like `foldexpr()`.
-    local.example.lua's long header mirrors the behavior of lsp.lua by hand.
-    health.lua's PROBES table is keyed by binary name while everything
-    around it is keyed by server name. Each is fine today and wrong the day
-    its twin changes.
+    Each is fine today and wrong the day its twin changes. The other two
+    the review found are gone: local.example.lua mirrored lsp.lua's
+    behavior by hand and no longer exists, and health.lua's PROBES table
+    was keyed by binary name while everything around it was keyed by
+    server, which moved into the language files.
 
 ## Plugins
 
@@ -159,26 +162,18 @@ checked off; git remembers them.
     rule always loses. Never set the variable for the whole Neovim process,
     or `:terminal` loses the user's git config too.
 
-- [ ] Whether the tools this workspace uses have newer releases, on the
-    same line. mise answers the whole question: `mise outdated --json`
-    gives `{name, requested, current, latest, source}` per tool, and the
-    global config declares gopls, gci, golangci-lint and its language
-    server alongside go and rust, so one call covers the servers and the
-    toolchains together.
+- [x] Whether the tools this workspace uses have newer releases, on the
+    same line. **No**, decided 2026-08-20, and not for lack of an answer:
+    `mise outdated --json` gives `{name, requested, current, latest,
+    source}` per tool and would have covered the servers and the toolchains
+    in one call.
 
-    Same shape as the mivn check beside it: one call a day, the answer in
-    update.lua's cache under `stdpath("state")`, a notice and nothing more.
-    No command to apply it: `mise upgrade` is the yes, and it belongs in a
-    terminal where its output is visible.
-
-    No cooldown of ours. mise has `minimum_release_age` (24h by default,
-    absolute dates accepted too), so a week's wait is one line in the mise
-    config and applies to every tool on the machine rather than to the four
-    Neovim happens to care about.
-
-    `current` is null for a tool that is declared and not installed, which
-    reads as "nothing to upgrade" and is really "nothing is there". Say
-    that case differently, or `mise install` never gets suggested.
+    It is out because the editor no longer asks a version manager anything.
+    Which tools this session has is settled before Neovim starts, by
+    whatever launched it, and a config that reads `PATH` and nothing else
+    cannot also be the thing that reports on the manager behind it. The
+    notice belongs in the shell, where `mise upgrade` is one line away and
+    its output is visible.
 
 ## Watching
 

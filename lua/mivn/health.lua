@@ -6,28 +6,11 @@
 -- nothing worked. Each installed binary is run once here, with a version
 -- flag and a timeout, and what it answers is what gets reported.
 --
--- mise installs all of them now, so a server that is off is a line missing
--- from mise's config rather than anything this config can fix.
+-- Nothing here installs anything, so a server that is off is a tool missing
+-- from the environment the editor was launched with rather than anything
+-- this config can fix.
 
 local M = {}
-
--- How to ask each binary for its version. Most take --version; the ones
--- that differ are named, and `false` means the binary has no harmless
--- one-shot flag at all, so it is only looked up, never run. This table only
--- knows the servers the config ships; a `probe` field under the `lsp`
--- overrides in local.lua wins over it for that server.
-local PROBES = {
-  ["gopls"] = { "version" },
-  ["templ"] = { "version" },
-  ["terraform-ls"] = { "version" },
-
-  -- Not --version: superhtml prints "unrecognized subcommand" for it and
-  -- still exits 0, which would read as its version line.
-  ["superhtml"] = { "version" },
-
-  ["expert"] = false,
-  ["golangci-lint-langserver"] = false,
-}
 
 --- The first line worth showing from a probe's output.
 local function first_line(...)
@@ -41,24 +24,6 @@ local function first_line(...)
   end
 
   return ""
-end
-
---- The probe for `server` running as `binary`: the override's `probe`
---- field when it is set, the built-in table otherwise. The `path` escape
---- hatch gives an absolute path while the table is keyed by name, hence the
---- basename fallback.
-local function probe_for(server, binary)
-  local o = (require("mivn.overrides").lsp or {})[server]
-  if type(o) == "table" and o.probe ~= nil then
-    return o.probe
-  end
-
-  local probe = PROBES[binary]
-  if probe == nil then
-    probe = PROBES[vim.fs.basename(binary)]
-  end
-
-  return probe
 end
 
 --- Probe one binary; report through vim.health.
@@ -147,7 +112,7 @@ local function check_gopls_toolchain()
   end
 
   -- gopls carries the Go it was built with in its own version report; the
-  -- workspace's is whatever `go` PATH resolves to, which is mise's answer.
+  -- workspace's is whatever `go` PATH resolves to.
   local reported = output({ "gopls", "version", "-json" })
   local decoded = reported and select(2, pcall(vim.json.decode, reported))
 
@@ -166,7 +131,7 @@ local function check_gopls_toolchain()
         using.major,
         using.minor
       ),
-      "It cannot type-check the newer language, and the errors it invents blame your code. Rebuild it: `mise install --force go:golang.org/x/tools/gopls`"
+      "It cannot type-check the newer language, and the errors it invents blame your code. Rebuild it against this toolchain."
     )
   else
     health.info(
@@ -183,7 +148,6 @@ end
 function M.check()
   local health = vim.health
   local lsp = require("mivn.lsp")
-  local sandbox = require("mivn.sandbox")
 
   health.start("mivn")
   local update = require("mivn.update").report()
@@ -200,78 +164,10 @@ function M.check()
     health.ok(("%s, the newest release"):format(update.current))
   end
 
-  health.start("the workspace's environment")
-  local mise = require("mivn.env")
-  local env = mise.state()
-
-  if vim.fn.executable("mise") ~= 1 then
-    health.info("mise is not here, so this environment is whatever started Neovim")
-  elseif env.refused then
-    health.warn(env.refused, "`mise trust` in this directory, then :MivnEnv")
-  else
-    health.ok(("mise, read in %.0fms: %d variables set"):format(env.ms, vim.tbl_count(env.applied)))
-
-    -- Which version of what, so "the server disagrees with my terminal" has
-    -- an answer here instead of in a second shell.
-    for name, versions in vim.spairs(mise.tools() or {}) do
-      local first = versions[1] or {}
-      local missing = first.installed == false and "; not installed, `mise install` fetches it" or ""
-      health.info(("%s: %s%s"):format(name, first.version or "?", missing))
-    end
-  end
-
   health.start("language servers")
 
-  -- Which of them the sandbox covers, and which it does not, so a server
-  -- running with none of the limits the others have is visible rather than
-  -- forgotten. `claims` is the policy's answer, which every start consults
-  -- afresh; `covers` below is what actually happened to the ones running now.
-  local off = sandbox.off()
-  local confined, loose = {}, {}
-
-  -- Installed ones only, in both lists: a server that is not here runs
-  -- nothing, and saying it is sandboxed reads as a promise about a program
-  -- this machine does not have.
-  for name, binary in vim.spairs(lsp.servers) do
-    if vim.fn.executable(binary) == 1 then
-      local list = sandbox.claims(name) and confined or loose
-      list[#list + 1] = name
-    end
-  end
-
-  if off or #confined == 0 then
-    health.warn(("nothing is sandboxed: %s"):format(off or "no server asks for it"))
-  else
-    health.ok(("sandboxed: %s"):format(table.concat(confined, ", ")))
-  end
-
-  if #loose > 0 then
-    health.warn(
-      ("installed and not sandboxed: %s"):format(table.concat(loose, ", ")),
-      "These read a project with none of the limits the others have. lua/mivn/sandbox.lua's POLICY table is where one joins."
-    )
-  end
-
-  -- Assumed nowhere: a server that is up right now says for itself whether
-  -- the wrapping reached it. They can only disagree if something went wrong
-  -- between the policy and the spawn, which is exactly the case worth
-  -- hearing about.
-  local escaped = {}
-  for _, client in ipairs(vim.lsp.get_clients()) do
-    if sandbox.claims(client.name) and not sandbox.covers(client.name) then
-      escaped[#escaped + 1] = client.name
-    end
-  end
-
-  if #escaped > 0 then
-    health.error(
-      ("running unconfined although the policy covers them: %s"):format(table.concat(escaped, ", ")),
-      "Restart them with :MivnEnv, and if that does not take, `mise exec -- true` in this directory says why."
-    )
-  end
-
-  for server, binary in vim.spairs(lsp.servers) do
-    check_binary(server, binary, probe_for(server, binary))
+  for name, entry in vim.spairs(lsp.servers) do
+    check_binary(name, entry.binary, entry.probe)
   end
 
   check_gopls_toolchain()
@@ -319,12 +215,12 @@ function M.check()
     local binary = spec and spec[1]
     if binary and not seen[binary] then
       seen[binary] = true
-      check_binary(ft, binary, PROBES[binary])
+      check_binary(ft, binary, lsp.probes[binary])
     end
   end
   -- gci is additional, not essential: gopls already formats and organizes
   -- imports, gci only re-groups them into the configured blocks.
-  check_binary("gci", "gci", PROBES["gci"])
+  check_binary("gci", "gci", lsp.probes["gci"])
 end
 
 return M

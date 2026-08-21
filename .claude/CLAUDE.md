@@ -6,15 +6,12 @@ set `NVIM_APPNAME=mivn`, which is how this working copy is tested without
 touching the real config). Launching and the Neovide-vs-terminal choice are
 up to the executing environment and not this repo.
 
-The environment is this repo's business, though, and that is a deliberate
-reversal. Two launch paths matter: `nvim` in a terminal already inside the
-directory, where mise's shell hook has run, and Neovide from a launcher,
-where no shell ever ran. lua/mivn/env.lua asks mise directly so both come
-out the same, and the terminal path pays about 30ms for an answer it already
-had.
-Tools come from mise too, all of them: nothing here installs a language
-server, and a server missing from mise's config is a language with
-tree-sitter colours and nothing else.
+The environment is not this repo's business either. Whatever starts Neovim
+resolves the toolchain first, and the session uses the `PATH` it was handed;
+nothing here asks a version manager anything. So a server that is not on
+`PATH` is a language with tree-sitter colours and nothing else, and a
+project's import prefixes arrive as `$GOIMPORTPREFIXES` rather than through
+a config key.
 
 ## Philosophy
 
@@ -34,6 +31,11 @@ tree-sitter colours and nothing else.
 
 - One module per concern under `lua/mivn/`; the header comment carries the
   module's purpose and its trade-offs.
+- `lua/mivn/languages/` is data, not concerns: one file per language, holding
+  everything about it, i.e. its servers, their settings, what confines them,
+  and how it is formatted. Nothing else goes in there, since the list of
+  languages is the directory listing. `lua/mivn/lsp.lua` documents the shape
+  a file takes and is what loads them.
 - Every mapping that is on for the whole session lives in
   `lua/mivn/keymaps.lua`, whatever module owns the behavior: that module
   exports a function and this file picks the key. A mapping that exists only
