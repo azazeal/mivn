@@ -88,8 +88,13 @@ hl({
   FoldColumn = { fg = c.bg6, bg = c.bg },
   Folded = { fg = c.bg7, bg = c.bg1 },
 
-  Visual = { bg = c.bg4 },
-  VisualNOS = { bg = c.bg4 },
+  -- A tint rather than another grey. The selection sits on the cursor's own
+  -- line most of the time, so what it has to beat is CursorLine and not the
+  -- editor background, and bg4 against bg2 was a step of about 8%: measured,
+  -- and invisible on a short selection. This is blue2 laid over bg2 at 30%,
+  -- which reads as a selection rather than as slightly lighter text.
+  Visual = { bg = "#233950" },
+  VisualNOS = { bg = "#233950" },
   Search = { fg = c.bg, bg = c.yellow },
   IncSearch = { fg = c.bg, bg = c.orange },
   CurSearch = { fg = c.bg, bg = c.orange },
