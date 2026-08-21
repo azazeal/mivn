@@ -3,8 +3,15 @@
 A personal Neovim config. The repo root is the config directory, cloned to
 `~/.config/nvim` (or run isolated: symlink the repo to `~/.config/mivn` and
 set `NVIM_APPNAME=mivn`, which is how this working copy is tested without
-touching the real config). Launching, the Neovide-vs-terminal choice, and
-direnv are up to the executing environment and not this repo.
+touching the real config). Launching and the Neovide-vs-terminal choice are
+up to the executing environment and not this repo.
+
+The environment is not this repo's business either. Whatever starts Neovim
+resolves the toolchain first, and the session uses the `PATH` it was handed;
+nothing here asks a version manager anything. So a server that is not on
+`PATH` is a language with tree-sitter colours and nothing else, and a
+project's import prefixes arrive as `$GOIMPORTPREFIXES` rather than through
+a config key.
 
 ## Philosophy
 
@@ -24,6 +31,17 @@ direnv are up to the executing environment and not this repo.
 
 - One module per concern under `lua/mivn/`; the header comment carries the
   module's purpose and its trade-offs.
+- `lua/mivn/languages/` is data, not concerns: one file per language, holding
+  everything about it, i.e. its servers, their settings, what confines them,
+  and how it is formatted. Nothing else goes in there, since the list of
+  languages is the directory listing. `lua/mivn/lsp.lua` documents the shape
+  a file takes and is what loads them.
+- Every mapping that is on for the whole session lives in
+  `lua/mivn/keymaps.lua`, whatever module owns the behavior: that module
+  exports a function and this file picks the key. A mapping that exists only
+  while some buffer does (made inside an autocmd, `buffer = ...`) stays with
+  the module it belongs to. New keys go in that file, not beside the code
+  they call.
 - Comments are first person ("as I type"), plain common English, hard-wrapped
   at 80 columns, no em dashes. User-visible strings (`desc = ...`,
   `vim.notify`) address the user instead.

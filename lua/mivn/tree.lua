@@ -17,9 +17,11 @@ require("mivn.panel").hide_cursor_in("NvimTree")
 -- a layout collapse; the two drifting apart makes the heal resize the tree.
 local TREE_WIDTH = 32
 
-vim.keymap.set("n", "<leader>t", function()
+--- Show or hide the tree, leaving focus where it is; <leader>t in
+--- lua/mivn/keymaps.lua.
+local function toggle()
   require("nvim-tree.api").tree.toggle({ focus = false })
-end, { desc = "Show or hide the file tree", silent = true })
+end
 
 --- The keys inside the tree ---------------------------------------------------
 --
@@ -313,6 +315,7 @@ vim.api.nvim_create_autocmd("VimEnter", {
   end,
 })
 
--- rename is only for the menu's Rename entry, which reaches it by module
--- name; WIDTH is for session.lua's heal.
-return { rename = rename, WIDTH = TREE_WIDTH }
+-- toggle is <leader>t's, in lua/mivn/keymaps.lua; rename is only for the
+-- menu's Rename entry, which reaches it by module name; WIDTH is for
+-- session.lua's heal.
+return { toggle = toggle, rename = rename, WIDTH = TREE_WIDTH }

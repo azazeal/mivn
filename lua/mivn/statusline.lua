@@ -193,7 +193,7 @@ end
 --- The search count, labelled: "F: 3/20" while a search is live.
 ---
 --- mini.statusline's own section gives the bare "3/20", empty once
---- `:nohlsearch` runs, which Esc does (lua/mivn/cua.lua), so the block comes
+--- `:nohlsearch` runs, which Esc does (lua/mivn/keymaps.lua), so the block comes
 --- and goes with the search itself. The command line used to carry this
 --- count; 'shortmess' "S" (init.lua) turned that copy off in favor of this
 --- one. One honest limit: while a search is still being typed, searchcount()

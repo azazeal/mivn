@@ -121,17 +121,6 @@ local function page(step)
   end
 end
 
--- Normal, Visual and Insert. Select mode is left to Vim: there an unshifted key
--- ends the selection first ('keymodel' has "stopsel"), and taking the key would
--- take that with it.
-vim.keymap.set({ "n", "x", "i" }, "<PageDown>", page(1), {
-  desc = "A page down, or the last line when there is no page left",
-})
-
-vim.keymap.set({ "n", "x", "i" }, "<PageUp>", page(-1), {
-  desc = "A page up, or the first line when there is no page left",
-})
-
 --- The shifted pair, selecting what the unshifted one flies over. Two things
 --- keep it from simply running page() inside a selection. 'keymodel' takes
 --- the raw shifted key and would run Vim's own page motion, the one whose
@@ -158,14 +147,11 @@ local function select_page(step)
   end
 end
 
--- Not Insert: from there 'keymodel' still opens the selection itself, with the
--- unclamped motion. Reproducing the open would mean leaving Insert by hand and
--- re-anchoring the exclusive selection, and a page-selection mid-typing is not
--- worth that trade yet; TODO.md if the edge ever bites there.
-vim.keymap.set({ "n", "x" }, "<S-PageDown>", select_page(1), {
-  desc = "Select a page down, to the last line when there is no page left",
-})
-
-vim.keymap.set({ "n", "x" }, "<S-PageUp>", select_page(-1), {
-  desc = "Select a page up, to the first line when there is no page left",
-})
+-- Which keys these are, and which modes they answer in, is
+-- lua/mivn/keymaps.lua's; nothing else reads them.
+return {
+  down = page(1),
+  up = page(-1),
+  select_down = select_page(1),
+  select_up = select_page(-1),
+}

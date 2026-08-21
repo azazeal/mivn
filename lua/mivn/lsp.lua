@@ -1,168 +1,126 @@
--- Language servers, and what happens when I save.
+-- Language servers: which ones, what to tell them, and what they may touch.
 --
 -- Neovim ships the LSP client; nvim-lspconfig only supplies each server's
--- connection details. A server whose binary is not installed is skipped
--- quietly, and that must never become an error: no server means no LSP for
--- that language while tree-sitter carries on. `:MivnLsp` (defined in
--- lua/mivn/lsp/managed.lua) lists everything, on and off.
+-- connection details, which is its filetypes, its root markers and the
+-- command when this config does not name one. A server whose binary is not
+-- installed is skipped quietly, and that must never become an error: no
+-- server means no LSP for that language while tree-sitter carries on.
+-- `:checkhealth mivn` lists everything, on and off.
 --
--- Format on save lives here because most of it *is* the language server:
--- organize imports, then format. Completion is in lua/mivn/complete.lua.
-
---- Which server handles what, and what binary proves it is installed ---------
-
--- The waiting room. Everything still here waits on a store runtime pass
--- (lua/mivn/store.lua manages the rest): gopls and golangci-lint-langserver
--- leave with the Go pass, ruby-lsp with the Ruby one. denols and gleam are
--- the deliberate stays, for the same reason: the server is inside the
--- toolchain the project needs anyway, so it should be the project's own
--- rather than a second copy the store pins. Keys are nvim-lspconfig's names,
--- values the executable to look for; the `lsp` overrides below add or
--- re-point anything else.
-local servers = {
-  gopls = "gopls",
-  golangci_lint_ls = "golangci-lint-langserver", -- lint diagnostics beside gopls
-  ruby_lsp = "ruby-lsp",
-  denols = "deno", -- Deno's own LSP; it only claims deno.json workspaces
-  gleam = "gleam", -- the Gleam compiler's own LSP, `gleam lsp`
-}
-
---- Local overrides ------------------------------------------------------------
-
--- The personal knobs that do not belong in a public config. lua/mivn/local.lua
--- is optional, gitignored, and returns a table. The keys so far:
+-- Nothing here installs anything. What runs is whatever `PATH` resolves,
+-- which is the environment the editor was launched with and none of this
+-- config's business; a language whose server is not on it gets tree-sitter
+-- colours and nothing else.
 --
---   lsp                  per-server tuning, one entry per nvim-lspconfig
---                        name. `false` turns a server off; anything else
---                        declared also pre-gives install consent for a
---                        store server (`true` says just that). A table
---                        carries the finer knobs: `path` (an executable of
---                        your own), `config` (handed to vim.lsp.config(),
---                        deep-merged over the defaults here), `probe` (how
---                        :checkhealth mivn asks for a version), and gopls'
---                        `prefixes` (the Go import prefixes that count as
---                        ours). local.example.lua documents them all.
+-- There are no personal knobs either, and that is the point: this config is
+-- mine and it is in git, so wanting a server configured differently is an
+-- edit to its language file. The one thing that cannot be committed, which
+-- Go's import prefixes are, arrives as an environment variable. A project
+-- that wants its own settings carries a .nvim.lua, the stock way.
 --
--- Any key can also be scoped to a directory through local.lua's `projects`
--- table; lua/mivn/overrides.lua resolves that against the startup directory,
--- and local.example.lua shows every shape.
-local overrides = require("mivn.overrides")
+-- One file per language under lua/mivn/languages/, picked up by being there,
+-- each returning:
+--
+--   servers     nvim-lspconfig's name for a server, to the entry below
+--   formatters  filetype to the command that formats it, which **overrides**
+--               whatever the language server offers. lua/mivn/format.lua
+--               owns the save chain both halves hang off.
+--   probes      how `:checkhealth mivn` asks one of those formatters for its
+--               version, by binary name. Only for the ones that do not take
+--               `--version`; a server says this in its own entry instead.
+--
+-- An entry, in full:
+--
+--   binary   what proves the server is installed. Defaults to cmd[1], and
+--            has to be written out when cmd is a function or absent.
+--   cmd      the command, replacing nvim-lspconfig's, in either shape
+--            vim.lsp.config() takes. Omitted keeps lspconfig's.
+--   config   what vim.lsp.config() takes, merged over lspconfig's defaults.
+--            A function returning that table when building it costs enough
+--            to be worth skipping on a machine without the server.
+--   format   false when the server must never be asked to format, whatever
+--            it answers about supporting it.
+--   probe    the arguments `:checkhealth mivn` asks the version with; false
+--            when the binary has no harmless one-shot flag at all.
+--
+-- A language file is also free to do its own work when it is loaded: Go's
+-- second import pass is an autocmd it registers itself, since nothing else
+-- has any business knowing about it. Nothing but languages lives in that
+-- directory, which is what lets the list above be a glob.
 
--- One list for the whole session, like every other override: `projects` in
--- local.lua is the scoping mechanism, resolved by where Neovim started. The
--- cost is deliberate and small: a file from another workspace edited in this
--- session gets this workspace's blocks. The list rides gopls' entry in the
--- `lsp` overrides because both consumers are Go plumbing: gopls' `local`
--- setting, and the gci run this module drives itself on save.
-local gopls_overrides = (overrides.lsp or {}).gopls
-local import_prefixes = type(gopls_overrides) == "table" and gopls_overrides.prefixes or {}
+--- The languages -------------------------------------------------------------
 
--- The store's servers stay out of this table whatever the overrides say:
--- lua/mivn/lsp/managed.lua reads the same key and handles them itself.
-local managed = require("mivn.store").manifest
-for server, o in pairs(overrides.lsp or {}) do
-  if not managed[server] then
-    if o == false then
-      servers[server] = nil
-    elseif type(o) == "table" and o.path then
-      servers[server] = o.path
+-- Found rather than listed. A list would be one more thing to keep in step
+-- with the directory it describes, and a language left off it would sit
+-- there doing nothing, without a word.
+local languages = {}
+for _, path in ipairs(vim.api.nvim_get_runtime_file("lua/mivn/languages/*.lua", true)) do
+  languages[#languages + 1] = vim.fn.fnamemodify(path, ":t:r")
+end
+table.sort(languages)
+
+local servers = {}
+local formatters = {}
+local probes = {}
+local muted = {}
+
+for _, language in ipairs(languages) do
+  local loaded = require("mivn.languages." .. language)
+
+  for name, entry in pairs(loaded.servers or {}) do
+    entry.binary = entry.binary or (type(entry.cmd) == "table" and entry.cmd[1] or nil)
+    assert(entry.binary, ("mivn.languages.%s: %s names no binary"):format(language, name))
+
+    if entry.format == false then
+      muted[name] = true
     end
+
+    servers[name] = entry
+  end
+
+  for filetype, spec in pairs(loaded.formatters or {}) do
+    formatters[filetype] = spec
+  end
+
+  for binary, probe in pairs(loaded.probes or {}) do
+    probes[binary] = probe
   end
 end
 
---- Per-server settings -------------------------------------------------------
+--- Which of them are actually here -------------------------------------------
 
--- The codelenses are the ones I use.
---
--- `local` groups our prefixes into one block ahead of the module's own; gci
--- re-splits the file afterwards and owns the final layout, so this mostly
--- matters when gci is not installed.
-vim.lsp.config("gopls", {
-  settings = {
-    gopls = {
-      -- Quoted because `local` is a Lua keyword and cannot be a bare key.
-      ["local"] = table.concat(import_prefixes, ","),
-      codelenses = {
-        generate = true,
-        regenerate_cgo = true,
-        test = true,
-        tidy = true,
-        upgrade_dependency = true,
-        vendor = true,
-        vulncheck = true,
-      },
-      hints = { parameterNames = true, constantValues = true },
-
-      -- What colors a package qualifier in call position: tree-sitter cannot
-      -- tell `pkg.Exec(...)` from a variable. gopls sends no semantic tokens
-      -- unless asked.
-      semanticTokens = true,
-    },
-  },
-})
-
--- Clippy rather than `cargo check`: same compiler front end plus several
--- hundred extra lints. No `checkOnSave` beside it, since that defaults to
--- true.
---
--- The cost: clippy and `cargo check` do not share a build cache, so the first
--- save in a session recompiles the dependency graph under clippy's flags.
-vim.lsp.config("rust_analyzer", {
-  settings = {
-    -- The hyphen is rust-analyzer's own spelling of its settings root, so the
-    -- key has to be quoted the way gopls' `local` above does.
-    ["rust-analyzer"] = {
-      check = { command = "clippy" },
-
-      -- Rust doc comments link with rustdoc's own `[`Type`]` shorthand, and
-      -- rust-analyzer expands each one into a full docs.rs URL before
-      -- sending the hover. Neovim then conceals the URL but still measures
-      -- the line with it, so one link makes the float a hundred columns
-      -- wider than its text and wraps the sentence in the middle of itself.
-      -- Off, the link text stays and the URL never arrives.
-      hover = { links = { enable = false } },
-    },
-  },
-})
-
-vim.lsp.config("lua_ls", {
-  settings = {
-    Lua = {
-      runtime = { version = "LuaJIT" },
-      workspace = {
-        checkThirdParty = false,
-        library = { vim.env.VIMRUNTIME },
-      },
-      telemetry = { enable = false },
-    },
-  },
-})
-
--- Opening one .tf file outside a Terraform directory is normal here, and
--- terraform-ls says so every time in a message long enough to raise the
--- hit-enter prompt, which stops everything until a key arrives. The server
--- offers this switch for exactly that; nothing else about it changes.
-vim.lsp.config("terraformls", {
-  init_options = { ignoreSingleFileWarning = true },
-})
-
--- Personal configuration last, so it wins: vim.lsp.config() merges repeated
--- calls, later ones taking precedence, which is the whole implementation.
--- `config` is the full vim.lsp.config shape, not just `settings`, because
--- servers differ in where they read from (ruff wants `init_options`).
-for server, o in pairs(overrides.lsp or {}) do
-  if type(o) == "table" and o.config then
-    vim.lsp.config(server, o.config)
+local enabled = {}
+for name, entry in pairs(servers) do
+  if vim.fn.executable(entry.binary) == 1 then
+    enabled[#enabled + 1] = name
   end
 end
+table.sort(enabled)
 
---- Start whatever is actually installed --------------------------------------
+--- Starting them --------------------------------------------------------------
+
+--- Hand `name`'s settings and command to Neovim.
+---
+--- `config` is allowed to be a function because building it can cost more
+--- than a machine without the server should pay: jsonls' settings carry the
+--- whole SchemaStore catalog.
+local function configure(name, entry)
+  local settings = entry.config
+  if type(settings) == "function" then
+    settings = settings()
+  end
+
+  local config = vim.deepcopy(settings or {})
+  config.cmd = entry.cmd or config.cmd
+
+  vim.lsp.config(name, config)
+end
 
 -- A server that dies right after starting otherwise fails in silence: the
 -- client detaches, features quietly stop, and nothing says why. Measured
 -- with rust-analyzer behind a rustup shim with no component installed:
--- executable() said yes, the process recursed and died, and :MivnServers
--- kept reporting it on. Once per server per session, and not on shutdown.
+-- executable() said yes, the process recursed and died, and nothing said so.
+-- Once per server per session, and not on shutdown.
 local exit_warned = {}
 
 vim.lsp.config("*", {
@@ -171,7 +129,14 @@ vim.lsp.config("*", {
       return
     end
 
+    -- One that was asked to go is not news, whatever it exits with. gopls
+    -- leaves with 2 when the client in front of its daemon is shut down, and
+    -- taking a directory's trust back stops every server it had.
     local client = vim.lsp.get_client_by_id(client_id)
+    if client and client._is_stopping then
+      return
+    end
+
     local name = client and client.name or ("client %d"):format(client_id)
     if exit_warned[name] then
       return
@@ -185,14 +150,19 @@ vim.lsp.config("*", {
   end,
 })
 
-local enabled = {}
-for server, binary in pairs(servers) do
-  if vim.fn.executable(binary) == 1 then
-    enabled[#enabled + 1] = server
-  end
+-- Installed ones only. Configuring a server this machine does not have costs
+-- a runtime file lookup and, for jsonls, reading the whole SchemaStore
+-- catalog off disk.
+for _, name in ipairs(enabled) do
+  configure(name, servers[name])
 end
-table.sort(enabled)
-vim.lsp.enable(enabled)
+
+-- Enabled by the workspace's answer rather than here: none of them starts
+-- until the directory this editor was opened in is trusted, and that answer
+-- can change while it runs. lua/mivn/trust.lua says why and owns both.
+require("mivn.trust").gate(enabled)
+
+require("mivn.format").setup(formatters, muted)
 
 --- Inlay hints ----------------------------------------------------------------
 
@@ -212,8 +182,8 @@ vim.api.nvim_create_autocmd("LspAttach", {
 
 -- `K` opens the documentation float and a second `K` steps into it. Neovim
 -- maps `q` in there to close it and leaves Esc doing nothing, which is the
--- one place in mivn where Esc is not the way back: the rename prompt and the
--- :MivnLsp dialog both take it. This is that key doing the same thing here.
+-- one place in mivn where Esc is not the way back: the rename prompt and
+-- the trust dialog both take it. This is that key doing the same thing here.
 -- `q` still works, and the mapping is on the float's own buffer, so it
 -- reaches nothing else.
 --
@@ -272,230 +242,6 @@ vim.diagnostic.config({
   float = { border = "rounded", source = true },
 })
 
---- Format on save ------------------------------------------------------------
-
-local group = vim.api.nvim_create_augroup("mivn.lsp.format", { clear = true })
-
--- gci's import blocks, in output order: standard library, everything else, a
--- block per prefix from the local overrides, then this module's own packages
--- (`localmodule` reads that from go.mod). gopls runs first, gci owns the end.
-local gci_sections = { "standard", "default" }
-for _, prefix in ipairs(import_prefixes) do
-  gci_sections[#gci_sections + 1] = ("Prefix(%s)"):format(prefix)
-end
-gci_sections[#gci_sections + 1] = "localmodule"
-
---- Re-split a saved Go file's imports with gci, in place.
----
---- Runs after the write, not before, because gci resolves `localmodule` by
---- walking up from the file to its go.mod, which a temp copy elsewhere would
---- not find. Spliced back with nvim_buf_set_lines rather than reloaded, so the
---- change joins the undo history instead of clearing it.
-local function gci_format(buf)
-  if vim.fn.executable("gci") ~= 1 then
-    return
-  end
-
-  local path = vim.api.nvim_buf_get_name(buf)
-  local cmd = { "gci", "write", "--skip-generated", "--custom-order" }
-  for _, section in ipairs(gci_sections) do
-    cmd[#cmd + 1] = "-s"
-    cmd[#cmd + 1] = section
-  end
-  cmd[#cmd + 1] = path
-
-  -- The buffer matches the disk right now, just after the write. If it does
-  -- not by the time gci's result comes back, I typed in the window in
-  -- between, and splicing the file over the buffer would throw those
-  -- keystrokes away; the changedtick is the guard against exactly that.
-  local tick = vim.api.nvim_buf_get_changedtick(buf)
-
-  vim.system(cmd, { text = true }, function(result)
-    if result.code ~= 0 then
-      return
-    end
-
-    vim.schedule(function()
-      if not vim.api.nvim_buf_is_valid(buf) or vim.api.nvim_buf_get_changedtick(buf) ~= tick then
-        return
-      end
-
-      local file = io.open(path, "r")
-      if not file then
-        return
-      end
-      local content = file:read("*a")
-      file:close()
-
-      local new = vim.split(content, "\n")
-      if new[#new] == "" then
-        table.remove(new)
-      end
-
-      if not vim.deep_equal(new, vim.api.nvim_buf_get_lines(buf, 0, -1, false)) then
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, new)
-        vim.bo[buf].modified = false
-      end
-    end)
-  end)
-end
-
---- Formatters that are not language servers ----------------------------------
---
--- An entry here is an **override**, not a fallback: it wins over the language
--- server, because a server having a formatter does not make it the right one.
---
--- Each command must read the file on stdin and write it to stdout. FILE stands
--- for the buffer's path where a tool needs it, usually to find its own config.
-
-local FILE = "\0file\0" -- a sentinel no real argument can collide with
-
-local formatters = {
-  lua = { "stylua", "--stdin-filepath", FILE, "-" },
-
-  -- shfmt reads .editorconfig itself when it is given no formatting flags,
-  -- which is why it gets the filename and nothing else.
-  sh = { "shfmt", "--filename", FILE },
-  bash = { "shfmt", "--filename", FILE },
-
-  toml = { "taplo", "format", "-" },
-
-  -- Adds an <?xml?> declaration to a file that has none.
-  xml = { "xmllint", "--format", "-" },
-
-  -- jq knows nothing about EditorConfig, so the indent is handed to it from
-  -- the buffer, where EditorConfig has settled it. `--indent` caps at 7.
-  json = function(buf)
-    if not vim.bo[buf].expandtab then
-      return { "jq", "--tab", "." }
-    end
-
-    local width = vim.bo[buf].shiftwidth
-    if width == 0 then
-      width = vim.bo[buf].tabstop
-    end
-
-    return { "jq", "--indent", tostring(math.min(width, 7)), "." }
-  end,
-}
-
---- Format `buf` with its external formatter. Returns whether one ran.
----
---- Synchronous, unlike gci: these all read stdin, so there is no file on disk
---- to wait for, and the write that follows has to see the result.
-local function external_format(buf)
-  local spec = formatters[vim.bo[buf].filetype]
-  if type(spec) == "function" then
-    spec = spec(buf)
-  end
-
-  if not spec or vim.fn.executable(spec[1]) ~= 1 then
-    return false
-  end
-
-  local path = vim.api.nvim_buf_get_name(buf)
-  local cmd = vim.tbl_map(function(arg)
-    return arg == FILE and path or arg
-  end, spec)
-
-  local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
-  local result = vim
-    .system(cmd, {
-      stdin = table.concat(lines, "\n") .. "\n",
-      text = true,
-    })
-    :wait(3000)
-
-  -- A formatter that fails was usually handed something it cannot parse, so
-  -- its stdout is empty or half a file; writing that over the buffer would
-  -- destroy the work that caused it.
-  if result.code ~= 0 or (result.stdout or "") == "" then
-    local reason = vim.trim(result.stderr or "")
-    vim.notify(("%s: %s"):format(spec[1], reason ~= "" and reason or "no output"), vim.log.levels.WARN)
-    return true
-  end
-
-  local new = vim.split(result.stdout, "\n")
-  if new[#new] == "" then
-    table.remove(new)
-  end
-
-  if not vim.deep_equal(new, lines) then
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, new)
-  end
-
-  return true
-end
-
-local ORGANIZE_IMPORTS = "source.organizeImports"
-
---- Whether `kind` is the imports action that was asked for, or a refinement
---- of it.
----
---- The request already names the kind it wants, and this checks the answer
---- again, because a server is free to reply with whatever it likes. marksman
---- answers a source.organizeImports request with its "Create a Table of
---- Contents" action, kind `source`, and applying that on every write grew a
---- table of contents in every markdown file this editor had ever saved, in
---- silence. Kinds are dotted and hierarchical, so a refinement of the kind
---- asked for counts (source.organizeImports.ts) and a parent of it does not.
-local function organizes_imports(kind)
-  kind = kind or ""
-  return kind == ORGANIZE_IMPORTS or kind:sub(1, #ORGANIZE_IMPORTS + 1) == ORGANIZE_IMPORTS .. "."
-end
-
-vim.api.nvim_create_autocmd("BufWritePre", {
-  group = group,
-  callback = function(ev)
-    if external_format(ev.buf) then
-      return
-    end
-
-    local clients = vim.lsp.get_clients({ bufnr = ev.buf })
-    if #clients == 0 then
-      return
-    end
-
-    -- Organize imports first, because it edits the same region the formatter
-    -- is about to lay out. A server that does not offer it no-ops.
-    for _, client in ipairs(clients) do
-      if client:supports_method("textDocument/codeAction") then
-        local params = vim.tbl_extend("force", vim.lsp.util.make_range_params(0, client.offset_encoding), {
-          context = { only = { ORGANIZE_IMPORTS }, diagnostics = {} },
-        })
-
-        local responses = client:request_sync("textDocument/codeAction", params, 1000, ev.buf)
-        for _, action in pairs((responses or {}).result or {}) do
-          if action.edit and organizes_imports(action.kind) then
-            vim.lsp.util.apply_workspace_edit(action.edit, client.offset_encoding)
-          end
-        end
-      end
-    end
-
-    -- Only when one of them can. vim.lsp.buf.format says "no matching language
-    -- servers" into the message area otherwise, which is every markdown save,
-    -- marksman being attached and offering no formatter.
-    local formats = vim.iter(clients):any(function(client)
-      return client:supports_method("textDocument/formatting")
-    end)
-
-    if formats then
-      vim.lsp.buf.format({ bufnr = ev.buf, timeout_ms = 2000 })
-    end
-  end,
-})
-
--- Go gets a second pass. gopls has already run gofmt and organized imports;
--- gci then re-splits those imports into the blocks above.
-vim.api.nvim_create_autocmd("BufWritePost", {
-  group = group,
-  pattern = "*.go",
-  callback = function(ev)
-    gci_format(ev.buf)
-  end,
-})
-
--- For lua/mivn/health.lua, which probes these instead of trusting
--- executable(); nothing else reads this.
-return { servers = servers, formatters = formatters }
+-- For lua/mivn/health.lua, which probes binaries instead of trusting
+-- executable(). Nothing else reads any of these.
+return { servers = servers, formatters = formatters, probes = probes }

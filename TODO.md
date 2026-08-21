@@ -26,7 +26,7 @@ checked off; git remembers them.
     2026-08-04: one Shift+Right, then Ctrl+Shift+Right, selects two words
     rather than one. With "startsel" in 'keymodel' and the selection still
     one character wide (the cursor sitting on its own anchor), Vim runs the
-    key's built-in `W` first and the mapping in lua/mivn/cua.lua then adds
+    key's built-in `W` first and the mapping in lua/mivn/keymaps.lua then adds
     its `w` on top; an `<Nop>` in place of the mapping still moves, so the
     built-in is not mine to stop. Every other order is right, including two
     Shift+Rights and then Ctrl+Shift+Right. Taking shift-selection off
@@ -49,59 +49,51 @@ checked off; git remembers them.
     install or say it in `:checkhealth mivn`.
 - [ ] Markdown: decide the writing set. Three things are missing today.
     Formatting: marksman does not format, and the formatter table has no
-    markdown entry, so tables stay as typed; `deno fmt` (deno is already
-    here as the TypeScript server) and `mdformat` (Python) are the
-    candidates, `prettier` would drag node in. Preview and mermaid: nothing
-    renders inside the
-    terminal or Neovide; peek.nvim (deno) and markdown-preview.nvim (node)
-    both preview in the browser with mermaid support. In-buffer polish:
+    markdown entry, so tables stay as typed and nothing runs on save.
+    `mdformat` (Python, and mise already provisions it) is the candidate now
+    that deno is gone; `deno fmt` would bring a runtime back for one file
+    type, and `prettier` would drag node in. Preview and mermaid: nothing
+    renders inside the terminal or Neovide; peek.nvim (deno) and
+    markdown-preview.nvim (node) both preview in the browser with mermaid
+    support, and both cost a runtime. In-buffer polish:
     render-markdown.nvim prettifies headings and tables in place but renders
     no diagrams. A monthly-batch decision, not a today one.
-- [ ] Managed language servers, the rest. The engine lives in
-    lua/mivn/store.lua and lua/mivn/lsp/managed.lua, and every server
-    that ships as a binary is managed now; the full design (manifest,
-    store layout, lock, sweep, hook points) lives in those two files'
-    comments and in this entry's git history. Still to do, roughly in
-    order:
-  - [ ] Ruby, decided 2026-08-03: build the ruby runtime after the other
-      passes land. ruby-lsp (Shopify) is the server, a gem, so the store
-      needs a portable ruby plus a `gem install` at install time, the way
-      go will build gopls. Rails comes from the ruby-lsp-rails addon,
-      which activates from the project's Gemfile on its own.
-  - [ ] The node runtime as a store entry (one `bin/node`), plus the
-      node-only servers bundled to a single file with esbuild by the
-      weekly workflow and published as sha-pinned release assets of
-      mivn: yamlls and jsonls (SchemaStore.nvim returns with them),
-      cssls, bashls. npm runs only in CI; the user downloads two files.
-  - [ ] Go as a build-time runtime for gopls (`go install` at install
-      time, entry named `servers/gopls/v<ver>@go<ver>`), since gopls
-      publishes no binaries. gci comes along in the same pass: it
-      publishes no binaries either, it is the second half of the Go
-      format pipeline (gopls formats, gci re-groups the imports), and
-      one Go dialog should cover both. The store grows a small "tools"
-      notion for it: same staging, lock and sweep, but no client wiring;
-      lsp.lua's gci run resolves through the store by absolute path.
-  - [ ] Grow .github/scripts/repin (or a sibling) to bump the store's
-      manifest pins the way it bumps plugin pins, in the same weekly PR.
-      The 2026-08-04 review sharpened this into the store's single
-      highest-leverage change: move the manifest out of store.lua into a
-      machine-owned JSON next to nvim-pack-lock.json, have the weekly job
-      bump versions and compute every platform's sha256, and have it run
-      `M.install` for each server on the runner before opening the PR, so
-      a dead URL or wrong hash is caught in CI and not at first file open
-      on this machine. Until then the pins rot: ruff and ty release
-      near-weekly and are already behind.
-  - [ ] Steal from fresh: spawn backoff for a crash-looping server, and
-      a stub log so "view log" always has something to open.
+- [x] Confine the language servers. **No**, decided 2026-08-20, after
+    shipping it and taking it out again. What it did: `mise exec` with
+    Landlock and seccomp on Linux, Seatbelt on macOS, one allowlist per
+    server, applied to the whole process tree under it.
+
+    Why it went. The allowlists were the wrong granularity and the failures
+    were silent. Blocking `~/.config/go` bought nothing and cost the
+    toolchain: inside the sandbox `go env` never saw `GOPATH`, fell back to
+    `~/go`, and every gopls ran with a module cache the grant did not cover.
+    That shipped, and nothing said a word. Half the policy table was
+    archaeology from failures of the same shape, found one empty hover at a
+    time, and every new server meant more of it.
+
+    What replaced it is upstream of the editor: `minimum_release_age =
+    "14d"` means a compromised package is never installed unless nobody
+    notices for two weeks, and preferring backends that download a built
+    artifact keeps `go install` and npm postinstalls off the machine in the
+    first place.
+
+    What that does not cover: opening a repository still runs its code.
+    rust-analyzer builds `build.rs` and expands proc macros, expert compiles
+    `mix.exs`, gopls shells out to the toolchain, and ruby-lsp runs a
+    Gemfile through bundler. Release age is about what gets installed, not
+    about what a checkout does once it is open. That half is gated instead,
+    by lua/mivn/trust.lua: a directory answers for itself before anything
+    starts for it.
 
 - [ ] Facts written twice, waiting to drift; found by the 2026-08-04
     review, parked for a monthly batch. find.lua's BUILTINS table
     hand-describes 21 Ex commands, and its prose-vs-code regex hides any
     real description that mentions a call like `foldexpr()`.
-    local.example.lua's long header mirrors the behavior of store.lua and
-    lsp.lua by hand. health.lua's PROBES table repeats what the manifest's
-    `smoke` fields already know, keyed by binary name instead of server
-    name. Each is fine today and wrong the day its twin changes.
+    Each is fine today and wrong the day its twin changes. The other two
+    the review found are gone: local.example.lua mirrored lsp.lua's
+    behavior by hand and no longer exists, and health.lua's PROBES table
+    was keyed by binary name while everything around it was keyed by
+    server, which moved into the language files.
 
 ## Plugins
 
@@ -148,6 +140,19 @@ checked off; git remembers them.
     matching prefix and ties go to the first one seen, so an equal-length
     rule always loses. Never set the variable for the whole Neovim process,
     or `:terminal` loses the user's git config too.
+
+- [x] Whether the tools this workspace uses have newer releases, on the
+    same line. **No**, decided 2026-08-20, and not for lack of an answer:
+    `mise outdated --json` gives `{name, requested, current, latest,
+    source}` per tool and would have covered the servers and the toolchains
+    in one call.
+
+    It is out because the editor no longer asks a version manager anything.
+    Which tools this session has is settled before Neovim starts, by
+    whatever launched it, and a config that reads `PATH` and nothing else
+    cannot also be the thing that reports on the manager behind it. The
+    notice belongs in the shell, where `mise upgrade` is one line away and
+    its output is visible.
 
 ## Watching
 

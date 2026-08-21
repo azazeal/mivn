@@ -1,10 +1,6 @@
 # direnv
 /.envrc
 
-# Personal knobs that are not part of the config itself; lua/mivn/lsp.lua
-# documents the shape.
-/lua/mivn/local.lua
-
 # NOTE(azazeal): Neovim keeps its runtime state (plugins, shada, undo history) under
 # ~/.local/share/mivn and ~/.local/state/mivn, outside this repo, so there is
 # nothing of it to ignore here.

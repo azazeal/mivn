@@ -12,10 +12,10 @@ the desktop and the terminal everywhere else.
   stay that small: anything rare goes through the command palette instead of
   earning a key.
 - **My hands keep working.** I come from CUA editors (VS Code, Zed). Shift and
-  an arrow selects, typing replaces the selection, the clipboard is the
-  system one, PageUp/PageDown always go somewhere. All of it rides options
-  Vim ships for exactly that purpose, so the grammar underneath stays intact
-  while I learn it.
+  an arrow selects, typing replaces the selection, `y` and `p` are the system
+  clipboard while a delete is not, PageUp/PageDown always go somewhere. Most
+  of it rides options Vim ships for exactly that purpose, so the grammar
+  underneath stays intact while I learn it.
 - **Looks matter.** The basalt theme, shared with my other tools; one
   status line, a tab bar of buffers, git in the gutter and in the tree.
 - **A tool, not a project.** Few plugins, all pinned. New friction becomes a
@@ -38,20 +38,35 @@ What has to be on the system:
 - **ripgrep** (or **fd**), optionally: `<Space>f` and `<Space>/` use whichever
   is installed, and fall back to slower built-ins otherwise.
 
-Most language servers are managed: opening a covered file offers to install
-the server, pinned and checksum-verified, into Neovim's data directory
-(`lua/mivn/store.lua` is the manifest), and no language runtime needs to
-exist on the machine. That covers Python (`ty`, `ruff`), TypeScript and
-JavaScript (`tsgo`, the TypeScript 7 compiler with the LSP inside), Rust,
-Lua, Elixir, Markdown, TOML, HTML, Terraform, Protocol Buffers, templ, and
-the Docker files. The few still expected on `PATH` until their runtime
-passes land: `gopls` and `golangci-lint-langserver` (Go), `ruby-lsp`, and
-`deno` for Deno workspaces. `gleam` joins them for good: the compiler
-carries the server, and a Gleam project needs the compiler anyway, so the
-copy the project uses is the right one. `:MivnLsp` lists both kinds and what
-was found.
-The external formatters (`stylua`, `shfmt`, `jq`, `taplo`, `xmllint`) and
-`gci` for Go imports are `PATH` tools still.
+Every language server comes from `PATH`, and this config installs none of
+them: a server that is not on it is a language with tree-sitter colors and
+nothing else, said once in `:checkhealth mivn`. Which toolchain a session
+gets is the launcher's business, not this config's. The set in use is Go
+(`gopls`, `golangci-lint-langserver`), Python (`ty`, `ruff`), TypeScript
+(`tsgo`), Rust, Ruby, Lua, Elixir, Gleam, Shell, Markdown, TOML, YAML
+(`yaml-language-server`, `actions-languageserver`, `zizmor`), JSON, HTML,
+Terraform, Protocol Buffers, templ and the Docker files. The external
+formatters (`stylua`, `shfmt`, `jq`, `taplo`, `yamlfmt`, `dockerfmt`,
+`xmllint`) and `gci` for Go imports are looked up the same way.
+
+What this config owns is everything around that: what each server is told
+once it starts, what runs after it (`gci` re-groups Go imports after the
+language server has formatted), and which JSON Schema a file gets. One file
+per language under `lua/mivn/languages/` holds all of it for that language.
+`:checkhealth mivn` reports the lot.
+
+Servers run with the permissions you do, and several of them run the
+repository's own code to answer questions about it: rust-analyzer builds
+`build.rs` and expands proc macros, expert compiles `mix.exs`, gopls shells
+out to the toolchain. So opening a repository is running it, and the workspace
+has to be trusted before any of that starts. The workspace is the directory
+the editor is working in, not the root each server picks for itself, so one
+answer covers everything under it. Nothing is said about a file no server
+covers; the rest gets one line and `:MivnTrust`, which trusts the workspace
+and starts its servers there and then. `:checkhealth mivn` shows where you
+stand, and the decisions live in Neovim's own trust list beside the
+`.nvim.lua` ones. It is a gate and not a sandbox: a server that does start
+runs as you.
 
 This is a plain Neovim configuration: clone it where Neovim looks and run
 `nvim`.
@@ -61,9 +76,9 @@ git clone https://github.com/azazeal/mivn.git ~/.config/nvim
 ```
 
 The first start clones the plugins at their pinned revisions, which takes a
-few seconds; then run `:MivnInstallGrammars` once for the grammars. Personal
-settings, if any, go into `lua/mivn/local.lua` (see
-[Local overrides](#local-overrides)).
+few seconds; then run `:MivnInstallGrammars` once for the grammars. There is
+nothing else to fill in: this config has no personal-settings file, because
+it is itself the settings.
 
 To try it without touching an existing configuration, clone it anywhere and
 run it isolated under a different name:
@@ -82,8 +97,9 @@ per-screen choice, and an editor config has no way to make that choice well;
 Neovim cannot even ask the compositor for the monitor's physical size.
 
 Under Neovide, `Ctrl+=`, `Ctrl+-` and `Ctrl+0` zoom in, out and back to 100%;
-the numpad's `+`, `-` and `0` do the same. They scale what that file asked for rather than writing a size anywhere, so
-100% keeps meaning whatever the file says. The step is foot's, near enough,
+the numpad's `+`, `-` and `0` do the same. They scale what that file asked
+for rather than writing a size anywhere, so 100% keeps meaning whatever the
+file says. The step is foot's, near enough,
 and it stops at half and at triple. In a terminal the keys are not mivn's to
 take: foot has them and resizes its own font.
 
@@ -104,25 +120,13 @@ clipboard bridge it registers, but the variable is the supported switch: it
 survives Neovide configuration changes and covers UIs this config has never
 heard of.
 
-## Local overrides
-
-`lua/mivn/local.lua` is optional, gitignored, and returns a table of personal
-settings the config reads when the file exists;
-`lua/mivn/local.example.lua` is the committed template to copy from, and it
-documents every key. Two kinds today: `lsp`, per-server tuning (turn one
-off, point one at an executable of your own, add settings, set a health
-probe, and for gopls the import prefixes that count as yours), and
-`treesitter_grammars`, additions and drops to the grammar list. Any key can
-be scoped to a directory through `projects`, so
-different clients can carry different values. Without the file, everything
-runs on the defaults the repo ships.
-
 ## Layout
 
 | Path          | What it holds                                             |
 |---------------|-----------------------------------------------------------|
 | `init.lua`    | Options and the command-line setup                        |
 | `lua/mivn/`   | One module per concern; trade-offs live in each header    |
+| `lua/mivn/keymaps.lua` | Every key that is on for the whole session       |
 | `colors/`     | The basalt theme                                          |
 | `queries/`    | Tree-sitter extras: SQL in Go strings, gotmpl files       |
 | `DEFAULTS.md` | The tour of stock Vim, and what mivn changes, marked so   |
@@ -130,12 +134,19 @@ runs on the defaults the repo ships.
 
 ## The additions
 
+Every key mivn takes is in one file, `lua/mivn/keymaps.lua`, and `<Space>?`
+lists them from inside a running editor along with everything Vim and the
+plugins bind.
+
 The whole custom key list: `<Space>f` find file, `<Space>/` search the
 project, `<Space>b` buffers, `<Space>:` command palette, `<Space>h` help,
-`<Space>d` diagnostics, `<Space>t` show or hide the file tree, `` <Space>` ``
-show or hide the terminal, `<Space>w` wrap long lines in this window,
-`gd` go to definition, `Ctrl+Del` delete the word
-ahead, and `Ctrl+Tab` / `Ctrl+Shift+Tab` along the tab bar. `Esc` in Normal
-mode also clears leftover search highlighting. Everything else is stock Vim, or a stock
-option doing its documented job. [DEFAULTS.md](DEFAULTS.md) is the full
-account, including what each bridge costs.
+`<Space>d` diagnostics, `<Space>?` every key there is, `<Space>t` show or hide
+the file tree, `` <Space>` `` show or hide the terminal, `<Space>w` wrap long
+lines in this window, `gd` go to definition, `Ctrl+Del` delete the word ahead,
+`Ctrl+↑` / `Ctrl+↓` move the line or the selected lines, `Alt+D` / `Alt+C`
+delete or change onto the clipboard, and `Ctrl+Tab` / `Ctrl+Shift+Tab` along
+the tab bar. `y` and `p` are the system clipboard, `d` and `c` are not. `Esc`
+in Normal mode also clears leftover search highlighting. Everything else is
+stock Vim, or a stock option doing its documented job.
+[DEFAULTS.md](DEFAULTS.md) is the full account, including what each bridge
+costs.
