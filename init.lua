@@ -205,6 +205,19 @@ vim.opt.whichwrap:append("<,>,[,]")
 vim.opt.keymodel = "startsel,stopsel"
 vim.opt.selection = "exclusive"
 
+-- The cursor may sit one past the last character of a line.
+--
+-- Exclusive selection above makes the cursor a boundary between characters
+-- rather than a character: a selection runs up to it and does not include
+-- what it is on. The word keys lean on that, landing after the last letter of
+-- a word so that selecting back to its start holds the word and nothing else
+-- (lua/mivn/words.lua). Without this the last word of a line would have no
+-- boundary to land on, Normal mode refusing the column.
+--
+-- lua/mivn/prompt.lua already set this on its own window for the same reason;
+-- this is that, everywhere.
+vim.opt.virtualedit = "onemore"
+
 -- 'clipboard' is deliberately left empty. It can only make the unnamed
 -- register *be* the clipboard, which puts every delete on the clipboard along
 -- with the copies; `y` and `p` reach it through mappings instead, and Vim's

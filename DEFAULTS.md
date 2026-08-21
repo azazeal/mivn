@@ -238,7 +238,8 @@ they just have no way to move in Insert mode without leaving it first.
 Shift and an arrow selects, the way it does in every other editor. No mapping is
 involved: `init.lua` sets `'keymodel'` and `'selection'`, two options Vim ships
 for exactly this, and the keys were bound already. Shift+`←`/`→` extends by a
-character, Shift+`↑`/`↓` by a line, Ctrl+Shift+`←`/`→` by a word _(mivn)_,
+character, Shift+`↑`/`↓` by a line, Ctrl+Shift+`←`/`→` by a word and
+Alt+Shift+`←`/`→` by a subword _(mivn)_,
 Shift+Home/End to either end of the line, Shift+PageUp/PageDown by a page,
 stopping at the first and last line _(mivn)_. A mouse drag selects the same
 way. `Esc` drops the selection.
@@ -288,7 +289,8 @@ what it acts on.
 | `h` `l` or `←` `→` | Left / right |
 | `w` / `W` | Start of next word / WORD |
 | `b` / `B` | Start of previous word / WORD |
-| Ctrl+`→` / Ctrl+`←` | Start of next / previous word _(mivn)_ |
+| Ctrl+`→` / Ctrl+`←` | Past the end of the word / start of the previous one _(mivn)_ |
+| Alt+`→` / Alt+`←` | The same, by subword _(mivn)_ |
 | `e` / `E` | End of word / WORD |
 | `0` | Column zero |
 | `^` | First non-blank character |
@@ -304,12 +306,32 @@ what it acts on.
 A *word* stops at punctuation; a *WORD* is whitespace-delimited. In
 `foo.bar_baz`, `w` moves to `.` and `W` skips the whole thing.
 
-Ctrl and an arrow is the word here, not the WORD _(mivn)_. Vim gives the
+Ctrl and an arrow is the word here, never the WORD _(mivn)_. Vim gives the
 arrows both sizes, `w` on Shift and `W` on Ctrl, but Shift selects here
 instead, and the WORD alone crosses a whole `foo::bar(baz(r, g, b))` in one
-press. This is what Ctrl+`→` does in every other editor, and what it already
-did in Insert mode. It works after an operator too, so `d`+Ctrl+`→` is `dw`,
-and `W` / `B` are untouched.
+press, which is never the distance meant. `W`, `B`, `E` and `gE` are untouched
+and still Vim's; nothing here is bound to them.
+
+The two directions are deliberately not mirror images. Ctrl+`→` lands *past
+the end* of the word and Ctrl+`←` on the *start* of the previous one, which is
+Zed's shape and the one that makes travel stop at the far side of whatever it
+crossed. Landing past the end rather than on the last letter is what makes a
+selection work out: `'selection'` is exclusive, so the cursor marks a boundary
+between characters rather than a character, and Ctrl+`→` followed by
+Ctrl+Shift+`←` selects the word exactly. Measured on `foo bar`: stopping on
+the `o` and selecting back gives `fo`, stopping past it gives `foo`.
+`'virtualedit'` is `onemore` for the same reason, so the boundary after the
+last word of a line exists at all.
+
+It works after an operator too, where Vim's own inclusive `e` covers the same
+text: `d`+Ctrl+`→` deletes the word and no more.
+
+Alt and an arrow does the same by **subword**, the piece of an identifier a
+camel hump or an underscore marks off _(mivn)_. `parseHTTPUrl` is `parse`,
+`HTTP` and `Url`; `foo_bar` is two; `::` is a piece of its own. Vim has no such
+motion, so `lua/mivn/words.lua` is where it lives, and it is the one pair here
+that is not an operator-pending motion: select with Alt+Shift and operate on
+that instead.
 
 `{count}|` counts its column in characters of text _(mivn)_, not Vim's screen
 cells: a tab is one character and an LSP inlay hint is nothing, so the column

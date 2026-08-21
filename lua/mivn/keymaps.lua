@@ -27,6 +27,7 @@ local page = require("mivn.page")
 local restart = require("mivn.restart")
 local terminal = require("mivn.terminal")
 local tree = require("mivn.tree")
+local words = require("mivn.words")
 local zoom = require("mivn.zoom")
 
 --- The clipboard --------------------------------------------------------------
@@ -164,58 +165,90 @@ vim.keymap.set("n", "<Esc>", "<Cmd>nohlsearch<CR><Esc>", {
 
 --- Moving and selecting -------------------------------------------------------
 
--- Ctrl and a horizontal arrow moves by a word, the small kind that stops at
--- punctuation. Vim has it the other way around on the arrows: Shift+arrow is
--- `w` and Ctrl+arrow is `W`. Shift is spent on selecting here ('keymodel' in
--- init.lua), so the arrows would be left with the WORD alone, which crosses a
--- whole `foo::bar(baz(r, g, b))` in one press. Every editor I have used moves
--- by the small word on Ctrl+arrow, and so does Insert mode right here, which
--- needed no mapping to do it.
+-- Ctrl and a horizontal arrow moves by a word, and Alt by a piece of one.
+-- Both stop at the far side of what they crossed: the end of the word going
+-- right, the start of it going left. That is Zed's shape, and the asymmetry
+-- is the point, since the far side of a word depends on which way you came at
+-- it. lua/mivn/words.lua carries the argument and the subword.
 --
--- Normal and operator-pending only, so `d<C-Right>` deletes a word. Not
--- Visual or Select: there an unshifted special key ends the selection
--- ('keymodel' has "stopsel"), and a mapping would take the key over and keep
--- the selection alive instead. `W` and `B` keep the WORD, one unshifted key
--- each.
-vim.keymap.set({ "n", "o" }, "<C-Right>", "w", {
-  desc = "Move to the start of the next word",
+-- Going right lands *after* the last letter rather than on it. 'selection' is
+-- exclusive (init.lua), so the cursor is a boundary between characters, and
+-- landing after the word is what makes a selection back to its start hold the
+-- word and nothing else. Measured on "foo bar": `e` then `vb` selects "fo",
+-- and `el` then `vb` selects "foo".
+--
+-- The WORD is bound to nothing here. It crosses `foo::bar(baz(r, g, b))` in
+-- one press, which is never the distance meant. `W`, `B`, `E` and `gE` are
+-- untouched and still Vim's.
+--
+-- Normal and operator-pending for the word keys, not Visual or Select: there
+-- an unshifted special key ends the selection ('keymodel' has "stopsel") and
+-- a mapping would keep it alive instead. Operator-pending takes plain `e`,
+-- since an inclusive motion already covers the same text: `d<C-Right>` is
+-- `de`, the word and no more.
+vim.keymap.set("n", "<C-Right>", "el", {
+  desc = "Move past the end of the word",
+})
+
+vim.keymap.set("o", "<C-Right>", "e", {
+  desc = "Through the end of the word",
 })
 
 vim.keymap.set({ "n", "o" }, "<C-Left>", "b", {
   desc = "Move to the start of the previous word",
 })
 
--- Ctrl+Shift and a horizontal arrow selects by that same word. 'keymodel'
--- opens the selection on its own and always reaches for the WORD, and it
--- reads Vim's own key rather than the mapping above, so the two only agree if
--- the opening happens here instead.
+vim.keymap.set("n", "<A-Right>", words.subword(true), {
+  desc = "Move past the end of the subword",
+})
+
+vim.keymap.set("n", "<A-Left>", words.subword(false), {
+  desc = "Move to the start of the previous subword",
+})
+
+-- Ctrl or Alt with Shift selects by the same step. 'keymodel' opens a
+-- selection on its own and reaches for Vim's own meaning of the key, which is
+-- the WORD, so the opening happens here instead.
 --
--- Three mappings each, because the opening is what differs. From Normal
--- there is no selection yet, so this opens Visual the way a shifted arrow
--- does ('selectmode' is unset in init.lua). In Select, which the floating
--- prompt still preselects in, the motion has to be borrowed through <C-o> or
--- `w` would replace the selection with the letter. In Visual it is the plain
--- motion. After an operator the key is left as it was: `d` and a shifted
--- arrow is not something I press.
+-- Three mappings each, because the opening is what differs. From Normal there
+-- is no selection yet, so this opens Visual the way a shifted arrow does
+-- ('selectmode' is unset in init.lua). In Select, which the floating prompt
+-- still preselects in, the motion is borrowed through <C-o> or it would
+-- replace the selection with the letter. In Visual it is the plain motion.
+-- After an operator the key is left alone: `d` and a shifted arrow is not
+-- something I press.
 --
--- One order comes out wrong and is TODO.md's: a single Shift+Right and then
--- this key selects two words, because Vim runs the built-in WORD first while
--- the selection is still one character wide, and the mapping's `w` lands on
--- top of that.
+-- `e` and not the `el` the Normal-mode key uses: exclusive selection already
+-- gives an inclusive motion its extra column inside Visual, so `ve` stops
+-- after the word on its own. Measured on `parseHTTPUrl(`: `ve` selects
+-- `parseHTTPUrl` and `vel` takes the bracket with it.
 for _, sel in ipairs({
-  { lhs = "<C-S-Right>", motion = "w", word = "next" },
-  { lhs = "<C-S-Left>", motion = "b", word = "previous" },
+  { lhs = "<C-S-Right>", motion = "e", to = "past the end of the word" },
+  { lhs = "<C-S-Left>", motion = "b", to = "to the start of the previous word" },
 }) do
   vim.keymap.set("n", sel.lhs, "v" .. sel.motion, {
-    desc = "Select to the start of the " .. sel.word .. " word",
+    desc = "Select " .. sel.to,
   })
 
   vim.keymap.set("x", sel.lhs, sel.motion, {
-    desc = "Extend the selection to the start of the " .. sel.word .. " word",
+    desc = "Extend the selection " .. sel.to,
   })
 
   vim.keymap.set("s", sel.lhs, "<C-o>" .. sel.motion, {
-    desc = "Extend the selection to the start of the " .. sel.word .. " word",
+    desc = "Extend the selection " .. sel.to,
+  })
+end
+
+for _, sel in ipairs({
+  { lhs = "<A-S-Right>", forward = true, to = "past the end of the subword" },
+  { lhs = "<A-S-Left>", forward = false, to = "to the start of the previous subword" },
+}) do
+  vim.keymap.set("n", sel.lhs, words.select_subword(sel.forward), {
+    desc = "Select " .. sel.to,
+  })
+
+  vim.keymap.set("x", sel.lhs, words.subword(sel.forward), {
+    desc = "Extend the selection " .. sel.to,
   })
 end
 
