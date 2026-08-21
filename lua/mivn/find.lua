@@ -78,7 +78,7 @@ pick.setup({
 })
 
 -- mini.pick's setup() has already pointed vim.ui.select at itself, which is
--- what sends `gra` code actions and every other "pick one of these" through
+-- what sends <leader>aa code actions and every other "pick one of these" through
 -- the picker. This wrapper only sizes the float to the list: three code
 -- actions in a full-height window is mostly empty air.
 ---@diagnostic disable-next-line: duplicate-set-field it is the point
@@ -286,19 +286,5 @@ function M.palette()
     },
   })
 end
-
--- The one deliberate override in the config. Stock `gd` jumps to a local
--- declaration by searching the file, which the language server does properly
--- and across files, and Neovim 0.11 ships `grn` `gra` `grr` `gri` `grt` but
--- nothing for definition.
-vim.api.nvim_create_autocmd("LspAttach", {
-  group = vim.api.nvim_create_augroup("mivn.find.lsp", { clear = true }),
-  callback = function(ev)
-    vim.keymap.set("n", "gd", vim.lsp.buf.definition, {
-      buffer = ev.buf,
-      desc = "Go to definition",
-    })
-  end,
-})
 
 return M

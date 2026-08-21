@@ -305,6 +305,7 @@ hl({
   LspInlayHint = { fg = c.bg6, bg = c.bg1, italic = true },
   LspSignatureActiveParameter = { fg = c.orange, bold = true },
   LspCodeLens = { fg = c.bg6, italic = true },
+  LspCodeLensSeparator = { fg = c.bg4, italic = true },
 
   DiagnosticError = { fg = c.red1 },
   DiagnosticWarn = { fg = c.yellow },

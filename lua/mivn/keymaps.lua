@@ -7,7 +7,7 @@
 --
 -- What is deliberately not here: a mapping that exists only while some buffer
 -- does. It is made when that buffer is, and it belongs with the thing it acts
--- on. `gd` and the hover float's Esc are lua/mivn/languages/'s, the message
+-- on. The hover float's Esc is lua/mivn/lsp.lua's, the message
 -- pager's Esc is init.lua's, the tree's keys are lua/mivn/tree.lua's, the
 -- dashboard's are lua/mivn/dashboard.lua's, the floating prompt's are
 -- lua/mivn/prompt.lua's, and the picker's keys are mini.pick's own key loop
@@ -330,7 +330,6 @@ leader("<leader>/", find.grep, "Search the project")
 leader("<leader>b", find.buffers, "Open buffers")
 leader("<leader>:", find.palette, "Command palette")
 leader("<leader>h", find.help, "Help")
-leader("<leader>d", find.diagnostics, "Diagnostics")
 leader("<leader>?", find.keymaps, "Every key, searchable")
 
 -- <leader>t is where the toggles live, all of them, so that the question
@@ -358,6 +357,7 @@ leader("<leader>ar", vim.lsp.buf.rename, "Rename symbol")
 leader("<leader>af", format.buffer, "Format this buffer")
 leader("<leader>aF", format.imports, "Organize imports")
 leader("<leader>ai", vim.lsp.buf.hover, "Hover documentation")
+leader("<leader>ax", vim.lsp.codelens.run, "Run the code lens on this line")
 leader("<leader>ad", find.buffer_diagnostics, "Diagnostics in this buffer")
 leader("<leader>aD", find.diagnostics, "Diagnostics in the workspace")
 
@@ -370,6 +370,29 @@ leader("<leader>gs", vim.lsp.buf.document_symbol, "Symbols in this document")
 leader("<leader>gS", function()
   vim.lsp.buf.workspace_symbol("")
 end, "Symbols in the workspace")
+
+-- And Neovim's own, off, because the chains above are the way and one way is
+-- the point: a second key for the same request is a thing to keep in step and
+-- a second row in every panel that lists what is bound.
+--
+-- What comes back by dropping them is Vim's: `gO` is the outline of a help
+-- page or a man page again, and `gd` its local declaration search, which is
+-- what those keys mean everywhere this editor has no server attached anyway.
+for _, lhs in ipairs({ "grn", "gra", "grr", "gri", "grt", "grx", "gO" }) do
+  pcall(vim.keymap.del, "n", lhs)
+end
+
+-- `K` is not among them because it is not global: Neovim sets it on the
+-- buffer as a server attaches, and only where nothing has claimed the key
+-- already. So it comes off the same way, one buffer at a time. Without it `K`
+-- is 'keywordprg' again, which is `:help` in Vim files and `man` elsewhere.
+vim.api.nvim_create_autocmd("LspAttach", {
+  group = vim.api.nvim_create_augroup("mivn.keymaps.lsp", { clear = true }),
+  desc = "Take Neovim's K off; hover is <leader>ai",
+  callback = function(ev)
+    pcall(vim.keymap.del, "n", "K", { buffer = ev.buf })
+  end,
+})
 
 --- The window -----------------------------------------------------------------
 
