@@ -825,7 +825,7 @@ window.
 
 ## The terminal
 
-`` <leader>` `` _(mivn)_ shows and hides a terminal panel along the bottom;
+`` <leader>t` `` _(mivn)_ shows and hides a terminal panel along the bottom;
 the shell survives hiding. What it opens is the built-in terminal, so
 everything below applies to it.
 

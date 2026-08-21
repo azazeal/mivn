@@ -332,13 +332,14 @@ leader("<leader>h", find.help, "Help")
 leader("<leader>d", find.diagnostics, "Diagnostics")
 leader("<leader>?", find.keymaps, "Every key, searchable")
 
-leader("<leader>`", terminal.toggle, "Show or hide the terminal")
-leader("<leader>w", margins.toggle_wrap, "Toggle wrapping of long lines")
-
--- <leader>t is where the toggles live. The two that decide what a listing
--- shows reach the tree and the finders at once, since they are two views of
--- one directory; lua/mivn/filters.lua holds that answer and says why.
+-- <leader>t is where the toggles live, all of them, so that the question
+-- "what turns this on" has one answer and the panel under <leader>t is the
+-- list. The two that decide what a listing shows reach the tree and the
+-- finders at once, since those are two views of one directory;
+-- lua/mivn/filters.lua holds that answer and says why.
 leader("<leader>tt", tree.toggle, "Show or hide the file tree")
+leader("<leader>t`", terminal.toggle, "Show or hide the terminal")
+leader("<leader>tw", margins.toggle_wrap, "Wrap long lines in this window, or stop")
 leader("<leader>th", filters.toggle_dotfiles, "Show or hide dotfiles, in the tree and the finders")
 leader("<leader>ti", filters.toggle_ignored, "Show or hide ignored files, in the tree and the finders")
 

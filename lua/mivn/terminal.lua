@@ -1,4 +1,4 @@
--- The terminal, as a panel that comes and goes: <leader>` shows and hides one
+-- The terminal, as a panel that comes and goes: <leader>t` shows and hides one
 -- terminal buffer in a split along the bottom. The shell survives hiding,
 -- since the toggle only ever touches the window and the buffer stays loaded.
 --
@@ -109,5 +109,5 @@ vim.api.nvim_create_autocmd("TermClose", {
   end,
 })
 
--- toggle is <leader>`'s, in lua/mivn/keymaps.lua.
+-- toggle is <leader>t`'s, in lua/mivn/keymaps.lua.
 return M
