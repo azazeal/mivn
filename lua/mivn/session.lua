@@ -269,12 +269,19 @@ vim.api.nvim_create_autocmd("BufEnter", {
 --
 -- Without the bang, unsaved buffers are kept and counted rather than
 -- stopping at the first one the way :%bd would; the bang takes them too.
-vim.api.nvim_create_user_command("MivnBdAll", function(cmd)
+--- Close every listed file buffer, sparing `keep` when one is named.
+local function close_files(force, keep)
   local closed, kept = 0, 0
 
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_loaded(b) and vim.bo[b].buflisted and vim.bo[b].buftype == "" then
-      if pcall(vim.api.nvim_buf_delete, b, { force = cmd.bang }) then
+    if b ~= keep and vim.api.nvim_buf_is_loaded(b) and vim.bo[b].buflisted and vim.bo[b].buftype == "" then
+      -- Asked about before it is attempted, rather than deleted and caught.
+      -- A pcall keeps the loop going but not quietly: the E89 underneath is
+      -- raised all the same and surfaces at whoever ran the command, so an
+      -- unsaved buffer ended the run with an error next to a message saying
+      -- it had been handled.
+      if force or not vim.bo[b].modified then
+        vim.api.nvim_buf_delete(b, { force = force })
         closed = closed + 1
       else
         kept = kept + 1
@@ -289,7 +296,8 @@ vim.api.nvim_create_user_command("MivnBdAll", function(cmd)
   -- The BufEnter rule brings the banner back only when the *current*
   -- window fell to a blank buffer. Run from a panel (cursor parked in the
   -- tree), the emptied window is some other one, so it is found by hand:
-  -- measured, not hypothetical.
+  -- measured, not hypothetical. With one buffer spared there is nothing to
+  -- put back, and real_buffers() below says so.
   vim.schedule(function()
     local dashboard = require("mivn.dashboard")
     if not dashboard.claimed() or #M.real_buffers() > 0 then
@@ -304,23 +312,75 @@ vim.api.nvim_create_user_command("MivnBdAll", function(cmd)
       end
     end
   end)
+end
+
+vim.api.nvim_create_user_command("MivnBdAll", function(cmd)
+  close_files(cmd.bang)
 end, {
   bang = true,
   desc = "What :%bd becomes: close the file buffers, leave the panels",
 })
 
+-- The one helix has and Vim does not: close everything except what I am
+-- looking at. Vim can spell it (`:%bd|e#|bd#`, delete all and re-open the
+-- alternate) and that spelling is a trap, since it leans on the alternate
+-- file being the one wanted and leaves the jumplist looking odd. This is the
+-- same walk as above with one buffer spared.
+--
+-- The current buffer and not the current window's: run from the tree the
+-- answer would be the tree, which is no file at all, so a panel keeps
+-- whatever file was last looked at instead of closing the lot.
+vim.api.nvim_create_user_command("MivnBdOthers", function(cmd)
+  local here = vim.api.nvim_get_current_buf()
+  if vim.bo[here].buftype ~= "" or not vim.bo[here].buflisted then
+    here = vim.fn.bufnr("#")
+  end
+
+  close_files(cmd.bang, here)
+end, {
+  bang = true,
+  desc = "Close every file buffer except this one",
+})
+
+-- The two above are Mivn-prefixed because a user command has to start with a
+-- capital, and `:bda` and `:bdo` are what a hand types. Both spellings are
+-- free: Vim's own shortest forms are `bd` for bdelete and `bufd` for bufdo,
+-- so neither completes to anything today.
+--
+-- Rewritten on the way out of the command line rather than abbreviated, the
+-- same move the tree's `:bd` guard and restart.lua make. A cnoreabbrev was
+-- measured and rejected: its bang trigger was flaky, with `:bd!` right after
+-- an expanded `:bd` sailing through unexpanded, while this event fires once
+-- per executed command line.
+local SHORTHAND = {
+  bda = "MivnBdAll",
+  bdo = "MivnBdOthers",
+}
+
 vim.api.nvim_create_autocmd("CmdlineLeavePre", {
   group = group,
-  desc = "Rewrite :%bd to close files but not panels",
+  desc = "Rewrite :%bd, :bda and :bdo to close files but not panels",
   callback = function()
     if vim.fn.getcmdtype() ~= ":" then
+      return
+    end
+
+    local line = vim.fn.getcmdline()
+
+    -- WARN: nothing here may return setcmdline's result. It answers 0 on
+    -- success, every number is true in Lua, and a Neovim autocmd callback
+    -- returning true deletes itself: the first rewrite worked and the next
+    -- one landed on E492, because the handler was no longer there.
+    local short, shortbang = line:match("^(bd%l)(!?)$")
+    if SHORTHAND[short] then
+      vim.fn.setcmdline(SHORTHAND[short] .. shortbang)
       return
     end
 
     -- The % spelling only, and any prefix of "bdelete" at least two
     -- letters long. `:1,$bd` and friends run untouched: narrow on purpose,
     -- the way the tree's :bd guard is.
-    local word, bang = vim.fn.getcmdline():match("^%%(%l+)(!?)$")
+    local word, bang = line:match("^%%(%l+)(!?)$")
     if word and #word >= 2 and ("bdelete"):find(word, 1, true) == 1 then
       vim.fn.setcmdline("MivnBdAll" .. bang)
     end

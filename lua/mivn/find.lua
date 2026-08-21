@@ -169,6 +169,77 @@ function M.buffers()
   pick.builtin.buffers()
 end
 
+--- Where a language server says a thing is -----------------------------------
+--
+-- Stock puts more than one answer in the quickfix list and opens a quickfix
+-- window with `botright copen`, which is a window arriving in a layout that
+-- did not ask for one: measured, it can leave the screen holding the tree and
+-- a quickfix and no file at all. Every other "pick one of these" in this
+-- config is the same float, so these are too.
+
+--- Go to `item`, the way Neovim goes to a lone answer.
+---
+--- The jumplist takes the position being left and the tag stack takes an
+--- entry, so Ctrl+O and Ctrl+T both walk back out; `zv` opens the folds over
+--- wherever it lands. Reproduced here rather than left to Neovim because
+--- `on_list` is checked before its own single-answer path, so asking for the
+--- list at all gives up the jump.
+local function jump(item, tagname, from)
+  vim.cmd("normal! m'")
+  vim.fn.settagstack(vim.api.nvim_get_current_win(), { items = { { tagname = tagname, from = from } } }, "t")
+
+  local buf = item.bufnr or vim.fn.bufadd(item.filename)
+  vim.bo[buf].buflisted = true
+
+  vim.api.nvim_win_set_buf(0, buf)
+  vim.api.nvim_win_set_cursor(0, { item.lnum, item.col - 1 })
+  vim.cmd("normal! zv")
+end
+
+--- Run `request` and show what comes back: one answer is a jump, several are
+--- a picker.
+---
+--- `request` takes the options table every vim.lsp.buf list request takes,
+--- so a request needing an argument of its own is a one-line function that
+--- passes it along.
+function M.list(request)
+  return function()
+    -- Both are what the tag stack wants and neither survives the jump, so
+    -- they are read before the request goes out.
+    local from = vim.fn.getpos(".")
+    from[1] = vim.api.nvim_get_current_buf()
+    local tagname = vim.fn.expand("<cword>")
+
+    request({
+      on_list = function(list)
+        local items = list.items or {}
+
+        if #items == 1 then
+          return jump(items[1], tagname, from)
+        end
+
+        pick.start({
+          source = {
+            name = list.title or "Locations",
+            items = vim.tbl_map(function(item)
+              return {
+                text = ("%s:%d: %s"):format(
+                  vim.fn.fnamemodify(item.filename, ":."),
+                  item.lnum,
+                  vim.trim(item.text or "")
+                ),
+                path = item.filename,
+                lnum = item.lnum,
+                col = item.col,
+              }
+            end, items),
+          },
+        })
+      end,
+    })
+  end
+end
+
 function M.help()
   pick.builtin.help()
 end

@@ -202,8 +202,44 @@ vim.opt.whichwrap:append("<,>,[,]")
 -- extending it, so hjkl is how I adjust one. And exclusive takes one
 -- character off a character-wise Visual yank: on "amm", `vlly` yanks "am".
 -- Text objects and operators are unaffected.
-vim.opt.keymodel = "startsel,stopsel"
+-- "stopsel" only. "startsel" is what used to open a selection when a shifted
+-- special key was pressed, and it is gone because that path does not repaint:
+-- the selection started, the screen kept the old mode, the old highlight and
+-- the old cursor until the next key arrived. Every shifted key that behaved
+-- turned out to be one lua/mivn/keymaps.lua binds by hand, so now they all
+-- are, and nothing is left for "startsel" to do.
+vim.opt.keymodel = "stopsel"
 vim.opt.selection = "exclusive"
+
+-- The cursor may sit one past the last character of a line.
+--
+-- Exclusive selection above makes the cursor a boundary between characters
+-- rather than a character: a selection runs up to it and does not include
+-- what it is on. The word keys lean on that, landing after the last letter of
+-- a word so that selecting back to its start holds the word and nothing else
+-- (lua/mivn/words.lua). Without this the last word of a line would have no
+-- boundary to land on, Normal mode refusing the column.
+--
+-- lua/mivn/prompt.lua already set this on its own window for the same reason;
+-- this is that, everywhere.
+vim.opt.virtualedit = "onemore"
+
+-- A bar in Normal mode, not a block.
+--
+-- The shape is only a shape: Neovim's cursor is a buffer position either way,
+-- and every key that acts on "the character under the cursor" acts on the one
+-- to the right of the bar. That reading is the true one here. `x` deletes it,
+-- `i` opens before it, an operator runs forward from it and a selection stops
+-- at it, so what is drawn now says what the keys have meant since 'selection'
+-- went exclusive.
+--
+-- Neovim already agreed one mode over: `ve`, Visual with exclusive selection,
+-- is a bar in the stock value for exactly this reason. This is that reasoning
+-- carried into Normal.
+--
+-- WARN: the two keys that lose by it are `r` and `~`, which act on the
+-- character to the right of the bar and no longer show which one that is.
+vim.opt.guicursor = "n:ver25,v-c-sm:block,i-ci-ve:ver25,r-cr-o:hor20,t:block-blinkon500-blinkoff500-TermCursor"
 
 -- 'clipboard' is deliberately left empty. It can only make the unnamed
 -- register *be* the clipboard, which puts every delete on the clipboard along

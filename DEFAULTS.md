@@ -235,10 +235,17 @@ they just have no way to move in Insert mode without leaving it first.
 
 ### Selecting with Shift
 
-Shift and an arrow selects, the way it does in every other editor. No mapping is
-involved: `init.lua` sets `'keymodel'` and `'selection'`, two options Vim ships
-for exactly this, and the keys were bound already. Shift+`←`/`→` extends by a
-character, Shift+`↑`/`↓` by a line, Ctrl+Shift+`←`/`→` by a word _(mivn)_,
+Shift and an arrow selects, the way it does in every other editor. Every one of
+those keys is mapped by hand _(mivn)_, which is not where this started: Vim
+ships `'keymodel'` with a "startsel" flag that opens a selection when a shifted
+special key arrives, and that is what this used to lean on. It had to go. On
+that path the selection began and the screen did not repaint until the next key
+arrived, so the mode block still read `N`, nothing was highlighted, and the
+cursor sat where it had been; the state was real, and a `d` right after would
+delete the selection you could not see. `'keymodel'` keeps "stopsel" alone, so
+an unshifted key still ends a selection. Shift+`←`/`→` extends by a
+character, Shift+`↑`/`↓` by a line, Ctrl+Shift+`←`/`→` by a word and
+Alt+Shift+`←`/`→` by a subword _(mivn)_,
 Shift+Home/End to either end of the line, Shift+PageUp/PageDown by a page,
 stopping at the first and last line _(mivn)_. A mouse drag selects the same
 way. `Esc` drops the selection.
@@ -288,8 +295,10 @@ what it acts on.
 | `h` `l` or `←` `→` | Left / right |
 | `w` / `W` | Start of next word / WORD |
 | `b` / `B` | Start of previous word / WORD |
-| Ctrl+`→` / Ctrl+`←` | Start of next / previous word _(mivn)_ |
+| Ctrl+`→` / Ctrl+`←` | Past the end of the word / start of the previous one _(mivn)_ |
+| Alt+`→` / Alt+`←` | The same, by subword _(mivn)_ |
 | `e` / `E` | End of word / WORD |
+| `ge` / `gE` | End of the previous word / WORD |
 | `0` | Column zero |
 | `^` | First non-blank character |
 | `$` | End of line |
@@ -304,12 +313,79 @@ what it acts on.
 A *word* stops at punctuation; a *WORD* is whitespace-delimited. In
 `foo.bar_baz`, `w` moves to `.` and `W` skips the whole thing.
 
-Ctrl and an arrow is the word here, not the WORD _(mivn)_. Vim gives the
+Ctrl and an arrow is the word here, never the WORD _(mivn)_. Vim gives the
 arrows both sizes, `w` on Shift and `W` on Ctrl, but Shift selects here
 instead, and the WORD alone crosses a whole `foo::bar(baz(r, g, b))` in one
-press. This is what Ctrl+`→` does in every other editor, and what it already
-did in Insert mode. It works after an operator too, so `d`+Ctrl+`→` is `dw`,
-and `W` / `B` are untouched.
+press, which is never the distance meant. `W`, `B`, `E` and `gE` are untouched
+and still Vim's; nothing here is bound to them.
+
+The two directions are deliberately not mirror images. Ctrl+`→` lands *past
+the end* of the word and Ctrl+`←` on the *start* of the previous one, which is
+Zed's shape and the one that makes travel stop at the far side of whatever it
+crossed. Landing past the end rather than on the last letter is what makes a
+selection work out: `'selection'` is exclusive, so the cursor marks a boundary
+between characters rather than a character, and Ctrl+`→` followed by
+Ctrl+Shift+`←` selects the word exactly. Measured on `foo bar`: stopping on
+the `o` and selecting back gives `fo`, stopping past it gives `foo`.
+`'virtualedit'` is `onemore` for the same reason, so the boundary after the
+last word of a line exists at all.
+
+It works after an operator too, where Vim's own inclusive `e` covers the same
+text: `d`+Ctrl+`→` deletes the word and no more.
+
+The cursor is a bar rather than a block _(mivn)_, and that is the same
+decision seen from the other end. Neovim's cursor is a buffer position either
+way and the shape changes nothing: every key that acts on "the character under
+the cursor" acts on the one to the right of the bar. `x` deletes it, `i` opens
+before it, an operator runs forward from it, a selection stops at it. Neovim
+already draws Visual-with-exclusive-selection as a bar in its stock value, for
+this reason; this is that reasoning carried into Normal mode. What it costs is
+`r` and `~`, which act on the character to the right of the bar without
+showing which one that is.
+
+`End` moves past the end of the line for the same reason _(mivn)_, in Normal
+mode only; `$` is Vim's and stops on the last character. It cannot take a line break with
+it: the boundary after the last character is still on that line, before the
+newline, so `v$`, Shift+End and the rest yank the line's text and it takes one
+more press to cross.
+
+`Home` alternates between the indent and column zero _(mivn)_, which is Zed's
+`stop_at_indent` rule taken from its movement code rather than guessed, and
+Shift+Home selects to wherever it would have gone. Where you start decides
+which comes first, and the third case is the one worth knowing:
+
+| Cursor | `Home` | then |
+|---|---|---|
+| In the text | The indent | Column zero |
+| On the indent | Column zero | The indent |
+| Inside the indentation | Column zero | The indent |
+| At column zero | The indent | Column zero |
+
+So from the text it takes two presses to reach the real start of the line, and
+from inside the indentation only one. Vim has the two halves as `^` and `0`
+and no key that alternates between them.
+
+The letters are untouched, and that is deliberate. `w`, `e`, `b` and their
+capitals do what Vim ships, landing *on* the last character where the arrows
+land past it. Only the arrow family moved, so the block model survives
+wherever Vim's own grammar is what you typed, and the two never have to be
+kept in step with each other.
+
+Alt and an arrow does the same by **subword**, the piece of an identifier a
+camel hump or an underscore marks off _(mivn)_. `parseHTTPUrl` is `parse`,
+`HTTP` and `Url`; `foo_bar` is two; `::` is a piece of its own.
+
+Both granularities are parsed in `lua/mivn/words.lua` rather than borrowed
+from `e`, because borrowing leaves a hole: `e` moves to the end of the *next*
+word when the cursor already sits at the end of one, which in this model is
+every time a word ends against the next. Measured on `foo (bar) baz`, the
+borrowed version crossed `)` and `baz` in a single press. The parsed one stops
+after every word, punctuation included: `parseHTTPUrl`, `(`, `foo_bar`, `,`,
+`baz2Qux`, `)`.
+
+Neither is an operator-pending motion. After an operator the Ctrl pair falls
+back to Vim's own `e` and `b`, which cover the same text, and the Alt pair has
+no operator form at all: select with Alt+Shift and operate on that.
 
 `{count}|` counts its column in characters of text _(mivn)_, not Vim's screen
 cells: a tab is one character and an LSP inlay hint is nothing, so the column
@@ -667,6 +743,20 @@ and `Ctrl+Shift+W` reaches it as well: the shift is discarded on the way in.
 | `:ls` | List buffers |
 | `:b {name}` | Switch by name; partial matches work |
 | `:bd` | Close a buffer |
+| `:bdo` | Close every other buffer _(mivn)_ |
+| `:bda` | Close them all _(mivn)_ |
+
+`:bdo` and `:bda` are the two helix has and Vim does not, under names Vim
+leaves free: its own shortest spellings are `bd` for bdelete and `bufd` for
+bufdo, so neither of these completes to anything of Vim's. `:%bd` is the same
+command as `:bda`. All three close the **files** and leave the panels standing,
+which plain `:%bd` would not: its range walks every buffer number, so it used
+to take the file tree down with them.
+
+A buffer with unsaved changes is kept rather than closed, counted, and named in
+the message; the bang takes those too. `:bdo` keeps the file you are looking
+at, or the one you looked at last if you run it from the tree, since the tree
+itself is not a file to keep.
 
 `Ctrl+Tab` and `Ctrl+Shift+Tab` are the one pair of chords the tab bar adds, and
 they are the meaning every other editor gives them. Nothing is displaced: Vim

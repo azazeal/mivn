@@ -27,6 +27,7 @@ local page = require("mivn.page")
 local restart = require("mivn.restart")
 local terminal = require("mivn.terminal")
 local tree = require("mivn.tree")
+local words = require("mivn.words")
 local zoom = require("mivn.zoom")
 
 --- The clipboard --------------------------------------------------------------
@@ -164,58 +165,205 @@ vim.keymap.set("n", "<Esc>", "<Cmd>nohlsearch<CR><Esc>", {
 
 --- Moving and selecting -------------------------------------------------------
 
--- Ctrl and a horizontal arrow moves by a word, the small kind that stops at
--- punctuation. Vim has it the other way around on the arrows: Shift+arrow is
--- `w` and Ctrl+arrow is `W`. Shift is spent on selecting here ('keymodel' in
--- init.lua), so the arrows would be left with the WORD alone, which crosses a
--- whole `foo::bar(baz(r, g, b))` in one press. Every editor I have used moves
--- by the small word on Ctrl+arrow, and so does Insert mode right here, which
--- needed no mapping to do it.
+-- Ctrl and a horizontal arrow moves by a word, and Alt by a piece of one.
+-- Both stop at the far side of what they crossed: the end of the word going
+-- right, the start of it going left. That is Zed's shape, and the asymmetry
+-- is the point, since the far side of a word depends on which way you came at
+-- it. lua/mivn/words.lua carries the argument and the subword.
 --
--- Normal and operator-pending only, so `d<C-Right>` deletes a word. Not
--- Visual or Select: there an unshifted special key ends the selection
--- ('keymodel' has "stopsel"), and a mapping would take the key over and keep
--- the selection alive instead. `W` and `B` keep the WORD, one unshifted key
--- each.
-vim.keymap.set({ "n", "o" }, "<C-Right>", "w", {
-  desc = "Move to the start of the next word",
+-- Going right lands *after* the last letter rather than on it. 'selection' is
+-- exclusive (init.lua), so the cursor is a boundary between characters, and
+-- landing after the word is what makes a selection back to its start hold the
+-- word and nothing else. Measured on "foo bar": `e` then `vb` selects "fo",
+-- and `el` then `vb` selects "foo".
+--
+-- The WORD is bound to nothing here. It crosses `foo::bar(baz(r, g, b))` in
+-- one press, which is never the distance meant. `W`, `B`, `E` and `gE` are
+-- untouched and still Vim's.
+--
+-- Normal and operator-pending for the word keys, not Visual or Select: there
+-- an unshifted special key ends the selection ('keymodel' has "stopsel") and
+-- a mapping would keep it alive instead. Operator-pending takes plain `e`,
+-- since an inclusive motion already covers the same text: `d<C-Right>` is
+-- `de`, the word and no more.
+vim.keymap.set("n", "<C-Right>", words.move(true, false), {
+  desc = "Move past the end of the word",
 })
 
-vim.keymap.set({ "n", "o" }, "<C-Left>", "b", {
+vim.keymap.set("n", "<C-Left>", words.move(false, false), {
   desc = "Move to the start of the previous word",
 })
 
--- Ctrl+Shift and a horizontal arrow selects by that same word. 'keymodel'
--- opens the selection on its own and always reaches for the WORD, and it
--- reads Vim's own key rather than the mapping above, so the two only agree if
--- the opening happens here instead.
+vim.keymap.set("n", "<A-Right>", words.move(true, true), {
+  desc = "Move past the end of the subword",
+})
+
+vim.keymap.set("n", "<A-Left>", words.move(false, true), {
+  desc = "Move to the start of the previous subword",
+})
+
+-- After an operator the arrows fall back to Vim's own, which cover the same
+-- text: `e` is inclusive, so `d<C-Right>` is the word and no more, and `b` is
+-- what Ctrl+Left runs anyway. The Alt pair has no operator form; select with
+-- Alt+Shift and operate on that.
+vim.keymap.set("o", "<C-Right>", "e", {
+  desc = "Through the end of the word",
+})
+
+vim.keymap.set("o", "<C-Left>", "b", {
+  desc = "To the start of the previous word",
+})
+
+-- Home and End, on the same model and with Zed's rule for the indent.
 --
--- Three mappings each, because the opening is what differs. From Normal
--- there is no selection yet, so this opens Visual the way a shifted arrow
--- does ('selectmode' is unset in init.lua). In Select, which the floating
--- prompt still preselects in, the motion has to be borrowed through <C-o> or
--- `w` would replace the selection with the letter. In Visual it is the plain
--- motion. After an operator the key is left as it was: `d` and a shifted
--- arrow is not something I press.
+-- Home goes to the first character that is not whitespace, which is where a
+-- line actually starts, and to column zero from there: three presses walk
+-- indent, zero, indent. Zed's own is `stop_at_indent`, and its rule is this
+-- one exactly, taken from its movement code rather than guessed. Vim has both
+-- halves as `^` and `0` and no key that alternates.
 --
--- One order comes out wrong and is TODO.md's: a single Shift+Right and then
--- this key selects two words, because Vim runs the built-in WORD first while
--- the selection is still one character wide, and the mapping's `w` lands on
--- top of that.
+-- End takes the same `l` as `$`, in Normal only for the same reasons: after
+-- an operator `d<End>` already covers the line, and in Visual exclusive
+-- selection gives it the extra column. Zed has no indent notion at that end,
+-- and neither does this.
+--- Zed's three branches, in its own order (`indented_line_beginning` in
+--- crates/editor/src/movement.rs): past the indent goes to the indent, and so
+--- does column zero, while anything else, meaning the indent itself or a
+--- column inside the whitespace, goes to column zero.
+---
+--- So from the text it is one press to the indent and a second to column
+--- zero, and from inside the indentation it is one press to column zero. A
+--- line that is all whitespace has no indent to go to.
+local function home()
+  local indent = vim.api.nvim_get_current_line():find("%S")
+  if not indent then
+    return "0"
+  end
+
+  local col = vim.fn.col(".")
+
+  return (col > indent or col == 1) and "^" or "0"
+end
+
+vim.keymap.set({ "n", "x", "o" }, "<Home>", home, {
+  expr = true,
+  desc = "Move to the first character of the line, or to column zero",
+})
+
+vim.keymap.set("n", "<End>", "$l", {
+  desc = "Move past the end of the line",
+})
+
+-- Shift and an arrow selects by a character or a line. Said here rather than
+-- left to 'keymodel', which is the whole reason 'keymodel' no longer carries
+-- "startsel" at all (init.lua).
+--
+-- What that path did wrong: the selection started and the screen did not
+-- repaint until the next key arrived, so the mode block still read N, nothing
+-- was highlighted, and the cursor sat where it had been. Every key that
+-- behaved was one bound by hand, which is how it was found. Shift+End made it
+-- obvious because it jumps far; the arrows hid it by moving one cell, where a
+-- screen one keypress behind looks much like a screen that is up to date.
+--
+-- The motion is the *unshifted* key's, which is what "startsel" did too: it
+-- spends the Shift on opening the selection and runs the key plain. So these
+-- move by one character and one line, not by a word.
+-- WARN: the arrow has to run with 'keymodel' out of the way. "stopsel" ends a
+-- selection the moment an unshifted special key arrives and cannot tell one I
+-- typed from one a mapping fed it, so `v<Right>` opened a selection and closed
+-- it in the same breath, leaving the cursor moved and nothing selected.
+-- Clearing the option for the length of one keystroke lets the arrow keep its
+-- own meaning, wrapping across lines and all ('whichwrap' in init.lua), while
+-- the selection survives.
+local function arrow(keys)
+  return function()
+    local saved = vim.o.keymodel
+    vim.o.keymodel = ""
+    vim.api.nvim_feedkeys(vim.keycode(keys), "nx", false)
+    vim.o.keymodel = saved
+  end
+end
+
+for _, name in ipairs({ "Left", "Right", "Up", "Down" }) do
+  local shifted = ("<S-%s>"):format(name)
+  local plain = ("<%s>"):format(name)
+  local what = name:lower()
+
+  vim.keymap.set("n", shifted, arrow("v" .. plain), {
+    desc = "Select " .. what,
+  })
+
+  vim.keymap.set("x", shifted, arrow(plain), {
+    desc = "Extend the selection " .. what,
+  })
+
+  vim.keymap.set("s", shifted, arrow("<C-o>" .. plain), {
+    desc = "Extend the selection " .. what,
+  })
+end
+
+-- Shift with either is said outright rather than left to 'keymodel'.
+--
+-- Home needs it because 'keymodel' runs Vim's own meaning of the key, which
+-- is column zero rather than the indent. End needs it for a worse reason: on
+-- the keymodel path the selection starts and the screen does not repaint
+-- until the next key arrives, so the mode block still reads N, nothing is
+-- highlighted, and the cursor sits where it was. Measured against the keys
+-- beside it, every one that behaves is one bound here by hand.
+vim.keymap.set("n", "<S-End>", "v$", {
+  desc = "Select to the end of the line",
+})
+
+vim.keymap.set("x", "<S-End>", "$", {
+  desc = "Extend the selection to the end of the line",
+})
+
+vim.keymap.set("s", "<S-End>", "<C-o>$", {
+  desc = "Extend the selection to the end of the line",
+})
+
+vim.keymap.set("n", "<S-Home>", function()
+  return "v" .. home()
+end, {
+  expr = true,
+  desc = "Select to the first character of the line",
+})
+
+vim.keymap.set("x", "<S-Home>", home, {
+  expr = true,
+  desc = "Extend the selection to the first character of the line",
+})
+
+vim.keymap.set("s", "<S-Home>", function()
+  return "<C-o>" .. home()
+end, {
+  expr = true,
+  desc = "Extend the selection to the first character of the line",
+})
+
+-- Ctrl or Alt with Shift selects by the same step. 'keymodel' opens a
+-- selection on its own and reaches for Vim's own meaning of the key, which is
+-- the WORD, so the opening happens here instead.
+--
+-- Three mappings each, because the opening is what differs. From Normal there
+-- is no selection yet, so this opens Visual the way a shifted arrow does
+-- ('selectmode' is unset in init.lua). In Select, which the floating prompt
+-- still preselects in, the motion is borrowed through <C-o> or it would
+-- replace the selection with the letter. In Visual it is the plain motion.
+-- After an operator the key is left alone: `d` and a shifted arrow is not
+-- something I press.
 for _, sel in ipairs({
-  { lhs = "<C-S-Right>", motion = "w", word = "next" },
-  { lhs = "<C-S-Left>", motion = "b", word = "previous" },
+  { lhs = "<C-S-Right>", forward = true, small = false, to = "past the end of the word" },
+  { lhs = "<C-S-Left>", forward = false, small = false, to = "to the start of the previous word" },
+  { lhs = "<A-S-Right>", forward = true, small = true, to = "past the end of the subword" },
+  { lhs = "<A-S-Left>", forward = false, small = true, to = "to the start of the previous subword" },
 }) do
-  vim.keymap.set("n", sel.lhs, "v" .. sel.motion, {
-    desc = "Select to the start of the " .. sel.word .. " word",
+  vim.keymap.set("n", sel.lhs, words.select(sel.forward, sel.small), {
+    desc = "Select " .. sel.to,
   })
 
-  vim.keymap.set("x", sel.lhs, sel.motion, {
-    desc = "Extend the selection to the start of the " .. sel.word .. " word",
-  })
-
-  vim.keymap.set("s", sel.lhs, "<C-o>" .. sel.motion, {
-    desc = "Extend the selection to the start of the " .. sel.word .. " word",
+  vim.keymap.set("x", sel.lhs, words.move(sel.forward, sel.small), {
+    desc = "Extend the selection " .. sel.to,
   })
 end
 
@@ -361,15 +509,33 @@ leader("<leader>ax", vim.lsp.codelens.run, "Run the code lens on this line")
 leader("<leader>ad", find.buffer_diagnostics, "Diagnostics in this buffer")
 leader("<leader>aD", find.diagnostics, "Diagnostics in the workspace")
 
-leader("<leader>gd", vim.lsp.buf.definition, "Go to definition")
-leader("<leader>gD", vim.lsp.buf.declaration, "Go to declaration")
-leader("<leader>gi", vim.lsp.buf.implementation, "Go to implementation")
-leader("<leader>gt", vim.lsp.buf.type_definition, "Go to type definition")
-leader("<leader>gr", vim.lsp.buf.references, "Find references")
-leader("<leader>gs", vim.lsp.buf.document_symbol, "Symbols in this document")
-leader("<leader>gS", function()
-  vim.lsp.buf.workspace_symbol("")
-end, "Symbols in the workspace")
+--
+-- Each goes through find.list, so one answer is a jump and several are the
+-- picker every other list in this config opens, rather than the quickfix
+-- window stock puts them in.
+leader("<leader>gd", find.list(vim.lsp.buf.definition), "Go to definition")
+leader("<leader>gD", find.list(vim.lsp.buf.declaration), "Go to declaration")
+leader("<leader>gi", find.list(vim.lsp.buf.implementation), "Go to implementation")
+leader("<leader>gt", find.list(vim.lsp.buf.type_definition), "Go to type definition")
+-- references takes the LSP context first and its options second, unlike the
+-- four above, so the options cannot simply be passed along: handed over as
+-- the first argument they are sent to the server as the request's context,
+-- and a function in there is not something the wire can carry.
+leader(
+  "<leader>gr",
+  find.list(function(opts)
+    vim.lsp.buf.references(nil, opts)
+  end),
+  "Find references"
+)
+leader("<leader>gs", find.list(vim.lsp.buf.document_symbol), "Symbols in this document")
+leader(
+  "<leader>gS",
+  find.list(function(opts)
+    vim.lsp.buf.workspace_symbol("", opts)
+  end),
+  "Symbols in the workspace"
+)
 
 -- And Neovim's own, off, because the chains above are the way and one way is
 -- the point: a second key for the same request is a thing to keep in step and
