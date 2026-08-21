@@ -78,7 +78,7 @@ pick.setup({
 })
 
 -- mini.pick's setup() has already pointed vim.ui.select at itself, which is
--- what sends `gra` code actions and every other "pick one of these" through
+-- what sends <leader>aa code actions and every other "pick one of these" through
 -- the picker. This wrapper only sizes the float to the list: three code
 -- actions in a full-height window is mostly empty air.
 ---@diagnostic disable-next-line: duplicate-set-field it is the point
@@ -96,20 +96,47 @@ end
 
 --- The command that lists the project's files, or nil if neither tool is here.
 ---
---- Both apply .gitignore themselves, which is the same rule the file tree
---- follows: ignored files hidden, dotfiles shown. `.git/` is excluded by hand
---- because it is neither ignored nor worth seeing.
+--- What it shows is lua/mivn/filters.lua's answer, the one the tree draws, so
+--- the two views of a directory agree. Both tools apply .gitignore themselves,
+--- which is the ignored half of it; `.git/` is excluded by hand whatever the
+--- answer, because it is neither ignored nor worth seeing.
+---
+--- Spelled out here rather than left to the ripgrep configuration that module
+--- writes, because `fd` reads no configuration file at all and this is the
+--- only place its flags can come from.
 ---
 --- Not mini.extra's git_files picker: that lists what git *tracks*, which is
 --- nothing in a repository with no commits yet, so the finder would open empty
 --- on the day a project starts.
 local function files_command()
+  local shown = require("mivn.filters")
+
   if vim.fn.executable("rg") == 1 then
-    return { "rg", "--files", "--hidden", "--glob", "!.git/", "--color=never" }
+    local command = { "rg", "--files", "--glob", "!.git/", "--color=never" }
+
+    if shown.dotfiles() then
+      table.insert(command, "--hidden")
+    end
+
+    if shown.ignored() then
+      table.insert(command, "--no-ignore")
+    end
+
+    return command
   end
 
   if vim.fn.executable("fd") == 1 then
-    return { "fd", "--type=f", "--hidden", "--exclude", ".git", "--color=never" }
+    local command = { "fd", "--type=f", "--exclude", ".git", "--color=never" }
+
+    if shown.dotfiles() then
+      table.insert(command, "--hidden")
+    end
+
+    if shown.ignored() then
+      table.insert(command, "--no-ignore")
+    end
+
+    return command
   end
 
   return nil
@@ -146,8 +173,14 @@ function M.help()
   pick.builtin.help()
 end
 
+--- Everything the servers have said about the whole workspace.
 function M.diagnostics()
-  extra.pickers.diagnostic()
+  extra.pickers.diagnostic({ scope = "all" })
+end
+
+--- The same, narrowed to the file I am in.
+function M.buffer_diagnostics()
+  extra.pickers.diagnostic({ scope = "current" })
 end
 
 --- Every mapping there is, searchable.
@@ -253,19 +286,5 @@ function M.palette()
     },
   })
 end
-
--- The one deliberate override in the config. Stock `gd` jumps to a local
--- declaration by searching the file, which the language server does properly
--- and across files, and Neovim 0.11 ships `grn` `gra` `grr` `gri` `grt` but
--- nothing for definition.
-vim.api.nvim_create_autocmd("LspAttach", {
-  group = vim.api.nvim_create_augroup("mivn.find.lsp", { clear = true }),
-  callback = function(ev)
-    vim.keymap.set("n", "gd", vim.lsp.buf.definition, {
-      buffer = ev.buf,
-      desc = "Go to definition",
-    })
-  end,
-})
 
 return M

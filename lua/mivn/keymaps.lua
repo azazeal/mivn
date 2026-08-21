@@ -7,7 +7,7 @@
 --
 -- What is deliberately not here: a mapping that exists only while some buffer
 -- does. It is made when that buffer is, and it belongs with the thing it acts
--- on. `gd` and the hover float's Esc are lua/mivn/languages/'s, the message
+-- on. The hover float's Esc is lua/mivn/lsp.lua's, the message
 -- pager's Esc is init.lua's, the tree's keys are lua/mivn/tree.lua's, the
 -- dashboard's are lua/mivn/dashboard.lua's, the floating prompt's are
 -- lua/mivn/prompt.lua's, and the picker's keys are mini.pick's own key loop
@@ -19,7 +19,9 @@
 -- mapping is involved.
 
 local complete = require("mivn.complete")
+local filters = require("mivn.filters")
 local find = require("mivn.find")
+local format = require("mivn.format")
 local margins = require("mivn.margins")
 local page = require("mivn.page")
 local restart = require("mivn.restart")
@@ -328,12 +330,69 @@ leader("<leader>/", find.grep, "Search the project")
 leader("<leader>b", find.buffers, "Open buffers")
 leader("<leader>:", find.palette, "Command palette")
 leader("<leader>h", find.help, "Help")
-leader("<leader>d", find.diagnostics, "Diagnostics")
 leader("<leader>?", find.keymaps, "Every key, searchable")
 
-leader("<leader>t", tree.toggle, "Show or hide the file tree")
-leader("<leader>`", terminal.toggle, "Show or hide the terminal")
-leader("<leader>w", margins.toggle_wrap, "Toggle wrapping of long lines")
+-- <leader>t is where the toggles live, all of them, so that the question
+-- "what turns this on" has one answer and the panel under <leader>t is the
+-- list. The two that decide what a listing shows reach the tree and the
+-- finders at once, since those are two views of one directory;
+-- lua/mivn/filters.lua holds that answer and says why.
+leader("<leader>tt", tree.toggle, "Show or hide the file tree")
+leader("<leader>t`", terminal.toggle, "Show or hide the terminal")
+leader("<leader>tw", margins.toggle_wrap, "Wrap long lines in this window, or stop")
+leader("<leader>th", filters.toggle_dotfiles, "Show or hide dotfiles, in the tree and the finders")
+leader("<leader>ti", filters.toggle_ignored, "Show or hide ignored files, in the tree and the finders")
+
+-- <leader>a is what I ask the language server to do to this code, and
+-- <leader>g is where I ask it to take me. Neovim's own gr-keys still work and
+-- are left alone: these are a second way in, grouped so the panel under a
+-- prefix is the list of what a server can do rather than five letters
+-- scattered through the g-commands.
+--
+-- Both are set here rather than on LspAttach, which is what Neovim does with
+-- its own: without a server they answer "no clients attached", which is a
+-- better thing to meet than a key that silently is not there.
+leader("<leader>aa", vim.lsp.buf.code_action, "Code action")
+leader("<leader>ar", vim.lsp.buf.rename, "Rename symbol")
+leader("<leader>af", format.buffer, "Format this buffer")
+leader("<leader>aF", format.imports, "Organize imports")
+leader("<leader>ai", vim.lsp.buf.hover, "Hover documentation")
+leader("<leader>ax", vim.lsp.codelens.run, "Run the code lens on this line")
+leader("<leader>ad", find.buffer_diagnostics, "Diagnostics in this buffer")
+leader("<leader>aD", find.diagnostics, "Diagnostics in the workspace")
+
+leader("<leader>gd", vim.lsp.buf.definition, "Go to definition")
+leader("<leader>gD", vim.lsp.buf.declaration, "Go to declaration")
+leader("<leader>gi", vim.lsp.buf.implementation, "Go to implementation")
+leader("<leader>gt", vim.lsp.buf.type_definition, "Go to type definition")
+leader("<leader>gr", vim.lsp.buf.references, "Find references")
+leader("<leader>gs", vim.lsp.buf.document_symbol, "Symbols in this document")
+leader("<leader>gS", function()
+  vim.lsp.buf.workspace_symbol("")
+end, "Symbols in the workspace")
+
+-- And Neovim's own, off, because the chains above are the way and one way is
+-- the point: a second key for the same request is a thing to keep in step and
+-- a second row in every panel that lists what is bound.
+--
+-- What comes back by dropping them is Vim's: `gO` is the outline of a help
+-- page or a man page again, and `gd` its local declaration search, which is
+-- what those keys mean everywhere this editor has no server attached anyway.
+for _, lhs in ipairs({ "grn", "gra", "grr", "gri", "grt", "grx", "gO" }) do
+  pcall(vim.keymap.del, "n", lhs)
+end
+
+-- `K` is not among them because it is not global: Neovim sets it on the
+-- buffer as a server attaches, and only where nothing has claimed the key
+-- already. So it comes off the same way, one buffer at a time. Without it `K`
+-- is 'keywordprg' again, which is `:help` in Vim files and `man` elsewhere.
+vim.api.nvim_create_autocmd("LspAttach", {
+  group = vim.api.nvim_create_augroup("mivn.keymaps.lsp", { clear = true }),
+  desc = "Take Neovim's K off; hover is <leader>ai",
+  callback = function(ev)
+    pcall(vim.keymap.del, "n", "K", { buffer = ev.buf })
+  end,
+})
 
 --- The window -----------------------------------------------------------------
 

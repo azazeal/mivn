@@ -204,7 +204,8 @@ function M.to_char_column()
   vim.fn.setcursorcharpos(vim.fn.line("."), vim.v.count1)
 end
 
---- Wrap long lines in this window, or stop.
+--- Wrap long lines in this window, or stop; <leader>tw in
+--- lua/mivn/keymaps.lua.
 ---
 --- Long lines run off the right edge ('wrap' is off in init.lua); this brings
 --- them back for the window I am in. Window-local, so a prose buffer can wrap

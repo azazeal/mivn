@@ -4,10 +4,14 @@
 -- out" at a glance, which a fuzzy finder cannot. Files are opened with
 -- <leader>f, not from here.
 --
--- It gets exactly one key, <leader>t, which toggles whether it is on screen.
--- Focus stays where I am, since the toggle is about the width and not about
--- going there. Moving in and out is <C-w>h and <C-w>l, and the keys inside are
--- nvim-tree's own (`g?` lists them), minus what `on_attach` removes.
+-- It gets one key of its own, <leader>tt, which toggles whether it is on
+-- screen. Focus stays where I am, since the toggle is about the width and not
+-- about going there. Moving in and out is <C-w>h and <C-w>l, and the keys
+-- inside are nvim-tree's own (`g?` lists them), minus what `on_attach`
+-- removes and the two it re-points at lua/mivn/filters.lua.
+--
+-- What it lists is not its own business: dotfiles and ignored files are one
+-- answer shared with the finders, and that module holds it.
 
 -- A list of rows to point at, not text with columns, so no cursor is drawn in
 -- it. See lua/mivn/panel.lua, which owns this because 'guicursor' is global.
@@ -17,7 +21,7 @@ require("mivn.panel").hide_cursor_in("NvimTree")
 -- a layout collapse; the two drifting apart makes the heal resize the tree.
 local TREE_WIDTH = 32
 
---- Show or hide the tree, leaving focus where it is; <leader>t in
+--- Show or hide the tree, leaving focus where it is; <leader>tt in
 --- lua/mivn/keymaps.lua.
 local function toggle()
   require("nvim-tree.api").tree.toggle({ focus = false })
@@ -73,6 +77,14 @@ local function on_attach(bufnr)
   map("<Right>", expand, "Expand the directory")
   map("-", collapse, "Collapse the directory")
   map("<Left>", collapse, "Collapse the directory")
+
+  -- nvim-tree's own two, re-pointed at the shared answer so that flipping
+  -- one here flips it for the finders as well. Same keys, same meaning, one
+  -- more place they reach.
+  local filters = require("mivn.filters")
+
+  map("H", filters.toggle_dotfiles, "Show or hide dotfiles, here and in the finders")
+  map("I", filters.toggle_ignored, "Show or hide ignored files, here and in the finders")
 end
 
 --- The right-click menu --------------------------------------------------------
@@ -217,15 +229,16 @@ require("nvim-tree").setup({
 
   git = { enable = true },
 
-  -- Dotfiles shown, gitignored hidden: a dotfile is usually project
-  -- configuration I want to see, an ignored directory is build output.
+  -- The starting point is lua/mivn/filters.lua's, which the finders read too,
+  -- and these two flags are its opposite: nvim-tree names what it filters out
+  -- where that module names what is shown.
   --
   -- .git/ is the exception both rules miss, since it is a dotfile and git does
   -- not ignore its own directory, so it is named here. `U` toggles it back on,
-  -- the way `H` and `I` toggle the other two.
+  -- and it is the one filter that is the tree's alone.
   filters = {
-    dotfiles = false,
-    git_ignored = true,
+    dotfiles = not require("mivn.filters").dotfiles(),
+    git_ignored = not require("mivn.filters").ignored(),
     custom = { "^\\.git$" },
   },
 
@@ -266,7 +279,7 @@ require("nvim-tree").setup({
 -- unexpanded. This event fires exactly once per executed command line.
 
 vim.api.nvim_create_user_command("MivnTreeBd", function()
-  vim.notify("The tree is not a file. <Space>t hides it; Ctrl+W l goes back to the code.")
+  vim.notify("The tree is not a file. <Space>tt hides it; Ctrl+W l goes back to the code.")
 end, {
   bang = true,
   desc = "What :bd becomes inside the tree",
@@ -315,7 +328,7 @@ vim.api.nvim_create_autocmd("VimEnter", {
   end,
 })
 
--- toggle is <leader>t's, in lua/mivn/keymaps.lua; rename is only for the
+-- toggle is <leader>tt's, in lua/mivn/keymaps.lua; rename is only for the
 -- menu's Rename entry, which reaches it by module name; WIDTH is for
 -- session.lua's heal.
 return { toggle = toggle, rename = rename, WIDTH = TREE_WIDTH }

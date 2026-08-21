@@ -178,9 +178,35 @@ vim.api.nvim_create_autocmd("LspAttach", {
   end,
 })
 
+--- Code lenses ----------------------------------------------------------------
+
+-- The actions a server offers on a line, drawn above it. Neovim leaves them
+-- off, so the ones a language file asks for (Go names seven in its gopls
+-- settings) were being configured and never requested.
+--
+-- What they are in practice, measured: nothing at all on ordinary Go source,
+-- one "run test" per test function in a _test.go, and seven on a go.mod for
+-- tidy, vendor, govulncheck and the upgrades. rust-analyzer adds a reference
+-- count per item and Run and Debug above each test and above main.
+--
+-- Running the one under the cursor is <leader>ax in lua/mivn/keymaps.lua.
+-- Nothing else about them is a key: enabling asks for them and keeps them up
+-- to date on its own, so refresh and clear are machinery rather than
+-- decisions.
+vim.api.nvim_create_autocmd("LspAttach", {
+  group = vim.api.nvim_create_augroup("mivn.lsp.lenses", { clear = true }),
+  callback = function(ev)
+    local client = vim.lsp.get_client_by_id(ev.data.client_id)
+    if client and client:supports_method("textDocument/codeLens") then
+      vim.lsp.codelens.enable(true, { bufnr = ev.buf })
+    end
+  end,
+})
+
 --- Getting back out of a float ------------------------------------------------
 
--- `K` opens the documentation float and a second `K` steps into it. Neovim
+-- <leader>ai opens the documentation float and a second one steps into it.
+-- Neovim
 -- maps `q` in there to close it and leaves Esc doing nothing, which is the
 -- one place in mivn where Esc is not the way back: the rename prompt and
 -- the trust dialog both take it. This is that key doing the same thing here.

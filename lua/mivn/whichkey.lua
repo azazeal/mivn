@@ -39,7 +39,10 @@ wk.setup({
   spec = {
     { "<leader>:", icon = { icon = "󰘳", color = "purple" } },
     { "<leader>h", icon = { icon = "󰋖", color = "cyan" } },
-    { "<leader>t", icon = { icon = "󰙅", color = "blue" } },
+    { "<leader>a", group = "code" },
+    { "<leader>g", group = "goto" },
+    { "<leader>t", group = "toggle" },
+    { "<leader>tt", icon = { icon = "󰙅", color = "blue" } },
 
     -- Names for the prefixes Vim ships, so the panel explains itself instead
     -- of listing bare letters.

@@ -707,7 +707,7 @@ Not Neovim's: these come from nvim-tree, and like the picker's below they work
 **only while the cursor is inside the tree window**. Outside
 it every one of them means what the rest of this document says it means, so `H`
 is still "top of the screen" in a file. `Ctrl+W h` and `Ctrl+W l` are how you
-get in and out. `<leader>t` _(mivn)_ shows or hides the tree itself, without
+get in and out. `<leader>tt` _(mivn)_ shows or hides the tree itself, without
 moving focus.
 
 The highlighted row is the selection, and no cursor is drawn in the tree on
@@ -752,13 +752,19 @@ runs normally.
 
 ### Showing and hiding
 
-Three filters, each on its own key:
+Three filters. The first two have a key inside the tree and a key outside it,
+and both spellings do the same thing:
 
-| Key | Toggles |
-|---|---|
-| `H` | Dotfiles |
-| `I` | Files git ignores |
-| `U` | `.git/` |
+| Inside the tree | Anywhere | Toggles |
+|---|---|---|
+| `H` | `<leader>th` _(mivn)_ | Dotfiles |
+| `I` | `<leader>ti` _(mivn)_ | Files the SCM ignores |
+| `U` | | `.git/` |
+
+The first two reach the finders as well _(mivn)_, not only the tree: `<leader>f`
+and `<leader>/` list what the tree draws, because they are two views of one
+directory and a file present in one and missing from the other is a worse lie
+than either rule on its own. `U` is the tree's alone.
 
 The starting state is **dotfiles shown, ignored files hidden**, which is what
 you want almost always: a dotfile is usually project configuration worth seeing,
@@ -769,20 +775,22 @@ the same kind of hidden.
 `.git/` is the one both rules miss. It is a dotfile, so showing dotfiles shows
 it, and git does not ignore its own directory, so hiding ignored files does not
 hide it either. It is named on its own and hidden, because it is machinery
-rather than part of the project. `<leader>f` leaves it out for the same reason.
+rather than part of the project. The finders leave it out for the same reason,
+whatever the other two are set to.
 
-Both are view state, not settings. They last as long as the session and reset
-on the next start, so flipping one to go and look at something cannot leave the
-tree in a state you later have to explain to yourself.
+All of it is view state, not settings. A flip lasts as long as the session and
+belongs to that session alone, so a second window keeps the starting state and
+the next start begins there again. Going to look at something cannot leave a
+state you later have to explain to yourself.
 
 ## The picker
 
 The other set of keys here that are not Neovim's. `<leader>f` (files),
 `<leader>/` (search the project), `<leader>b` (buffers), `<leader>h` (help),
-`<leader>d` (diagnostics), `<leader>:` (commands) and `<leader>?` (every key
-there is, searchable) all open the same floating window, from mini.pick, so
-this list is learned once and covers all seven. You type to narrow the list;
-these keys act on it.
+`<leader>:` (commands), `<leader>?` (every key there is, searchable) and the
+two diagnostic lists on `<leader>ad` and `<leader>aD` all open the same
+floating window, from mini.pick, so this list is learned once and covers all
+of them. You type to narrow the list; these keys act on it.
 
 `<leader>?` is the one to remember while learning: it lists every mapping this
 editor has, Vim's own grammar and the plugins' included, each with its
@@ -790,7 +798,7 @@ description, and picking one runs it. `lua/mivn/keymaps.lua` is the same list
 as a file, for the keys mivn itself takes.
 
 Neovim's own "choose one of these" prompts come through the same window too,
-sized to fit their list _(mivn)_: `gra` code actions are the one you will
+sized to fit their list _(mivn)_: `<Space>aa` code actions are the one you will
 meet first. `Esc` backs out of those without choosing, like any picker.
 
 | Key | Does |
@@ -817,7 +825,7 @@ window.
 
 ## The terminal
 
-`` <leader>` `` _(mivn)_ shows and hides a terminal panel along the bottom;
+`` <leader>t` `` _(mivn)_ shows and hides a terminal panel along the bottom;
 the shell survives hiding. What it opens is the built-in terminal, so
 everything below applies to it.
 
@@ -947,40 +955,70 @@ recognizable if it happens.
 
 ## Language server
 
-Neovim 0.11 binds these when a server attaches. No plugin involved.
+Neovim binds `grn` `gra` `grr` `gri` `grt` `grx` `gO` and `K` when a server
+attaches. mivn takes all eight off _(mivn)_ and puts the same requests on two
+leader chains instead: `<Space>a` is what to ask the server to do to this
+code, `<Space>g` is where to ask it to take you. One key per request, and a
+prefix panel that lists what a language server can do rather than five letters
+scattered through the g-commands.
 
 | Key | Does |
 |---|---|
-| `K` | Hover documentation |
-| `grn` | Rename symbol |
-| `gra` | Code action |
-| `grr` | Find references |
-| `gri` | Go to implementation |
-| `grt` | Go to type definition |
-| `gO` | Document symbols |
+| `<Space>aa` | Code action |
+| `<Space>ar` | Rename symbol |
+| `<Space>af` | Format this buffer |
+| `<Space>aF` | Organize imports |
+| `<Space>ai` | Hover documentation |
+| `<Space>ax` | Run the code lens on this line |
+| `<Space>ad` / `<Space>aD` | Diagnostics, this buffer / the workspace |
+| `<Space>gd` / `<Space>gD` | Go to definition / declaration |
+| `<Space>gi` | Go to implementation |
+| `<Space>gt` | Go to type definition |
+| `<Space>gr` | Find references |
+| `<Space>gs` / `<Space>gS` | Symbols, this document / the workspace |
 | `Ctrl+S` (Insert) | Signature help |
 | `]d` / `[d` | Next / previous diagnostic |
-| `gd` | Go to definition _(mivn)_ |
 
-Go-to-definition has no default binding, the one obvious gap in the stock
-list, so mivn binds `gd` over the stock file-local declaration search when a
-server attaches. `:h lsp-defaults` is the authority on the rest for your
-exact version.
+The two Neovim keeps are the two with no twin. `:h lsp-defaults` is the
+authority on what it would have bound for your exact version.
 
-`grn` asks for the new name in a one-line float at the symbol _(mivn)_ rather
-than on the bottom bar, prefilled and preselected: typing replaces the old
-name, Enter applies the rename, `Esc` backs out with nothing changed.
+Dropping the stock eight hands two keys back to Vim: `gO` is the outline of a
+help page or a man page again, `gd` its local declaration search, and `K` is
+'keywordprg', which means `:help` in Vim files and `man` elsewhere.
 
-`K` and the other floats Neovim opens are framed _(mivn)_, stock draws them
-with no border and their text sits straight on top of the buffer. The picker
-and the rename prompt always looked this way; this is the rest of them
+`<Space>af` is the formatting half of a write, and the same code: the
+language's own formatter where its file names one, and the single server
+chosen to do it otherwise. `<Space>aF` is the imports half. Neither can drift
+from what saving does, because saving calls them.
+
+Two of these are quieter than they look. `<Space>gD` is answered by very few
+servers, since declaration and definition are the same place in most
+languages; C is the one where they are not. `<Space>aD` is the diagnostics
+already known, not a request for more: gopls and golangci-lint push their
+findings rather than answering a pull, so there is nothing to ask for.
+
+`<Space>ar` asks for the new name in a one-line float at the symbol _(mivn)_
+rather than on the bottom bar, prefilled and preselected: typing replaces the
+old name, Enter applies the rename, `Esc` backs out with nothing changed.
+
+`<Space>ax` runs the code lens on the cursor's line. Neovim leaves lenses off;
+mivn asks for them wherever a server offers them _(mivn)_, and they draw in
+dim italics above the line they belong to. What that amounts to, measured:
+nothing on ordinary Go source, one "run test" above each test function, and
+seven on a `go.mod` for tidy, vendor, govulncheck and the upgrades.
+rust-analyzer adds a reference count per item and Run and Debug above each
+test and above `main`.
+
+The hover float and the others Neovim opens are framed _(mivn)_, stock draws
+them with no border and their text sits straight on top of the buffer. The
+picker and the rename prompt always looked this way; this is the rest of them
 matching.
 
-`K` twice puts the cursor inside the float, and from there it is an ordinary
-window: `PageUp` and `PageDown`, `Ctrl+D` and `Ctrl+U`, `j` and `k` all move
-in it. `Esc` closes it _(mivn)_, as does Neovim's own `q`. Left alone, the
-float goes away by itself the moment the cursor moves in the buffer under
-it. Signature help and the diagnostic float take the same two keys.
+`<Space>ai` twice puts the cursor inside the float, and from there it is an
+ordinary window: `PageUp` and `PageDown`, `Ctrl+D` and `Ctrl+U`, `j` and `k` all
+move in it. `Esc` closes it _(mivn)_, as does Neovim's own `q`. Left alone, the
+float goes away by itself the moment the cursor moves in the buffer under it.
+Signature help and the diagnostic float take the same two keys.
 
 The markup stays hidden under the cursor while reading _(mivn)_. Stock shows
 the line the cursor is on as raw text, so stepping into a float landed on
