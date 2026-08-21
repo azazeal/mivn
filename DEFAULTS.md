@@ -296,7 +296,7 @@ what it acts on.
 | `E` / `gE` | End of WORD / previous WORD, as Vim has them |
 | `0` | Column zero |
 | `^` | First non-blank character |
-| `$` | End of line |
+| `$` | Past the end of the line _(mivn)_ |
 | `{count}\|` | Column `{count}`, counted in characters _(mivn)_ |
 | `f{char}` | Forward onto the next `{char}` |
 | `F{char}` | Backward onto the previous `{char}` |
@@ -327,6 +327,22 @@ last word of a line exists at all.
 
 It works after an operator too, where Vim's own inclusive `e` covers the same
 text: `d`+Ctrl+`→` deletes the word and no more.
+
+The cursor is a bar rather than a block _(mivn)_, and that is the same
+decision seen from the other end. Neovim's cursor is a buffer position either
+way and the shape changes nothing: every key that acts on "the character under
+the cursor" acts on the one to the right of the bar. `x` deletes it, `i` opens
+before it, an operator runs forward from it, a selection stops at it. Neovim
+already draws Visual-with-exclusive-selection as a bar in its stock value, for
+this reason; this is that reasoning carried into Normal mode. What it costs is
+`r` and `~`, which act on the character to the right of the bar without
+showing which one that is.
+
+`$` moves past the end of the line for the same reason _(mivn)_, in Normal
+mode only, so `d$` still stops at the end. It cannot take a line break with
+it: the boundary after the last character is still on that line, before the
+newline, so `v$`, Shift+End and the rest yank the line's text and it takes one
+more press to cross.
 
 The letters keep step with the arrows, because the model has to hold whichever
 key reaches for it _(mivn)_. `b` needs nothing, being what Ctrl+`←` runs. `w`

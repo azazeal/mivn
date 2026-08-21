@@ -218,6 +218,23 @@ vim.opt.selection = "exclusive"
 -- this is that, everywhere.
 vim.opt.virtualedit = "onemore"
 
+-- A bar in Normal mode, not a block.
+--
+-- The shape is only a shape: Neovim's cursor is a buffer position either way,
+-- and every key that acts on "the character under the cursor" acts on the one
+-- to the right of the bar. That reading is the true one here. `x` deletes it,
+-- `i` opens before it, an operator runs forward from it and a selection stops
+-- at it, so what is drawn now says what the keys have meant since 'selection'
+-- went exclusive.
+--
+-- Neovim already agreed one mode over: `ve`, Visual with exclusive selection,
+-- is a bar in the stock value for exactly this reason. This is that reasoning
+-- carried into Normal.
+--
+-- WARN: the two keys that lose by it are `r` and `~`, which act on the
+-- character to the right of the bar and no longer show which one that is.
+vim.opt.guicursor = "n:ver25,v-c-sm:block,i-ci-ve:ver25,r-cr-o:hor20,t:block-blinkon500-blinkoff500-TermCursor"
+
 -- 'clipboard' is deliberately left empty. It can only make the unnamed
 -- register *be* the clipboard, which puts every delete on the clipboard along
 -- with the copies; `y` and `p` reach it through mappings instead, and Vim's

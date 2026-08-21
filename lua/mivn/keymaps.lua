@@ -227,6 +227,19 @@ vim.keymap.set("n", "ge", "gel", {
   desc = "Move past the end of the previous word",
 })
 
+-- And the end of the line, for the same reason: `$` stops on the last
+-- character, which under a bar reads as being before it. Normal mode only, so
+-- `d$` still deletes to the end and no further.
+--
+-- It cannot take a line break with it. The boundary after the last character
+-- is still on that line, before the newline rather than after it, so a
+-- selection reaching it holds the line's text: measured, `v$`, `v$l` and
+-- Shift+End all yank `foo bar baz` with no newline, and it takes one more
+-- press to cross.
+vim.keymap.set("n", "$", "$l", {
+  desc = "Move past the end of the line",
+})
+
 -- Ctrl or Alt with Shift selects by the same step. 'keymodel' opens a
 -- selection on its own and reaches for Vim's own meaning of the key, which is
 -- the WORD, so the opening happens here instead.
