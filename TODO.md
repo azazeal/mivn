@@ -22,12 +22,6 @@ checked off; git remembers them.
     version of this fix is upstream's to make. File it there, or carry a
     careful local one.
 
-- [ ] Shift+PageDown reaches one line too far. Measured on 2026-08-04: 90 ->
-    112 where a 21-line window says 111, with "startsel" in 'keymodel' and
-    the selection still one character wide, the cursor sitting on its own
-    anchor. The Ctrl+Shift+arrow half of this is gone with the word keys'
-    rewrite, which no longer leans on Vim's own meaning of the key.
-
 ## Languages
 
 - [ ] Check whether treesitter indentation beats the built-in ftplugins for

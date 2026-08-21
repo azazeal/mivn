@@ -202,7 +202,13 @@ vim.opt.whichwrap:append("<,>,[,]")
 -- extending it, so hjkl is how I adjust one. And exclusive takes one
 -- character off a character-wise Visual yank: on "amm", `vlly` yanks "am".
 -- Text objects and operators are unaffected.
-vim.opt.keymodel = "startsel,stopsel"
+-- "stopsel" only. "startsel" is what used to open a selection when a shifted
+-- special key was pressed, and it is gone because that path does not repaint:
+-- the selection started, the screen kept the old mode, the old highlight and
+-- the old cursor until the next key arrived. Every shifted key that behaved
+-- turned out to be one lua/mivn/keymaps.lua binds by hand, so now they all
+-- are, and nothing is left for "startsel" to do.
+vim.opt.keymodel = "stopsel"
 vim.opt.selection = "exclusive"
 
 -- The cursor may sit one past the last character of a line.

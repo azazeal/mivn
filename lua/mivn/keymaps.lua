@@ -254,10 +254,74 @@ vim.keymap.set("n", "<End>", "$l", {
   desc = "Move past the end of the line",
 })
 
--- Shift with either needs saying outright: 'keymodel' opens the selection and
--- then runs Vim's own meaning of the key, which for Home is column zero.
--- Shift+End needs nothing, since exclusive selection already carries `$` to
--- the end of the line.
+-- Shift and an arrow selects by a character or a line. Said here rather than
+-- left to 'keymodel', which is the whole reason 'keymodel' no longer carries
+-- "startsel" at all (init.lua).
+--
+-- What that path did wrong: the selection started and the screen did not
+-- repaint until the next key arrived, so the mode block still read N, nothing
+-- was highlighted, and the cursor sat where it had been. Every key that
+-- behaved was one bound by hand, which is how it was found. Shift+End made it
+-- obvious because it jumps far; the arrows hid it by moving one cell, where a
+-- screen one keypress behind looks much like a screen that is up to date.
+--
+-- The motion is the *unshifted* key's, which is what "startsel" did too: it
+-- spends the Shift on opening the selection and runs the key plain. So these
+-- move by one character and one line, not by a word.
+-- WARN: the arrow has to run with 'keymodel' out of the way. "stopsel" ends a
+-- selection the moment an unshifted special key arrives and cannot tell one I
+-- typed from one a mapping fed it, so `v<Right>` opened a selection and closed
+-- it in the same breath, leaving the cursor moved and nothing selected.
+-- Clearing the option for the length of one keystroke lets the arrow keep its
+-- own meaning, wrapping across lines and all ('whichwrap' in init.lua), while
+-- the selection survives.
+local function arrow(keys)
+  return function()
+    local saved = vim.o.keymodel
+    vim.o.keymodel = ""
+    vim.api.nvim_feedkeys(vim.keycode(keys), "nx", false)
+    vim.o.keymodel = saved
+  end
+end
+
+for _, name in ipairs({ "Left", "Right", "Up", "Down" }) do
+  local shifted = ("<S-%s>"):format(name)
+  local plain = ("<%s>"):format(name)
+  local what = name:lower()
+
+  vim.keymap.set("n", shifted, arrow("v" .. plain), {
+    desc = "Select " .. what,
+  })
+
+  vim.keymap.set("x", shifted, arrow(plain), {
+    desc = "Extend the selection " .. what,
+  })
+
+  vim.keymap.set("s", shifted, arrow("<C-o>" .. plain), {
+    desc = "Extend the selection " .. what,
+  })
+end
+
+-- Shift with either is said outright rather than left to 'keymodel'.
+--
+-- Home needs it because 'keymodel' runs Vim's own meaning of the key, which
+-- is column zero rather than the indent. End needs it for a worse reason: on
+-- the keymodel path the selection starts and the screen does not repaint
+-- until the next key arrives, so the mode block still reads N, nothing is
+-- highlighted, and the cursor sits where it was. Measured against the keys
+-- beside it, every one that behaves is one bound here by hand.
+vim.keymap.set("n", "<S-End>", "v$", {
+  desc = "Select to the end of the line",
+})
+
+vim.keymap.set("x", "<S-End>", "$", {
+  desc = "Extend the selection to the end of the line",
+})
+
+vim.keymap.set("s", "<S-End>", "<C-o>$", {
+  desc = "Extend the selection to the end of the line",
+})
+
 vim.keymap.set("n", "<S-Home>", function()
   return "v" .. home()
 end, {

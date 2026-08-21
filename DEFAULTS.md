@@ -235,9 +235,15 @@ they just have no way to move in Insert mode without leaving it first.
 
 ### Selecting with Shift
 
-Shift and an arrow selects, the way it does in every other editor. No mapping is
-involved: `init.lua` sets `'keymodel'` and `'selection'`, two options Vim ships
-for exactly this, and the keys were bound already. Shift+`←`/`→` extends by a
+Shift and an arrow selects, the way it does in every other editor. Every one of
+those keys is mapped by hand _(mivn)_, which is not where this started: Vim
+ships `'keymodel'` with a "startsel" flag that opens a selection when a shifted
+special key arrives, and that is what this used to lean on. It had to go. On
+that path the selection began and the screen did not repaint until the next key
+arrived, so the mode block still read `N`, nothing was highlighted, and the
+cursor sat where it had been; the state was real, and a `d` right after would
+delete the selection you could not see. `'keymodel'` keeps "stopsel" alone, so
+an unshifted key still ends a selection. Shift+`←`/`→` extends by a
 character, Shift+`↑`/`↓` by a line, Ctrl+Shift+`←`/`→` by a word and
 Alt+Shift+`←`/`→` by a subword _(mivn)_,
 Shift+Home/End to either end of the line, Shift+PageUp/PageDown by a page,
