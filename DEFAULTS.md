@@ -291,7 +291,9 @@ what it acts on.
 | `b` / `B` | Start of previous word / WORD |
 | Ctrl+`→` / Ctrl+`←` | Past the end of the word / start of the previous one _(mivn)_ |
 | Alt+`→` / Alt+`←` | The same, by subword _(mivn)_ |
-| `e` / `E` | End of word / WORD |
+| `e` | Past the end of the word _(mivn)_ |
+| `ge` | Past the end of the previous word _(mivn)_ |
+| `E` / `gE` | End of WORD / previous WORD, as Vim has them |
 | `0` | Column zero |
 | `^` | First non-blank character |
 | `$` | End of line |
@@ -325,6 +327,15 @@ last word of a line exists at all.
 
 It works after an operator too, where Vim's own inclusive `e` covers the same
 text: `d`+Ctrl+`→` deletes the word and no more.
+
+The letters keep step with the arrows, because the model has to hold whichever
+key reaches for it _(mivn)_. `b` needs nothing, being what Ctrl+`←` runs. `w`
+needs nothing either and is a different motion, landing on the first letter of
+the next word rather than after the last of this one. `e` and `ge` were the
+pair one column short and now land past the end, in Normal mode only: after an
+operator `de` already covers the word and no more, and in Visual exclusive
+selection has been giving `e` its extra column all along. `E` and `gE` are
+untouched.
 
 Alt and an arrow does the same by **subword**, the piece of an identifier a
 camel hump or an underscore marks off _(mivn)_. `parseHTTPUrl` is `parse`,

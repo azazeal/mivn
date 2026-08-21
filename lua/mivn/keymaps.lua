@@ -206,6 +206,27 @@ vim.keymap.set("n", "<A-Left>", words.subword(false), {
   desc = "Move to the start of the previous subword",
 })
 
+-- The letters kept in step with the arrows, since the model has to hold
+-- whichever key reaches for it. `b` needs nothing: it *is* what Ctrl+Left
+-- runs. `w` needs nothing either, and is not the same motion, landing on the
+-- first letter of the next word rather than after the last of this one, which
+-- is a boundary too and one the arrows do not offer.
+--
+-- `e` and `ge` are the pair that were one column short, so they take the same
+-- `l`. Normal mode alone: after an operator `de` already covers the word and
+-- no more, and in Visual exclusive selection has been giving `e` its extra
+-- column since long before any of this.
+--
+-- `E` and `gE` are left where Vim put them, WORD and all. Nothing here is
+-- bound to them and nothing here changes them.
+vim.keymap.set("n", "e", "el", {
+  desc = "Move past the end of the word",
+})
+
+vim.keymap.set("n", "ge", "gel", {
+  desc = "Move past the end of the previous word",
+})
+
 -- Ctrl or Alt with Shift selects by the same step. 'keymodel' opens a
 -- selection on its own and reaches for Vim's own meaning of the key, which is
 -- the WORD, so the opening happens here instead.
