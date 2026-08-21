@@ -361,15 +361,33 @@ leader("<leader>ax", vim.lsp.codelens.run, "Run the code lens on this line")
 leader("<leader>ad", find.buffer_diagnostics, "Diagnostics in this buffer")
 leader("<leader>aD", find.diagnostics, "Diagnostics in the workspace")
 
-leader("<leader>gd", vim.lsp.buf.definition, "Go to definition")
-leader("<leader>gD", vim.lsp.buf.declaration, "Go to declaration")
-leader("<leader>gi", vim.lsp.buf.implementation, "Go to implementation")
-leader("<leader>gt", vim.lsp.buf.type_definition, "Go to type definition")
-leader("<leader>gr", vim.lsp.buf.references, "Find references")
-leader("<leader>gs", vim.lsp.buf.document_symbol, "Symbols in this document")
-leader("<leader>gS", function()
-  vim.lsp.buf.workspace_symbol("")
-end, "Symbols in the workspace")
+--
+-- Each goes through find.list, so one answer is a jump and several are the
+-- picker every other list in this config opens, rather than the quickfix
+-- window stock puts them in.
+leader("<leader>gd", find.list(vim.lsp.buf.definition), "Go to definition")
+leader("<leader>gD", find.list(vim.lsp.buf.declaration), "Go to declaration")
+leader("<leader>gi", find.list(vim.lsp.buf.implementation), "Go to implementation")
+leader("<leader>gt", find.list(vim.lsp.buf.type_definition), "Go to type definition")
+-- references takes the LSP context first and its options second, unlike the
+-- four above, so the options cannot simply be passed along: handed over as
+-- the first argument they are sent to the server as the request's context,
+-- and a function in there is not something the wire can carry.
+leader(
+  "<leader>gr",
+  find.list(function(opts)
+    vim.lsp.buf.references(nil, opts)
+  end),
+  "Find references"
+)
+leader("<leader>gs", find.list(vim.lsp.buf.document_symbol), "Symbols in this document")
+leader(
+  "<leader>gS",
+  find.list(function(opts)
+    vim.lsp.buf.workspace_symbol("", opts)
+  end),
+  "Symbols in the workspace"
+)
 
 -- And Neovim's own, off, because the chains above are the way and one way is
 -- the point: a second key for the same request is a thing to keep in step and
