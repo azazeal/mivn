@@ -307,6 +307,21 @@ return {
     golangci_lint_ls = {
       binary = "golangci-lint-langserver",
       probe = false,
+
+      config = {
+        -- nvim-lspconfig puts .golangci.yml at the head of this list, and a
+        -- marker list is read in order rather than nearest-first, so a single
+        -- shared config above a tree of checkouts roots every file in them at
+        -- that directory. Mine sits in ~, which rooted this server at ~ for
+        -- every Go file with no nearer config.
+        --
+        -- Nothing is lost by dropping it. The language server finds the module
+        -- from the file it was asked about and runs golangci-lint there,
+        -- ignoring this root entirely, and golangci-lint walks up from that
+        -- module on its own to find the config. A root is a workspace, and the
+        -- workspace is the module.
+        root_markers = { "go.work", "go.mod", ".git" },
+      },
     },
   },
 }
