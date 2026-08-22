@@ -13,20 +13,6 @@ checked off; git remembers them.
     (`file.go:12.2,15.9 3 1`) and extmarks do the rest. Decide in a monthly
     batch, not now.
 
-- [ ] Guard ui2's pager window against opening files into it. With focus in
-    the pager, `:view /etc/hosts` opens the file inside the float: measured
-    2026-08-04 and again 2026-08-22, where the pager window went from ui2's
-    own buffer to the file's while ui2 went on believing its buffer was still
-    in there. ui2 later swaps its own back in, leaving the file loaded and
-    shown nowhere. 'winfixbuf' on the pager window is the obvious guard, but
-    ui2 itself puts buffers into that window when it rebuilds one, and a fixed
-    buffer turns that into an error, so the clean version of this fix is
-    upstream's to make. File it there, or carry a careful local one.
-
-    Worth more now than when it was filed: `:ls` and `:!cmd` both land in the
-    pager since the message routing went in, so reaching this state is a
-    normal afternoon rather than an experiment.
-
 ## Languages
 
 - [ ] Check whether treesitter indentation beats the built-in ftplugins for

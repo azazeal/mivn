@@ -120,6 +120,44 @@ if ui2 then
   -- to be drawn on.
   vim.opt.cmdheight = 0
 
+  -- Keep files out of the pager's window.
+  --
+  -- The pager is a window I land in, so a `:view` or a `gf` typed while I am
+  -- still in it opens the file *inside the float*. ui2 then repairs its own
+  -- window on the next thing that disturbs it and the file is left loaded and
+  -- shown nowhere. That repair is `nvim_win_set_buf`, which is illegal while
+  -- the command-line window is open, and 'cmdheight' 0 above is what makes it
+  -- run often enough to collide: ui2 sets the option on every command line,
+  -- and every set fires this OptionSet.
+  --
+  -- So the file is moved out rather than refused: 'winfixbuf' would refuse
+  -- ui2's own rebuild too, which is why the obvious guard is not this one.
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = vim.api.nvim_create_augroup("mivn.ui2.pager", { clear = true }),
+    desc = "Open a file that landed in the message pager somewhere it belongs",
+    callback = function(ev)
+      local ok, ui = pcall(require, "vim._core.ui2")
+      if not ok or ev.buf == ui.bufs.pager then
+        return
+      end
+
+      local win = vim.api.nvim_get_current_win()
+      if win ~= ui.wins.pager or not vim.api.nvim_win_is_valid(win) then
+        return
+      end
+
+      -- Put ui2's own buffer back before leaving, so it never sees a window
+      -- of its own holding someone else's buffer.
+      vim.schedule(function()
+        if vim.api.nvim_win_is_valid(win) and vim.api.nvim_buf_is_valid(ui.bufs.pager) then
+          vim.api.nvim_win_set_buf(win, ui.bufs.pager)
+        end
+        vim.api.nvim_win_close(win, false)
+        vim.cmd.buffer(ev.buf)
+      end)
+    end,
+  })
+
   -- ui2's message pager (`g<`, :messages) is a window I land in, and ui2
   -- only maps q to close it. Esc closes it too, the way it closes the hover
   -- float (lua/mivn/languages/): one reflex for every transient view. The
