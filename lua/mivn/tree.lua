@@ -209,15 +209,60 @@ require("nvim-tree").setup({
     signcolumn = "no",
   },
 
+  -- Four states share a file's row, on four planes that cannot collide: git
+  -- colours the name, an open buffer bolds it, a diagnostic underlines it,
+  -- and an unsaved edit puts a dot after it. The decorators are additive, so
+  -- each adds only its own attribute; colors/basalt.lua carries the WARN
+  -- about what happens if one of them sets a foreground.
   renderer = {
     group_empty = true, -- collapse a/b/c when each holds only the next
     root_folder_label = false,
     highlight_git = "name", -- color the file name, as Zed does
+    highlight_opened_files = "name", -- bold, so the buffer I am in is findable
+    highlight_diagnostics = "name", -- the undercurl, not a colour
+    highlight_modified = "none", -- the dot says it; a colour would hide git's
+
+    -- Otherwise a directory whose contents are all filtered out reads as
+    -- empty, which is the lie lua/mivn/filters.lua exists to avoid, told
+    -- inside the tree instead of between the tree and the finders.
+    --
+    -- "all" breaks the count down by reason and runs to about 30 columns,
+    -- which wraps in a panel this wide.
+    hidden_display = "simple",
+
+    -- Nothing is special. The stock list draws README.md and Cargo.toml in
+    -- the colour an open directory uses.
+    special_files = {},
+
     indent_markers = { enable = true },
     icons = {
-      show = { file = true, folder = true, folder_arrow = true, git = false },
+      show = {
+        file = true,
+        folder = true,
+        folder_arrow = true,
+        git = false,
+        diagnostics = false,
+      },
     },
   },
+
+  -- Which files are broken, without opening them. Capped at warnings: a hint
+  -- is what a linter puts in a list, not what a layout panel says at a
+  -- glance, and its underline colour is the comment grey anyway.
+  --
+  -- No icon: there is no sign column here (`view.signcolumn` above), which is
+  -- where nvim-tree would put one, so asking for it would draw nothing.
+  -- `show_on_dirs` is the whole value, since a collapsed folder is the one
+  -- case the buffer's own gutter cannot cover.
+  diagnostics = {
+    enable = true,
+    show_on_dirs = true,
+    severity = { min = vim.diagnostic.severity.WARN },
+  },
+
+  -- The tab bar already marks an unsaved buffer, so this is here for the
+  -- folder that is collapsed over one.
+  modified = { enable = true },
 
   -- The tree is rooted at the working directory and stays there. `update_root`
   -- off is what keeps it from climbing out of the project when a jump to a

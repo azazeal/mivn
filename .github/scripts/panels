@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+#
+# Runs one thing against every buffer mivn puts on screen that has no file
+# behind it, and says which of them it raises on.
+#
+#   panels --key '<Space>tr'      feed keys
+#   panels --cmd 'MivnBdAll'      run an Ex command
+#   panels --write                run the save chain (BufWritePre)
+#
+# Why this exists. Twice now a key has been added that assumes a file behind
+# the buffer, and twice the banner was where it fell over: `:ls` there is
+# empty by construction, and `<Space>tr` raised out of mini.diff. Both were
+# found by hand, after the fact. `nvim --headless "+lua io.write('ok')"` says
+# nothing about either, because it only proves the config loads.
+#
+# WARN: an error raised inside a mapping callback does not reach `pcall`, it
+# is reported. So this clears the message history, does the thing, and then
+# greps the messages. A `pcall` around `nvim_feedkeys` reports success on a
+# mapping that just threw, which is the trap this script exists to avoid.
+#
+# The dashboard does not open on its own without a UI, so it is summoned. The
+# ui2 pager cannot be reached at all headlessly: its windows are built lazily
+# and there is no UI to build them for, so nothing here covers it.
+
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+die() {
+  echo "panels: $1" >&2
+  exit 1
+}
+
+kind="${1:-}"
+case $kind in
+  --key | --cmd)
+    subject="${2:?usage: panels --key <keys> | --cmd <command> | --write}"
+    ;;
+  --write) subject="" ;;
+  *) die "usage: panels --key <keys> | --cmd <command> | --write" ;;
+esac
+
+# The suffix matters: `-S` decides how to read a file by its extension, so
+# without it nvim sources this as Vimscript and hangs on the first line.
+probe=$(mktemp --suffix=.lua) || die "could not make a scratch file"
+trap 'rm -f "$probe"' EXIT
+
+cat > "$probe" <<'LUA'
+local kind, subject, where = vim.env.MIVN_KIND, vim.env.MIVN_SUBJECT, vim.env.MIVN_PANEL
+
+local open = {
+  dashboard = function() require("mivn.dashboard").open() end,
+  tree = function() require("mivn.tree").toggle() end,
+  terminal = function() require("mivn.terminal").toggle() end,
+  file = function() vim.cmd("edit README.md") end,
+}
+
+vim.wait(600)
+open[where]()
+vim.wait(400)
+
+vim.cmd("messages clear")
+
+if kind == "--key" then
+  pcall(vim.api.nvim_feedkeys, vim.keycode(subject), "mx", false)
+elseif kind == "--cmd" then
+  pcall(vim.cmd, subject)
+else
+  pcall(vim.cmd, "doautocmd BufWritePre")
+end
+
+vim.wait(600)
+
+-- Only what a reader would call a failure. A notify at WARN is this config
+-- declining on purpose, which is the outcome being tested for.
+local said = vim.fn.execute("messages")
+local bad = said:match("E%d+:[^\n]*") or said:match("stack traceback")
+
+io.write(("  %-10s %s\n"):format(where, bad and ("RAISED  " .. bad:sub(1, 60)) or "ok"))
+vim.cmd("qa!")
+LUA
+
+status=0
+for panel in dashboard tree terminal file; do
+  out=$(MIVN_KIND="$kind" MIVN_SUBJECT="$subject" MIVN_PANEL="$panel" \
+    timeout 40 env NVIM_APPNAME=mivn nvim --headless -S "$probe" 2>&1 | tail -1)
+  echo "$out"
+  case $out in *RAISED*) status=1 ;; esac
+done
+
+exit $status

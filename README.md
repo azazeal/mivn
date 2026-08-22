@@ -188,6 +188,7 @@ and these chains are the ones with a panel behind them.
 | `<Space>tw` | Wrapping long lines, in this window |
 | `<Space>th` | Dotfiles, in the tree and the finders at once |
 | `<Space>ti` | Files the SCM ignores, in the tree and the finders at once |
+| `<Space>tr` | The old text, inline, for every line I have changed |
 
 The last two answer for both views of a directory, so a file drawn in one and
 missing from the other cannot happen.
