@@ -177,17 +177,40 @@ local function section_project()
   return parent .. "/" .. vim.fs.basename(cwd)
 end
 
---- The filetype, and nothing else.
+--- The filetype, as the one glyph that stands for it.
 ---
 --- mini.statusline's own section_fileinfo adds the encoding, the line ending
 --- and the file size, all three near-constant here, so they are three columns
 --- of noise beside the one that matters.
+---
+--- The glyph is the same one the tree and the pickers draw for that language,
+--- from mini.icons, so the language reads the same everywhere. Uncoloured, in
+--- the section's own highlight: the icon groups carry a foreground and no
+--- background, so drawing one in its own colour would punch a hole in the
+--- block this section is drawn as.
+---
+--- A filetype mini.icons has no glyph for gets a generic file, which would
+--- make every such language look alike, so those keep their name instead.
+--- Today gotmpl is the only one here.
+---
+--- Required inside rather than at the top: this runs on redraw, long after
+--- lua/mivn/find.lua has set the plugin up, and requiring it at load would
+--- put the order of two unrelated modules in the way of the status line
+--- drawing at all.
 local function section_filetype(trunc_width)
-  if statusline.is_truncated(trunc_width) or vim.bo.filetype == "" then
+  local filetype = vim.bo.filetype
+  if statusline.is_truncated(trunc_width) or filetype == "" then
     return ""
   end
 
-  return vim.bo.filetype
+  local ok, icons = pcall(require, "mini.icons")
+  if not ok then
+    return filetype
+  end
+
+  local glyph, _, default = icons.get("filetype", filetype)
+
+  return default and filetype or glyph
 end
 
 --- The search count, labelled: "F: 3/20" while a search is live.
