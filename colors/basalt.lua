@@ -24,12 +24,19 @@ vim.o.background = "dark"
 
 -- The base scale, darkest to lightest, then the accents.
 local c = {
-  bg0 = "#0A0C10", -- deeper than the editor background: floats, inactive tabs
-  bg = "#0F1219", -- editor background
-  bg1 = "#12161D",
-  bg2 = "#171B24", -- current line
-  bg3 = "#1E242E", -- panels, popups, active tab, separators, indent guides
-  bg4 = "#2C313A", -- selection
+  -- The backgrounds are levels, and the rule is about the page: what sits
+  -- beside or behind the file goes under it, what is drawn on top of the file
+  -- goes over it. The depth step is what separates two surfaces; that is why
+  -- the tree needs no visible separator.
+  bg0 = "#0A0C10", -- under the page: the tree, the tab strip, inactive tabs
+  bg = "#0F1219", -- the page: the buffer and its number and sign columns
+  bg1 = "#12161D", -- in the window but not in the file: folds, inlay hints,
+  -- diagnostic virtual text, the old text the diff overlay shows
+  bg2 = "#171B24", -- the active row, below the page
+  bg3 = "#1E242E", -- over the page: floats, popups, the status line, the
+  -- active tab, separators, indent guides
+  bg4 = "#2C313A", -- spare. Was the selection until that became a tint, and
+  -- only the code-lens separator reads it now
   bg5 = "#3E4452", -- scrollbar thumb, listchars
   bg6 = "#495162", -- line numbers, inactive tab text
   bg7 = "#546178", -- comments, untracked files
@@ -406,14 +413,14 @@ hl({
   -- The active tab lifts to the panel background, the rest sit back on the
   -- editor background.
   MiniTablineCurrent = { fg = c.fg, bg = c.bg3, bold = true },
-  MiniTablineVisible = { fg = c.bg7, bg = c.bg },
-  MiniTablineHidden = { fg = c.bg6, bg = c.bg },
+  MiniTablineVisible = { fg = c.bg7, bg = c.bg0 },
+  MiniTablineHidden = { fg = c.bg6, bg = c.bg0 },
 
   -- Unsaved changes are the one thing worth coloring, so an unwritten buffer is
   -- obvious without reading the name.
   MiniTablineModifiedCurrent = { fg = c.yellow, bg = c.bg3, bold = true },
-  MiniTablineModifiedVisible = { fg = c.yellow1, bg = c.bg },
-  MiniTablineModifiedHidden = { fg = c.orange, bg = c.bg },
+  MiniTablineModifiedVisible = { fg = c.yellow1, bg = c.bg0 },
+  MiniTablineModifiedHidden = { fg = c.orange, bg = c.bg0 },
 
   MiniTablineFill = { bg = c.bg0 },
   MiniTablineTabpagesection = { fg = c.bg, bg = c.magenta, bold = true },
@@ -448,7 +455,7 @@ hl({
   NvimTreeOpenedFolderName = { fg = c.blue, bold = true },
   NvimTreeEmptyFolderName = { fg = c.bg6 },
   NvimTreeIndentMarker = { fg = c.bg3 },
-  NvimTreeCursorLine = { bg = c.bg3 },
+  NvimTreeCursorLine = { bg = c.bg2 },
   NvimTreeOpenedHL = { fg = c.fg1, bold = true },
 })
 
@@ -458,6 +465,31 @@ hl({
   MiniDiffSignAdd = { fg = c.green1 },
   MiniDiffSignChange = { fg = c.yellow1 },
   MiniDiffSignDelete = { fg = c.red1 },
+
+  -- The inline overlay, <Space>tr. Two planes, and the colour says which one
+  -- you are on: red is the old text, green is yours. So an added line and a
+  -- changed one are told apart by *where* the colour is, not by two shades of
+  -- green: an added line is washed edge to edge, a changed one is green only
+  -- on the words that changed, with a red-marked reference line beside it.
+  --
+  -- These were falling through to Neovim's stock Diff groups, and stock links
+  -- the changed-words group to DiffText, which is diff_add here. So the words
+  -- being taken away were drawn in the colour of addition.
+  MiniDiffOverAdd = { bg = c.diff_add },
+  MiniDiffOverChangeBuf = { bg = c.diff_add },
+
+  -- WARN: no background, deliberately. mini.diff draws this across the whole
+  -- of the line you are editing, to the end of the line, so a background here
+  -- kills CursorLine on every changed line in the file.
+  MiniDiffOverContextBuf = {},
+
+  -- The reference line needs a ground of its own: a virtual line takes none
+  -- by default, so without this the old text is drawn exactly like the file
+  -- and reads as code. Faint on purpose, since the empty number column beside
+  -- a virtual line already says what it is and the red words are the reading.
+  MiniDiffOverContext = { fg = c.fg, bg = c.bg1 },
+  MiniDiffOverChange = { fg = c.fg1, bg = c.diff_del },
+  MiniDiffOverDelete = { link = "MiniDiffOverChange" },
 })
 
 --- The picker ----------------------------------------------------------------
