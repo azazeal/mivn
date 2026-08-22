@@ -290,18 +290,30 @@ return {
               vulncheck = true,
             },
 
-            -- All seven kinds. They read as facts the compiler already knew
+            -- All eight kinds. They read as facts the compiler already knew
             -- and I did not have to; how loud they are is the LspInlayHint
             -- highlight group's business, in colors/basalt.lua.
+            --
+            -- ignoredError is the odd one out and the one worth the most: it
+            -- marks a statement whose error result goes nowhere, which is the
+            -- one thing in this list the compiler knows and says nothing
+            -- about.
             hints = {
               assignVariableTypes = true,
               compositeLiteralFields = true,
               compositeLiteralTypes = true,
               constantValues = true,
               functionTypeParameters = true,
+              ignoredError = true,
               parameterNames = true,
               rangeVariableTypes = true,
             },
+
+            -- The same trade lua/mivn/languages/rust.lua takes and explains:
+            -- gopls puts a pkg.go.dev URL behind every symbol in a hover, and
+            -- Neovim conceals the URL while still measuring the line with it,
+            -- so the float comes out far wider than the words in it.
+            linksInHover = false,
 
             -- What colors a package qualifier in call position: tree-sitter
             -- cannot tell `pkg.Exec(...)` from a variable. gopls stopped

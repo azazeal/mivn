@@ -26,6 +26,23 @@ return {
       -- Set through git's own environment interface, which is the way to
       -- configure git without a file it has to open.
       config = {
+        -- Both of these are on by default, and both are the server doing
+        -- work I did not ask for in someone else's checkout. compileOnType
+        -- compiles the open document after every change, which is the whole
+        -- project's macros running as I type. autoFetchDependencies runs
+        -- `mix deps.get` on its own, which reaches the network and puts code
+        -- on the disk. lua/mivn/trust.lua gates whether this server starts at
+        -- all; these two decide what it does once it has.
+        --
+        -- Flat keys, at the top of the settings table: expert reads them from
+        -- the didChangeConfiguration notification, and Neovim only sends that
+        -- when there are settings to send, so leaving this table out is what
+        -- left both defaults standing.
+        settings = {
+          compileOnType = false,
+          autoFetchDependencies = false,
+        },
+
         cmd_env = {
           GIT_CONFIG_GLOBAL = "/dev/null",
           GIT_CONFIG_SYSTEM = "/dev/null",
