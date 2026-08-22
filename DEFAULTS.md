@@ -194,13 +194,19 @@ Greek layout", which are otherwise guesswork.
 | `Ctrl+V` | Visual block | Columns / rectangles |
 | `gh` / `gH` | Select | Like Visual, but typing replaces the selection |
 | `R` | Replace | Overwrites as you type |
+| `Insert` | Insert / Normal | Whichever of the two you are not in _(mivn)_ |
 | `:` | Command-line | Ex commands |
 | `/` `?` | Command-line | Search forward / backward |
 
 `gv` reselects whatever you had selected last. Select mode is the one to know
 about here, because the floating prompt and the tree's `e` rename come up in
-it, with the name preselected so typing replaces it: see
+it, with the name preselected so typing replaces it, and because that is where
+a shifted key pressed while typing lands: see
 [Selecting with Shift](#selecting-with-shift).
+
+`Insert` is Vim's own way into Insert mode from Normal, and here it is the way
+back out too, so the one key covers both directions _(mivn)_. Stock Vim spends
+it in Insert mode on toggling Replace, which `R` reaches anyway.
 
 ## Arrows
 
@@ -261,14 +267,26 @@ The cost is that a stray letter is a command and not text. `X` deletes the whole
 line, `p` pastes over the selection, `u` lowercases it. Each of those is one `u`
 away from being undone, and none of them is quiet enough to miss.
 
+Pressed **while typing**, the same keys open **Select** instead _(mivn)_. You
+are in the middle of a word, and what you do next to something picked out there
+is type over it, which is the one thing Select is for: a letter replaces the
+selection and you carry on typing, and `Del` or `Backspace` deletes it and
+leaves you typing as well. So Ctrl+Shift+`→`, `Del`, and the replacement is one
+run without a mode in the way. `Esc` drops the selection and leaves you typing
+too, and `Insert` does the same while putting the cursor at the end you were
+moving. Every shifted key reaches Insert: the arrows, `Home`, `End`, the Ctrl
+and Alt word pairs, and the pages. Keys pressed from Normal are untouched and
+still open Visual.
+
 Vim's other selection mode, **Select** (`:h select-mode`), is the one where
 typing replaces the selection. `'selectmode'` would put the shifted keys and the
 mouse there and is deliberately unset: the one habit it bought cost `y` and `d`,
 which replaced the selection with a letter, and copying became `Ctrl+O y`. You
-still meet Select mode where it does earn its keep, in the floating prompt and
-the tree's `e` rename, which come up with the name preselected so typing
-replaces it. `gh` starts it by hand, `Ctrl+G` switches between the two, and the
-status line gives Select its own color so they are never confused.
+still meet Select mode where it does earn its keep, which is the paragraph
+above, the floating prompt and the tree's `e` rename, the last two coming up
+with the name preselected so typing replaces it. `gh` starts it by hand,
+`Ctrl+G` switches between the two, and the status line gives Select its own
+color so they are never confused.
 
 This is still a bridge for the edit you make once. Replacing a word with
 Ctrl+Shift+`→`, `c` and `NEW` is one change and one undo, but `.` repeats it
@@ -333,6 +351,13 @@ last word of a line exists at all.
 It works after an operator too, where Vim's own inclusive `e` covers the same
 text: `d`+Ctrl+`→` deletes the word and no more.
 
+Both pairs work **while typing** as well _(mivn)_, and they had to be bound
+there rather than left alone: Vim's own Ctrl+`→` in Insert is the start of the
+next word, so the key measured one distance in Normal mode and another one
+letter later in Insert, and the Alt pair meant nothing there at all. In Visual
+and Select they stay unbound, where an unshifted special key ends the selection
+instead.
+
 The cursor is a bar rather than a block _(mivn)_, and that is the same
 decision seen from the other end. Neovim's cursor is a buffer position either
 way and the shape changes nothing: every key that acts on "the character under
@@ -351,8 +376,9 @@ more press to cross.
 
 `Home` alternates between the indent and column zero _(mivn)_, which is Zed's
 `stop_at_indent` rule taken from its movement code rather than guessed, and
-Shift+Home selects to wherever it would have gone. Where you start decides
-which comes first, and the third case is the one worth knowing:
+Shift+Home selects to wherever it would have gone. It is the same rule while
+typing, where Vim's own Home is column zero and nothing else. Where you start
+decides which comes first, and the third case is the one worth knowing:
 
 | Cursor | `Home` | then |
 |---|---|---|
@@ -762,6 +788,12 @@ itself is not a file to keep.
 they are the meaning every other editor gives them. Nothing is displaced: Vim
 leaves both unbound. Both wrap, so past the last buffer you land on the first,
 which comes free from `:bnext` and `:bprevious` being all they are.
+
+They work while typing and while something is selected, too, because the tab
+bar belongs to the window rather than to the mode. The terminal panel is the
+one place they do not reach: nearly every key in there belongs to the shell,
+and stepping the tab bar would put a file in the panel's own split. `Ctrl+\`
+`Ctrl+N` first, and then they work as everywhere else.
 
 They need a surface that speaks the extended keyboard protocol, and that is
 worth knowing rather than discovering. In the older encoding a terminal has no

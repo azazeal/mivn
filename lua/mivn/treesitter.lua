@@ -7,9 +7,29 @@
 
 local ts = require("nvim-treesitter")
 
+--- Where the parsers and their query files are put. Named once and exported
+--- below, because `:checkhealth mivn` has to look inside it and a second
+--- spelling of this path is a second thing to keep in step.
+local INSTALL_DIR = vim.fs.joinpath(vim.fn.stdpath("data"), "site")
+
 ts.setup({
-  install_dir = vim.fs.joinpath(vim.fn.stdpath("data"), "site"),
+  install_dir = INSTALL_DIR,
 })
+
+local M = {}
+
+--- Every grammar with a parser on disk right now.
+function M.installed()
+  return ts.get_installed()
+end
+
+--- Where a language's query files are looked for.
+---
+--- They are not copied here: each one is a symlink into the plugin's own
+--- runtime directory, which is why a link can outlive what it points at.
+function M.queries_of(lang)
+  return vim.fs.joinpath(INSTALL_DIR, "queries", lang)
+end
 
 -- The languages I use, plus what the grammars pull in on their own. `sql` is
 -- here for its own files and because Go strings inject into it; see
@@ -237,3 +257,5 @@ vim.api.nvim_create_autocmd("FileType", {
 })
 
 vim.o.foldenable = false
+
+return M

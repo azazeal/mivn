@@ -177,17 +177,54 @@ local function section_project()
   return parent .. "/" .. vim.fs.basename(cwd)
 end
 
---- The filetype, and nothing else.
+--- The filetype, with the glyph the rest of the editor draws for it.
 ---
---- mini.statusline's own section_fileinfo adds the encoding, the line ending
---- and the file size, all three near-constant here, so they are three columns
---- of noise beside the one that matters.
+--- mini.statusline's own section_fileinfo builds the same pair and then adds
+--- the encoding, the line ending and the file size, all three near-constant
+--- here, so they are three columns of noise beside the one that matters.
+---
+--- The glyph alone was tried and taken out: at this size a logo that has to
+--- be decoded is worse than a word. Beside the word it costs nothing and is
+--- read by shape, which is the same reason the tree and the pickers draw it.
+--- It is the same glyph in all three.
+---
+--- What made the difference is colour, and it took a while to see. The glyph
+--- looked washed out here while the same one read fine in the tree, and the
+--- tree was drawing it in its own colour while this was not. At one cell,
+--- colour carries as much as shape does. Every other lead was measured and
+--- came to nothing: the icon sets all live in the same font at the same
+--- codepoints, so no family changes the drawing, and Material is the only
+--- set with per-language icons worth having.
+---
+--- Required inside rather than at the top: this runs on redraw, long after
+--- lua/mivn/find.lua has set the plugin up, and requiring it at load would
+--- put the order of two unrelated modules in the way of drawing at all.
 local function section_filetype(trunc_width)
-  if statusline.is_truncated(trunc_width) or vim.bo.filetype == "" then
+  local filetype = vim.bo.filetype
+  if statusline.is_truncated(trunc_width) or filetype == "" then
     return ""
   end
 
-  return vim.bo.filetype
+  local ok, icons = pcall(require, "mini.icons")
+  if not ok then
+    return filetype
+  end
+
+  local glyph, glyph_hl, default = icons.get("filetype", filetype)
+
+  -- A filetype mini.icons has no glyph for gets a generic file, which says
+  -- nothing the word beside it does not, so those go without.
+  if default then
+    return filetype
+  end
+
+  -- Coloured, in the icon's own group, and back to the section's for the
+  -- word. Uncoloured was tried first and is what made the glyph look washed
+  -- out here while the same one reads fine in the tree: the tree draws it in
+  -- its colour, and colour is doing as much of the work as shape at this
+  -- size. The icon groups set a foreground and no background, so the block
+  -- this section is drawn as keeps its own.
+  return ("%%#%s#%s%%#MiniStatuslineFileinfo# %s"):format(glyph_hl, glyph, filetype)
 end
 
 --- The search count, labelled: "F: 3/20" while a search is live.

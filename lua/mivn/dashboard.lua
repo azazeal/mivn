@@ -33,7 +33,7 @@ local art = {
 
 -- One MivnDashboardFire group per row, defined in colors/basalt.lua.
 
-local tagline = "modal · tree-sitter · lsp · no leader maze"
+local tagline = "modal · tree-sitter · lsp · my leader maze"
 local byline_prefix = "by "
 local byline_name = "@azazeal"
 

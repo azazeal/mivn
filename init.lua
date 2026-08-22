@@ -64,11 +64,100 @@ vim.opt.shortmess:append("S")
 -- this cycle (vim._extui before 0.12). When an upgrade moves it again, the
 -- editor must come up on the stock message UI with a warning, not die on
 -- line one; everything below that leans on ui2 sits behind this flag.
+--- Where a message is drawn, by what produced it.
+---
+--- Everything is a toast by default: a box above the status line, right
+--- aligned, gone on its own after a few seconds. It draws over the buffer
+--- rather than pushing it, so nothing moves when one arrives. Measured on a
+--- 100x35 terminal: the last screen row is the status line at rest, while a
+--- message shows, and while a toast shows.
+---
+--- The two exceptions are the ones I want to read rather than notice, and
+--- both go to the pager, a real window with the text in a buffer I can
+--- search and yank from. `:ls`, `:registers` and `:map` are list_cmd; `:!cmd`
+--- output is shell_out.
+---
+--- Deliberately not there: errors. The pager is entered, not just shown, so
+--- routing emsg would throw me into a window I have to leave again every time
+--- I mistype a command. An error is short and worth noticing, which is what a
+--- toast is for. `undo` is the same argument, and it routes too, which is how
+--- I know to keep it out: "1 line less; before #1" is not worth a window.
+---
+--- Both kinds measured rather than taken from the docs; `verbose` looked like
+--- a third candidate and turned out not to route at all.
+local MESSAGES = {
+  msg = {
+    target = "msg",
+    targets = {
+      list_cmd = "pager",
+      shell_out = "pager",
+    },
+  },
+}
+
 local ui2 = pcall(function()
-  require("vim._core.ui2").enable({})
+  require("vim._core.ui2").enable(MESSAGES)
 end)
 
 if ui2 then
+  -- No command line until something needs one.
+  --
+  -- ui2 draws the cmdline in a window of its own, and at 'cmdheight' 0 it
+  -- hides that window outright, unhiding it when I open a command line and
+  -- hiding it again when I leave. So the status line is the last row of the
+  -- screen at rest, and `:` borrows a row over it rather than a row being
+  -- kept empty all day waiting to be borrowed.
+  --
+  -- WARN: this belongs inside the guard and nowhere else. On stock Neovim
+  -- 'cmdheight' 0 turns a message with no line to print on into a modal
+  -- "Press ENTER" prompt, which is the whole reason it was not set before.
+  -- ui2 is what removes that prompt, so an upgrade that moves the module has
+  -- to leave the height alone as well as the messages.
+  --
+  -- What the two settings below already did for this: the mode and the
+  -- pending count both live on the status line, and 'shortmess' S puts the
+  -- search count there too. Nothing is left that only had the command line
+  -- to be drawn on.
+  vim.opt.cmdheight = 0
+
+  -- Keep files out of the pager's window.
+  --
+  -- The pager is a window I land in, so a `:view` or a `gf` typed while I am
+  -- still in it opens the file *inside the float*. ui2 then repairs its own
+  -- window on the next thing that disturbs it and the file is left loaded and
+  -- shown nowhere. That repair is `nvim_win_set_buf`, which is illegal while
+  -- the command-line window is open, and 'cmdheight' 0 above is what makes it
+  -- run often enough to collide: ui2 sets the option on every command line,
+  -- and every set fires this OptionSet.
+  --
+  -- So the file is moved out rather than refused: 'winfixbuf' would refuse
+  -- ui2's own rebuild too, which is why the obvious guard is not this one.
+  vim.api.nvim_create_autocmd("BufWinEnter", {
+    group = vim.api.nvim_create_augroup("mivn.ui2.pager", { clear = true }),
+    desc = "Open a file that landed in the message pager somewhere it belongs",
+    callback = function(ev)
+      local ok, ui = pcall(require, "vim._core.ui2")
+      if not ok or ev.buf == ui.bufs.pager then
+        return
+      end
+
+      local win = vim.api.nvim_get_current_win()
+      if win ~= ui.wins.pager or not vim.api.nvim_win_is_valid(win) then
+        return
+      end
+
+      -- Put ui2's own buffer back before leaving, so it never sees a window
+      -- of its own holding someone else's buffer.
+      vim.schedule(function()
+        if vim.api.nvim_win_is_valid(win) and vim.api.nvim_buf_is_valid(ui.bufs.pager) then
+          vim.api.nvim_win_set_buf(win, ui.bufs.pager)
+        end
+        vim.api.nvim_win_close(win, false)
+        vim.cmd.buffer(ev.buf)
+      end)
+    end,
+  })
+
   -- ui2's message pager (`g<`, :messages) is a window I land in, and ui2
   -- only maps q to close it. Esc closes it too, the way it closes the hover
   -- float (lua/mivn/languages/): one reflex for every transient view. The
@@ -94,10 +183,9 @@ else
   end)
 end
 
--- 'cmdheight' keeps its default 1. At 0, a message with no line to print on
--- turns into a modal "Press ENTER" prompt; ui2 above removes that prompt, so
--- the experiment is worth rerunning once ui2 has earned trust. The two
--- settings below came out of that experiment and stay on their own merits.
+-- The two settings below came out of the 'cmdheight' work above and stay on
+-- their own merits: each one moves something off the command line that I
+-- would rather read in one fixed place.
 
 -- "-- INSERT --" stays off the command line; the mode lives on the status
 -- line instead, with a color per mode. See lua/mivn/statusline.lua.

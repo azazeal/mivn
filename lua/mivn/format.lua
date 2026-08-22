@@ -104,6 +104,41 @@ local function clients_of(buf)
   return clients
 end
 
+--- Whether `client` answers codeAction/resolve.
+---
+--- Not client:supports_method, which returns true for any method it has no
+--- capability mapped for, and codeAction/resolve is one of those. The
+--- capability itself is a boolean or a table, so only the table shape can
+--- carry the answer.
+local function resolves_actions(client)
+  local provider = client.server_capabilities.codeActionProvider
+
+  return type(provider) == "table" and provider.resolveProvider == true
+end
+
+--- The workspace edit `action` carries, asking for it when it carries none.
+---
+--- A server may answer with the action's `data` and no edit at all, which
+--- means "ask me again with this and I will compute it". ruff does exactly
+--- that, and only when the client says it can cope, which this one does: the
+--- edit is in Neovim's resolveSupport list, so ruff takes it out of the first
+--- answer. So Python imports were never organised, on save or by hand,
+--- silently, since the action was there and the edit inside it was not.
+--- gopls hides the same shape by filling the edit in eagerly.
+local function edit_of(client, action, buf)
+  if action.edit then
+    return action.edit
+  end
+
+  if not action.data or not resolves_actions(client) then
+    return nil
+  end
+
+  local resolved = client:request_sync("codeAction/resolve", action, 1000, buf)
+
+  return ((resolved or {}).result or {}).edit
+end
+
 --- Organize `buf`'s imports with the first attached server that offers it.
 ---
 --- The first, and then it stops. Two servers organizing the same file is not
@@ -119,9 +154,12 @@ local function organize_imports(buf, clients)
 
       local responses = client:request_sync("textDocument/codeAction", params, 1000, buf)
       for _, action in pairs((responses or {}).result or {}) do
-        if action.edit and organizes_imports(action.kind) then
-          vim.lsp.util.apply_workspace_edit(action.edit, client.offset_encoding)
-          return
+        if organizes_imports(action.kind) then
+          local edit = edit_of(client, action, buf)
+          if edit then
+            vim.lsp.util.apply_workspace_edit(edit, client.offset_encoding)
+            return
+          end
         end
       end
     end
