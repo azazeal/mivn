@@ -13,14 +13,19 @@ checked off; git remembers them.
     (`file.go:12.2,15.9 3 1`) and extmarks do the rest. Decide in a monthly
     batch, not now.
 
-- [ ] Guard ui2's pager window against opening files into it. Measured on
-    2026-08-04: with focus in the pager, `:view /etc/hosts` opens the file
-    inside the float, and ui2 later swaps its own buffer back in, leaving
-    the file loaded but shown nowhere. 'winfixbuf' on the pager window is
-    the obvious guard, but ui2 itself puts buffers into that window when it
-    rebuilds one, and a fixed buffer turns that into an error, so the clean
-    version of this fix is upstream's to make. File it there, or carry a
-    careful local one.
+- [ ] Guard ui2's pager window against opening files into it. With focus in
+    the pager, `:view /etc/hosts` opens the file inside the float: measured
+    2026-08-04 and again 2026-08-22, where the pager window went from ui2's
+    own buffer to the file's while ui2 went on believing its buffer was still
+    in there. ui2 later swaps its own back in, leaving the file loaded and
+    shown nowhere. 'winfixbuf' on the pager window is the obvious guard, but
+    ui2 itself puts buffers into that window when it rebuilds one, and a fixed
+    buffer turns that into an error, so the clean version of this fix is
+    upstream's to make. File it there, or carry a careful local one.
+
+    Worth more now than when it was filed: `:ls` and `:!cmd` both land in the
+    pager since the message routing went in, so reaching this state is a
+    normal afternoon rather than an experiment.
 
 ## Languages
 
@@ -34,44 +39,18 @@ checked off; git remembers them.
     languages whose `queries/<lang>` still pointed into the old `lazy/`
     directory, relinked by hand on 2026-08-03. Either check the links on
     install or say it in `:checkhealth mivn`.
-- [ ] Markdown: decide the writing set. Three things are missing today.
-    Formatting: marksman does not format, and the formatter table has no
-    markdown entry, so tables stay as typed and nothing runs on save.
-    `mdformat` (Python, and mise already provisions it) is the candidate now
-    that deno is gone; `deno fmt` would bring a runtime back for one file
-    type, and `prettier` would drag node in. Preview and mermaid: nothing
-    renders inside the terminal or Neovide; peek.nvim (deno) and
-    markdown-preview.nvim (node) both preview in the browser with mermaid
-    support, and both cost a runtime. In-buffer polish:
-    render-markdown.nvim prettifies headings and tables in place but renders
-    no diagrams. A monthly-batch decision, not a today one.
-- [x] Confine the language servers. **No**, decided 2026-08-20, after
-    shipping it and taking it out again. What it did: `mise exec` with
-    Landlock and seccomp on Linux, Seatbelt on macOS, one allowlist per
-    server, applied to the whole process tree under it.
+- [ ] Markdown: decide what is left of the writing set. Formatting is done:
+    `rumdl` with MD060 alone aligns the tables and gives a file with no table
+    in it back byte for byte, which is why it is a linter with one rule turned
+    on rather than a formatter. `mdformat` was the standing candidate and is
+    out, measured: it aligned the table and also rewrote setext headings, list
+    markers, numbering, nesting, code fences and escapes.
 
-    Why it went. The allowlists were the wrong granularity and the failures
-    were silent. Blocking `~/.config/go` bought nothing and cost the
-    toolchain: inside the sandbox `go env` never saw `GOPATH`, fell back to
-    `~/go`, and every gopls ran with a module cache the grant did not cover.
-    That shipped, and nothing said a word. Half the policy table was
-    archaeology from failures of the same shape, found one empty hover at a
-    time, and every new server meant more of it.
-
-    What replaced it is upstream of the editor: `minimum_release_age =
-    "14d"` means a compromised package is never installed unless nobody
-    notices for two weeks, and preferring backends that download a built
-    artifact keeps `go install` and npm postinstalls off the machine in the
-    first place.
-
-    What that does not cover: opening a repository still runs its code.
-    rust-analyzer builds `build.rs` and expands proc macros, expert compiles
-    `mix.exs`, and gopls shells out to the toolchain, which a `toolchain`
-    line in a go.mod can send off to fetch another one. Release age is about
-    what gets installed, not
-    about what a checkout does once it is open. That half is gated instead,
-    by lua/mivn/trust.lua: a directory answers for itself before anything
-    starts for it.
+    Still missing. Preview and mermaid: nothing renders inside the terminal or
+    Neovide; peek.nvim (deno) and markdown-preview.nvim (node) both preview in
+    the browser with mermaid support, and both cost a runtime. In-buffer
+    polish: render-markdown.nvim prettifies headings and tables in place but
+    renders no diagrams. A monthly-batch decision, not a today one.
 
 - [ ] Facts written twice, waiting to drift; found by the 2026-08-04
     review, parked for a monthly batch. find.lua's BUILTINS table
@@ -82,6 +61,15 @@ checked off; git remembers them.
     behavior by hand and no longer exists, and health.lua's PROBES table
     was keyed by binary name while everything around it was keyed by
     server, which moved into the language files.
+
+- [ ] `%S` leaves a stray space to its right in the status line's right-hand
+    group. mini.statusline joins a group's non-empty strings with a space and
+    cannot tell that `%S` renders as nothing while no command is pending, so
+    the separator is drawn for a thing that is not there. Found while the
+    filetype was briefly a glyph, which made a one-character orphan obvious;
+    it is there with the name too, just harder to see. The fix is either a
+    group of its own for `%S` or moving the filetype out of that group, and
+    both change the padding either side, so measure before picking.
 
 ## Plugins
 
@@ -129,27 +117,18 @@ checked off; git remembers them.
     rule always loses. Never set the variable for the whole Neovim process,
     or `:terminal` loses the user's git config too.
 
-- [x] Whether the tools this workspace uses have newer releases, on the
-    same line. **No**, decided 2026-08-20, and not for lack of an answer:
-    `mise outdated --json` gives `{name, requested, current, latest,
-    source}` per tool and would have covered the servers and the toolchains
-    in one call.
-
-    It is out because the editor no longer asks a version manager anything.
-    Which tools this session has is settled before Neovim starts, by
-    whatever launched it, and a config that reads `PATH` and nothing else
-    cannot also be the thing that reports on the manager behind it. The
-    notice belongs in the shell, where `mise upgrade` is one line away and
-    its output is visible.
-
 ## Watching
 
 Seen once, not reproduced, not forgotten:
 
-- Neovide and `:restart` under the ui2 trial: one session hung on restart with
+- Neovide and `:restart`, from when ui2 was still a trial: one session hung on
+  restart with
   no dashboard and the old buffers still loaded, and after closing the buffers
-  by hand the statusline and the command line were gone. Not reproduced since,
-  2026-08-04: a scripted `:view` + `:restart` comes back clean in the TUI and
+  by hand the statusline and the command line were gone. Note that 'cmdheight'
+  is 0 now, so "the command line was gone" is what a healthy session looks
+  like; the status line is the half that would still say something. Not
+  reproduced since 2026-08-04: a scripted `:view` + `:restart` comes back
+  clean in the TUI and
   in a fresh Neovide, and the server state after both is healthy, so whatever
   breaks lives in Neovide's reattach once a session has more history behind
   it. If it happens again, before recovering run `nvim --server <sock>
