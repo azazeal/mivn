@@ -610,8 +610,18 @@ leader("<leader>ti", filters.toggle_ignored, "Show or hide ignored files, in the
 -- The gutter says which lines changed; this says what they were. mini.diff
 -- ships no key for it, and the question it answers, "what did I do to this
 -- file", is one I ask far more often than I stage a hunk, which has two keys.
+-- Guarded, because mini.diff only attaches to a buffer that has a file behind
+-- it. On the banner, the tree or the terminal it raised "Buffer N is not
+-- enabled" from inside the plugin, which is a stack trace for a key that
+-- simply has nothing to do there.
 leader("<leader>tr", function()
-  require("mini.diff").toggle_overlay()
+  local diff = require("mini.diff")
+  if not diff.get_buf_data(0) then
+    vim.notify("Nothing to compare here: this buffer has no file behind it.", vim.log.levels.WARN)
+    return
+  end
+
+  diff.toggle_overlay()
 end, "Show the old text inline for every changed line, or stop")
 
 -- <leader>a is what I ask the language server to do to this code, and
