@@ -400,4 +400,5 @@ require("mivn.update") -- whether a newer mivn is out, said once on the banner
 require("mivn.tree") -- the file tree, loaded after the dashboard claims a window
 require("mivn.tabline") -- the buffer tab bar
 require("mivn.statusline") -- the status line, and where the mode is shown
+require("mivn.title") -- the window title, in Neovide and on a terminal tab
 require("mivn.keymaps") -- every key mivn takes; last, so it can call into them
