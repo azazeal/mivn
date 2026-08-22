@@ -746,6 +746,14 @@ Three separate concepts, and Vim's names do not match a visual IDE's:
 - A **tab** is a *layout of windows*, not a file. A tab bar showing open files
   is a plugin idea, not a Vim one.
 
+The window your desktop knows about is a fourth thing, and Vim mostly ignores
+it. Its title here _(mivn)_ is `cli.rs · mivn`: the file, then the project
+directory, with `[+]` after the name while there are unsaved changes. A buffer
+with no file behind it, the banner or the tree, leaves the project on its own.
+Stock Neovim writes no title at all, and Neovide, left to itself, writes the
+file's full path, whose useful end is the end a taskbar cuts off. In a terminal
+the same line names the tab.
+
 ### Windows (`Ctrl+W` prefix)
 
 | Key | Does |
