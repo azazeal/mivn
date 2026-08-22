@@ -456,7 +456,49 @@ hl({
   NvimTreeEmptyFolderName = { fg = c.bg6 },
   NvimTreeIndentMarker = { fg = c.bg3 },
   NvimTreeCursorLine = { bg = c.bg2 },
-  NvimTreeOpenedHL = { fg = c.fg1, bold = true },
+  -- WARN: the decorators are additive, and only the attributes a group sets
+  -- clobber a lower one's. That is what lets four states share the file name
+  -- without fighting: git owns the foreground, an open buffer adds bold, a
+  -- diagnostic adds an undercurl, and cut and copied take the two attributes
+  -- left. Set a foreground in any of these and it wipes the git colour, which
+  -- is the one state every file has.
+  NvimTreeOpenedHL = { bold = true },
+
+  -- Stock puts these two on the undercurl, which diagnostics need and which
+  -- they outrank, and in colours from outside this palette. Strikethrough is
+  -- what cut already means everywhere else.
+  NvimTreeCutHL = { strikethrough = true },
+  NvimTreeCopiedHL = { italic = true },
+
+  -- Out of the colour system rather than given a colour of their own. All
+  -- three resolved to the folder blue, so an extensionless executable like
+  -- .github/scripts/repin read as a directory and README.md read as an open
+  -- one. That the panel says nothing about these is the point: it is there
+  -- for the layout.
+  NvimTreeExecFile = { link = "NvimTreeNormal" },
+  NvimTreeImageFile = { link = "NvimTreeNormal" },
+  NvimTreeSpecialFile = { link = "NvimTreeNormal" },
+
+  -- The panel is below the page, so the stock "invisible against the page"
+  -- is one step lighter than this surface and the tildes show faintly.
+  NvimTreeEndOfBuffer = { fg = c.bg0 },
+  NvimTreeLineNr = { fg = c.bg6, bg = c.bg0 },
+
+  -- Both carried hexes from outside the palette, and the picker is live:
+  -- opening from the tree with more than one candidate window flashed a blue
+  -- that is nowhere else in the theme. Shaped like the status line's mode
+  -- block, which is the other place a letter is stamped on an accent.
+  NvimTreeFolderIcon = { fg = c.bg7 },
+  NvimTreeWindowPicker = { fg = c.bg0, bg = c.blue, bold = true },
+
+  -- Metadata about the panel rather than content in it, so it takes the
+  -- line-number grey and not the comment grey; comment grey is what an
+  -- untracked file is drawn in, two rows up.
+  NvimTreeHiddenDisplay = { fg = c.bg6 },
+
+  -- Not yet written, as against the name's yellow for changed on disk: the
+  -- same statement at two stages.
+  NvimTreeModifiedIcon = { fg = c.yellow1 },
 })
 
 --- The git gutter ------------------------------------------------------------
