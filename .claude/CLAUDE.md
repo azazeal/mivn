@@ -1,78 +1,76 @@
 # mivn
 
-A personal Neovim config. The repo root is the config directory, cloned to
-`~/.config/nvim` (or run isolated: symlink the repo to `~/.config/mivn` and
-set `NVIM_APPNAME=mivn`, which is how this working copy is tested without
-touching the real config). Launching and the Neovide-vs-terminal choice are
-up to the executing environment and not this repo.
+My personal Neovim configuration, the whole of `~/.config/nvim`. It holds my
+keymaps, the few plugins I have opted into, and everything said to the
+language servers and tools around them.
 
-The environment is not this repo's business either. Whatever starts Neovim
-resolves the toolchain first, and the session uses the `PATH` it was handed;
-nothing here asks a version manager anything. So a server that is not on
-`PATH` is a language with tree-sitter colours and nothing else, and a
-project's import prefixes arrive as `$GOIMPORTPREFIXES` rather than through
-a config key.
+The tools themselves come from `$PATH` as the session was handed it, and
+nothing here resolves a toolchain or asks a version manager anything. So a
+server that is not on `PATH` is a language with tree-sitter colors and nothing
+else, and a project's import prefixes arrive as `$GOIMPORTPREFIXES` rather
+than through a config key.
+
+To exercise this working copy without touching my real config, `~/.config/mivn`
+points at this repo and `NVIM_APPNAME=mivn` runs it.
 
 ## Philosophy
 
-- Defaults first. Vim's grammar stays as it ships; every addition or deviation
-  is a recorded trade. DEFAULTS.md is the tour of that surface and marks
-  deviations with `_(mivn)_`; update it whenever behavior changes.
-- This is a tool, not a project. New friction becomes a TODO.md entry and is
-  fixed in monthly batches; do not add plugins, options, or mappings beyond
-  what a task strictly needs.
-- Plugins: prefer the mini.* family and zero-dependency plugins. Every plugin
-  is pinned to a commit in `plugins.lua` itself, with a one-line comment above
-  each entry (purpose, then the pin in parentheses); `nvim-pack-lock.json` is
-  a cache of the same pins. `.github/scripts/repin` maintains both the pins
-  and the parentheses; edit the purpose text freely, keep the shape.
+- Defaults first. Vim's grammar stays as it ships, and every deviation is a
+  recorded trade: DEFAULTS.md is the tour of that surface, marks deviations
+  with `_(mivn)_`, and is updated whenever behavior changes.
+- My hands come from CUA editors and are not changing. Where that pulls
+  against Vim's grammar the tension is deliberate, so the answer is to record
+  the trade rather than pick a side.
+- A tool, not a project. New friction becomes a TODO.md line and is fixed in
+  batches. Do not add plugins, options or mappings beyond what a task needs.
+- Plugins: the mini.* family and zero-dependency ones, and only for what
+  Neovim still does not bundle.
 
 ## Conventions
 
 - One module per concern under `lua/mivn/`; the header comment carries the
   module's purpose and its trade-offs.
 - `lua/mivn/languages/` is data, not concerns: one file per language, holding
-  everything about it, i.e. its servers, their settings, what confines them,
-  and how it is formatted. Nothing else goes in there, since the list of
-  languages is the directory listing. `lua/mivn/lsp.lua` documents the shape
-  a file takes and is what loads them.
+  its servers, their settings, what confines them, and how it is formatted.
+  Nothing else goes in there. `lua/mivn/lsp.lua` is what loads them.
 - Every mapping that is on for the whole session lives in
   `lua/mivn/keymaps.lua`, whatever module owns the behavior: that module
   exports a function and this file picks the key. A mapping that exists only
   while some buffer does (made inside an autocmd, `buffer = ...`) stays with
-  the module it belongs to. New keys go in that file, not beside the code
-  they call.
+  its module.
+- Every highlight group lives in `colors/basalt.lua`, the plugins' and mivn's
+  own included, written through that file's palette names. Never a hex, and
+  never a highlight group or a `ColorScheme` autocmd under `lua/mivn/`.
 - Comments are first person ("as I type"), plain common English, hard-wrapped
   at 80 columns, no em dashes. User-visible strings (`desc = ...`,
   `vim.notify`) address the user instead.
-- Every highlight group lives in `colors/basalt.lua`, the plugins' and
-  mivn's own included, written through that file's palette names (`c.blue`,
-  never a hex). Modules under `lua/mivn/` define none, name no color, and carry
-  no `ColorScheme` autocmd.
-- Lua is formatted by stylua, two-space indent.
+- Plugins are pinned to a commit in `plugins.lua` itself, with a one-line
+  comment above each entry: purpose, then the pin in parentheses.
+  `.github/scripts/repin` maintains the pins and `nvim-pack-lock.json`; edit
+  the purpose text freely, keep the shape.
+- Lua is formatted by stylua.
 
 ## Verify before calling anything done
 
-- `stylua --check .` (covers init.lua, lua/ recursively, and colors/)
+- `stylua --check .`
 - `timeout 60 env NVIM_APPNAME=mivn nvim --headless "+lua io.write('ok\n')" +qa`
-  must print `ok` with no errors (needs the `~/.config/mivn` symlink above).
-  Headless boot does not exercise UI paths; drive them with `:normal` or
-  feedkeys when a change touches one.
+  must print `ok` and nothing else.
+- Headless boot does not exercise UI paths, so a clean boot is not a passing
+  test for one. When a change touches a UI path, drive it with `:normal` or
+  feedkeys and read back what actually happened.
 
 ## Releasing
 
 - Work happens on a branch and lands on `main` through a pull request; `main`
   takes no direct pushes, and I run the merge myself.
-- A release is `.github/scripts/release vX.Y.Z`, never the git and gh commands
-  by hand: it is the only thing standing between a slipped `git tag -a` and an
-  unsigned tag, which nothing on GitHub's side rejects. Its header comment
-  says why.
-- Releases are immutable and tags cannot be moved, so a bad release is
-  followed by the next patch version, not repaired. Only the notes can still
-  be edited.
+- A release is `.github/scripts/release patch|minor|major`, never the git and
+  gh commands by hand: `git tag -a` writes an unsigned tag, and nothing on
+  GitHub's side rejects it. Tags never move either, so a bad release is
+  followed by the next patch version rather than repaired; only the notes can
+  still be edited.
 
 ## Agents
 
 - `ux-advisor`: consult for interaction and ergonomics decisions.
 - `ui-advisor`: consult before visual, layout, or color decisions.
-- `implementer`: writes Lua/bash to spec.
+- `implementer`: writes Lua and bash to spec.

@@ -66,8 +66,9 @@ checked off; git remembers them.
 
     What that does not cover: opening a repository still runs its code.
     rust-analyzer builds `build.rs` and expands proc macros, expert compiles
-    `mix.exs`, gopls shells out to the toolchain, and ruby-lsp runs a
-    Gemfile through bundler. Release age is about what gets installed, not
+    `mix.exs`, and gopls shells out to the toolchain, which a `toolchain`
+    line in a go.mod can send off to fetch another one. Release age is about
+    what gets installed, not
     about what a checkout does once it is open. That half is gated instead,
     by lua/mivn/trust.lua: a directory answers for itself before anything
     starts for it.
