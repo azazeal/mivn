@@ -31,6 +31,28 @@ vim.opt.cursorline = true
 vim.opt.scrolloff = 8
 vim.opt.signcolumn = "yes" -- always reserved, so text never shifts sideways
 
+-- Signs to the right of the numbers, between them and the code.
+--
+-- Stock order puts them leftmost, where a change bar is a thin vertical line
+-- at the very edge of the window, parallel to sway's border and a few pixels
+-- from it. The eye groups two parallel lines, so the bar reads as chrome
+-- rather than as something about the file. Padding does not un-group them;
+-- foot already has 8px of it. Beside the code the bar points at what it is
+-- about, which is also the order ~/.config/helix orders its gutters in.
+--
+-- WARN: no literal characters in this string, ever. `%C`, `%l` and `%s` all
+-- collapse to nothing where a window has no fold column, no numbers and no
+-- signs, so the tree, the dashboard and every float keep a zero-width column
+-- exactly as they do now. One literal space in here and all of them gain a
+-- stray empty column, and the dashboard's centring goes off by one.
+--
+-- `%l` is Neovim's own number item rather than a hand-rolled `%{}`, so
+-- 'number' and 'relativenumber' are relocated and not reimplemented: the
+-- cursor line keeps its absolute number, wrapped rows draw no number, and
+-- mini.diff's overlay virtual lines draw none either. Those are the three
+-- places a hand-written version gets it wrong.
+vim.opt.statuscolumn = "%C%l%s"
+
 -- The whitespace worth seeing: tabs, trailing spaces, and the non-breaking
 -- space that looks like a space and is not. Ordinary spaces stay invisible,
 -- since a dot on every one of them is noise. `:set listchars+=space:·` is the

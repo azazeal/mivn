@@ -607,6 +607,13 @@ leader("<leader>tw", margins.toggle_wrap, "Wrap long lines in this window, or st
 leader("<leader>th", filters.toggle_dotfiles, "Show or hide dotfiles, in the tree and the finders")
 leader("<leader>ti", filters.toggle_ignored, "Show or hide ignored files, in the tree and the finders")
 
+-- The gutter says which lines changed; this says what they were. mini.diff
+-- ships no key for it, and the question it answers, "what did I do to this
+-- file", is one I ask far more often than I stage a hunk, which has two keys.
+leader("<leader>tr", function()
+  require("mini.diff").toggle_overlay()
+end, "Show the old text inline for every changed line, or stop")
+
 -- <leader>a is what I ask the language server to do to this code, and
 -- <leader>g is where I ask it to take me. Neovim's own gr-keys still work and
 -- are left alone: these are a second way in, grouped so the panel under a

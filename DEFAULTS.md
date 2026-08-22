@@ -464,6 +464,13 @@ are still the direct way there, and unlike the page keys they always are.
 The line numbers are hybrid: the line you are on shows its real number, and
 every other line shows how far it is from you.
 
+Signs sit to the *right* of the numbers, between them and the code _(mivn)_.
+Stock Neovim puts them leftmost, where a git change bar is a thin vertical
+line at the very edge of the window, parallel to whatever border the window
+manager draws and a few pixels from it; two parallel lines read as one piece
+of chrome. Beside the code the bar points at what it is about. Diagnostic
+letters share the same column, so they move with it.
+
 ```
   38 func run(ctx context.Context) error {
    3     cfg, err := load()
@@ -982,6 +989,7 @@ names. Worth learning as one shape rather than six bindings.
 | `]a` / `[a` | The argument list |
 | `]<Space>` / `[<Space>` | Add a blank line below / above the cursor |
 | `]h` / `[h` | Git hunks _(mivn: mini.diff's pair, same shape)_ |
+| `Space t r` | The old text, inline, for every changed line _(mivn)_ |
 
 ## The command line
 

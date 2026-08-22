@@ -15,6 +15,11 @@ diff.setup({
     -- numbers instead of drawing signs, which reads as the gutter being
     -- broken. The sign column is always reserved, so the bars cost no width.
     style = "sign",
-    signs = { add = "▎", change = "▎", delete = "▁" },
+    -- Two cells, the pad first: the sign field now sits immediately right of
+    -- the last digit ('statuscolumn' in init.lua), so a bare glyph would be
+    -- flush against the number instead of the border, which is the same
+    -- complaint one column over. With the pad the ink lands just before the
+    -- code, a rail on it.
+    signs = { add = " ▎", change = " ▎", delete = " ▁" },
   },
 })
