@@ -477,15 +477,27 @@ vim.keymap.set({ "n", "x", "i" }, "<PageUp>", page.up, {
   desc = "A page up, or the first line when there is no page left",
 })
 
--- Not Insert: from there 'keymodel' still opens the selection itself, with the
--- unclamped motion. Reproducing the open would mean leaving Insert by hand and
--- re-anchoring the exclusive selection, and a page-selection mid-typing is not
--- worth that trade yet; TODO.md if the edge ever bites there.
-vim.keymap.set({ "n", "x" }, "<S-PageDown>", page.select_down, {
+-- Select as well as Visual, since lua/mivn/page.lua's pair only opens a
+-- selection when it is in Normal and otherwise just moves, which is what
+-- extends one either way. Insert then goes through the same <Plug> as the
+-- other shifted keys: it used to be left out because 'keymodel' would open
+-- the selection itself with the unclamped motion, and 'keymodel' no longer
+-- has "startsel" to do that with.
+vim.keymap.set({ "n", "x", "s" }, "<S-PageDown>", page.select_down, {
   desc = "Select a page down, to the last line when there is no page left",
 })
 
-vim.keymap.set({ "n", "x" }, "<S-PageUp>", page.select_up, {
+vim.keymap.set({ "n", "x", "s" }, "<S-PageUp>", page.select_up, {
+  desc = "Select a page up, to the first line when there is no page left",
+})
+
+vim.keymap.set("i", "<S-PageDown>", selecting("<S-PageDown>"), {
+  remap = true,
+  desc = "Select a page down, to the last line when there is no page left",
+})
+
+vim.keymap.set("i", "<S-PageUp>", selecting("<S-PageUp>"), {
+  remap = true,
   desc = "Select a page up, to the first line when there is no page left",
 })
 

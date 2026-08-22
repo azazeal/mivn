@@ -274,7 +274,9 @@ selection and you carry on typing, and `Del` or `Backspace` deletes it and
 leaves you typing as well. So Ctrl+Shift+`→`, `Del`, and the replacement is one
 run without a mode in the way. `Esc` drops the selection and leaves you typing
 too, and `Insert` does the same while putting the cursor at the end you were
-moving. Keys pressed from Normal are untouched and still open Visual.
+moving. Every shifted key reaches Insert: the arrows, `Home`, `End`, the Ctrl
+and Alt word pairs, and the pages. Keys pressed from Normal are untouched and
+still open Visual.
 
 Vim's other selection mode, **Select** (`:h select-mode`), is the one where
 typing replaces the selection. `'selectmode'` would put the shifted keys and the
