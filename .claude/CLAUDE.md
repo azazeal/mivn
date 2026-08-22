@@ -58,6 +58,16 @@ points at this repo and `NVIM_APPNAME=mivn` runs it.
 - Headless boot does not exercise UI paths, so a clean boot is not a passing
   test for one. When a change touches a UI path, drive it with `:normal` or
   feedkeys and read back what actually happened.
+- A new key, command or save-time behavior has to be tried on the buffers
+  that have no file behind them, not only on a file. `.github/scripts/panels
+  --key '<Space>x'`, `--cmd 'MivnThing'` or `--write` runs it against the
+  banner, the tree and the terminal, with a real file as the control, and
+  exits non-zero on the ones it raises in. Two keys have shipped broken on
+  the banner already.
+- When a bug gets through, say what would have caught it and offer to add
+  that, whether or not it is about the panels. The panels script exists
+  because two bugs of one shape got through; the next shape will need its
+  own check, and the useful moment to notice is while the bug is fresh.
 
 ## Releasing
 
