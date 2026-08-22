@@ -181,26 +181,30 @@ vim.keymap.set("n", "<Esc>", "<Cmd>nohlsearch<CR><Esc>", {
 -- one press, which is never the distance meant. `W`, `B`, `E` and `gE` are
 -- untouched and still Vim's.
 --
--- Normal and operator-pending for the word keys, not Visual or Select: there
--- an unshifted special key ends the selection ('keymodel' has "stopsel") and
--- a mapping would keep it alive instead. Operator-pending takes plain `e`,
--- since an inclusive motion already covers the same text: `d<C-Right>` is
--- `de`, the word and no more.
-vim.keymap.set("n", "<C-Right>", words.move(true, false), {
-  desc = "Move past the end of the word",
-})
-
-vim.keymap.set("n", "<C-Left>", words.move(false, false), {
-  desc = "Move to the start of the previous word",
-})
-
-vim.keymap.set("n", "<A-Right>", words.move(true, true), {
-  desc = "Move past the end of the subword",
-})
-
-vim.keymap.set("n", "<A-Left>", words.move(false, true), {
-  desc = "Move to the start of the previous subword",
-})
+-- Normal and Insert, and not Visual or Select: there an unshifted special key
+-- ends the selection ('keymodel' has "stopsel") and a mapping would keep it
+-- alive instead. Insert is bound for the same reason the shifted keys are,
+-- which is that Vim's own meaning for the key there is a different distance:
+-- `<C-Right>` while typing is the start of the next word, so the key measured
+-- one thing in Normal and another one letter later. Measured on
+-- `foo parseHTTPUrl baz`, and the Alt pair meant nothing at all there.
+--
+-- The step is the same function in both, since it puts the cursor at a column
+-- rather than running a motion, and the column it picks is a boundary either
+-- way (lua/mivn/words.lua).
+--
+-- Operator-pending takes plain `e`, since an inclusive motion already covers
+-- the same text: `d<C-Right>` is `de`, the word and no more.
+for _, key in ipairs({
+  { lhs = "<C-Right>", forward = true, small = false, to = "past the end of the word" },
+  { lhs = "<C-Left>", forward = false, small = false, to = "to the start of the previous word" },
+  { lhs = "<A-Right>", forward = true, small = true, to = "past the end of the subword" },
+  { lhs = "<A-Left>", forward = false, small = true, to = "to the start of the previous subword" },
+}) do
+  vim.keymap.set({ "n", "i" }, key.lhs, words.move(key.forward, key.small), {
+    desc = "Move " .. key.to,
+  })
+end
 
 -- After an operator the arrows fall back to Vim's own, which cover the same
 -- text: `e` is inclusive, so `d<C-Right>` is the word and no more, and `b` is
@@ -250,6 +254,17 @@ vim.keymap.set({ "n", "x", "o" }, "<Home>", home, {
   desc = "Move to the first character of the line, or to column zero",
 })
 
+-- The same rule while typing, where Vim's own Home is column zero and nothing
+-- else. `<C-o>` runs the one Normal command and leaves the caret where it put
+-- it. End needs none of this: Vim's own already goes past the last character
+-- there, which is where this one goes too.
+vim.keymap.set("i", "<Home>", function()
+  return "<C-o>" .. home()
+end, {
+  expr = true,
+  desc = "Move to the first character of the line, or to column zero",
+})
+
 vim.keymap.set("n", "<End>", "$l", {
   desc = "Move past the end of the line",
 })
@@ -284,10 +299,48 @@ local function arrow(keys)
   end
 end
 
+-- The same keys pressed while typing, which is where they were missing: in
+-- Insert the shifted arrows moved by a word and by a page, Vim's own meaning
+-- for them there, and nothing was ever picked out.
+--
+-- Every one of them is the same two steps, so they are written the same way:
+-- open a selection at the caret, then press the key again and let the Select
+-- mapping beside it do the moving. That second press is why these are the one
+-- group here that remaps its own right-hand side.
+--
+-- What it opens is Select and not Visual. I am in the middle of typing, and
+-- what I do next to something picked out while typing is type over it, which
+-- is the one thing Select is for. Keys pressed from Normal are untouched and
+-- still open Visual, where `y` and `d` mean what they say; 'selectmode' stays
+-- unset (init.lua).
+--
+-- The opening is a <Plug> of its own rather than the two keys written into
+-- each mapping, because those two keys must *not* be remapped: `gh` in Normal
+-- is mini.diff's staging operator (lua/mivn/diff.lua), which is what ran the
+-- first time this was written the short way.
+--
+-- WARN: `<C-o>` is what keeps the caret. Leaving Insert any other way moves
+-- the cursor one column left, whatever 'virtualedit' says, and putting it
+-- back by hand does not work either: that move lands after the mapping has
+-- returned, so it drags the open selection left with it. Measured. `<C-o>`
+-- is Vim's own "one command from where I am", and where I am is exactly where
+-- the selection has to start.
+vim.keymap.set("i", "<Plug>(mivn-select)", "<C-o>gh", {
+  desc = "Open a selection at the caret",
+})
+
+local function selecting(lhs)
+  return "<Plug>(mivn-select)" .. lhs
+end
+
 for _, name in ipairs({ "Left", "Right", "Up", "Down" }) do
   local shifted = ("<S-%s>"):format(name)
   local plain = ("<%s>"):format(name)
   local what = name:lower()
+
+  -- In Select the motion is borrowed through <C-o>, which runs it in Visual
+  -- for the one key and comes back, since Select is where typing replaces.
+  local extend = arrow("<C-o>" .. plain)
 
   vim.keymap.set("n", shifted, arrow("v" .. plain), {
     desc = "Select " .. what,
@@ -297,8 +350,13 @@ for _, name in ipairs({ "Left", "Right", "Up", "Down" }) do
     desc = "Extend the selection " .. what,
   })
 
-  vim.keymap.set("s", shifted, arrow("<C-o>" .. plain), {
+  vim.keymap.set("s", shifted, extend, {
     desc = "Extend the selection " .. what,
+  })
+
+  vim.keymap.set("i", shifted, selecting(shifted), {
+    remap = true,
+    desc = "Select " .. what,
   })
 end
 
@@ -341,15 +399,24 @@ end, {
   desc = "Extend the selection to the first character of the line",
 })
 
+vim.keymap.set("i", "<S-End>", selecting("<S-End>"), {
+  remap = true,
+  desc = "Select to the end of the line",
+})
+
+vim.keymap.set("i", "<S-Home>", selecting("<S-Home>"), {
+  remap = true,
+  desc = "Select to the first character of the line",
+})
+
 -- Ctrl or Alt with Shift selects by the same step. 'keymodel' opens a
 -- selection on its own and reaches for Vim's own meaning of the key, which is
 -- the WORD, so the opening happens here instead.
 --
--- Three mappings each, because the opening is what differs. From Normal there
+-- Four mappings each, because the opening is what differs. From Normal there
 -- is no selection yet, so this opens Visual the way a shifted arrow does
--- ('selectmode' is unset in init.lua). In Select, which the floating prompt
--- still preselects in, the motion is borrowed through <C-o> or it would
--- replace the selection with the letter. In Visual it is the plain motion.
+-- ('selectmode' is unset in init.lua), and from Insert it opens Select. In
+-- Visual and Select, where there is one already, it is the plain motion.
 -- After an operator the key is left alone: `d` and a shifted arrow is not
 -- something I press.
 for _, sel in ipairs({
@@ -358,14 +425,46 @@ for _, sel in ipairs({
   { lhs = "<A-S-Right>", forward = true, small = true, to = "past the end of the subword" },
   { lhs = "<A-S-Left>", forward = false, small = true, to = "to the start of the previous subword" },
 }) do
+  -- The one motion Visual and Select share, and what the Insert mapping
+  -- reaches on its second press. It puts the cursor somewhere rather than
+  -- typing anything, so Select needs no <C-o> around it.
+  local extend = words.move(sel.forward, sel.small)
+
   vim.keymap.set("n", sel.lhs, words.select(sel.forward, sel.small), {
     desc = "Select " .. sel.to,
   })
 
-  vim.keymap.set("x", sel.lhs, words.move(sel.forward, sel.small), {
+  vim.keymap.set("x", sel.lhs, extend, {
     desc = "Extend the selection " .. sel.to,
   })
+
+  vim.keymap.set("s", sel.lhs, extend, {
+    desc = "Extend the selection " .. sel.to,
+  })
+
+  vim.keymap.set("i", sel.lhs, selecting(sel.lhs), {
+    remap = true,
+    desc = "Select " .. sel.to,
+  })
 end
+
+-- Insert is the way out of typing and back into it.
+--
+-- Vim already opens Insert with it from Normal, and its other job, toggling
+-- Replace, is one I have no use for: replacing something is deleting it and
+-- writing over it, or picking it out and pressing `r`. So the key stops being
+-- a Replace toggle and becomes the pair of the one Vim gave me, with `R`
+-- still the way into Replace for the day I want it.
+--
+-- From Select it drops the selection, leaves the text alone, and puts the
+-- caret at the end I was moving, which is the end `i` opens before.
+vim.keymap.set("i", "<Insert>", "<C-\\><C-N>", {
+  desc = "Stop typing",
+})
+
+vim.keymap.set("s", "<Insert>", "<C-\\><C-N>i", {
+  desc = "Type on from the end of the selection",
+})
 
 -- Normal, Visual and Insert. Select mode is left to Vim: there an unshifted key
 -- ends the selection first ('keymodel' has "stopsel"), and taking the key would
@@ -407,11 +506,16 @@ vim.keymap.set({ "n", "x", "o" }, "|", margins.to_char_column, {
 -- other half of `Ctrl+O`. So `<C-Tab>` and `<C-S-Tab>` only: they arrive as
 -- themselves from Neovide and from a terminal speaking the extended keyboard
 -- protocol, and on anything older they do nothing while Tab keeps its job.
-vim.keymap.set("n", "<C-Tab>", "<Cmd>bnext<CR>", {
+-- Bound wherever I can be looking at a buffer, typing and selecting included,
+-- because the tab bar is the window's and not the mode's; the zoom keys below
+-- are the same argument. Terminal mode is the one left out, on purpose: in
+-- there nearly every key belongs to the shell (lua/mivn/terminal.lua), and
+-- `:bnext` would put a file in the panel's own split.
+vim.keymap.set({ "n", "i", "x", "s" }, "<C-Tab>", "<Cmd>bnext<CR>", {
   desc = "Next buffer in the tab bar",
 })
 
-vim.keymap.set("n", "<C-S-Tab>", "<Cmd>bprevious<CR>", {
+vim.keymap.set({ "n", "i", "x", "s" }, "<C-S-Tab>", "<Cmd>bprevious<CR>", {
   desc = "Previous buffer in the tab bar",
 })
 
