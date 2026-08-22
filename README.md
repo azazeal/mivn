@@ -86,7 +86,7 @@ gets is the launcher's business, not this config's.
 The set in use is Go (`gopls`, `golangci-lint-langserver`), Python (`ty`,
 `ruff`), TypeScript (`tsgo`), Rust, Lua, Elixir, Gleam, Shell, Markdown,
 TOML, YAML (`yaml-language-server`, `actions-languageserver`, `zizmor`), JSON,
-HTML, Terraform, Protocol Buffers, templ and the Docker files. The external
+HTML, Terraform, Tilt, Protocol Buffers, templ and the Docker files. The external
 formatters (`stylua`, `shfmt`, `jq`, `taplo`, `yamlfmt`, `dockerfmt`,
 `xmllint`) and `gci` for Go imports are looked up the same way.
 

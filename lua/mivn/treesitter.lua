@@ -78,6 +78,7 @@ local grammars = {
   "rust",
   "scss",
   "sql",
+  "starlark", -- Tiltfile, via the register below
   "templ",
   "terraform",
   "toml",
@@ -102,6 +103,9 @@ end, { desc = "Update every installed tree-sitter grammar" })
 
 -- `jsonc` has no grammar of its own and the json parser accepts the comments.
 vim.treesitter.language.register("json", "jsonc")
+
+-- A Tiltfile is Starlark, and there is no grammar under its own name.
+vim.treesitter.language.register("starlark", "tiltfile")
 
 -- Compose files earn a filetype of their own, because that is the name the
 -- Docker language server (lua/mivn/languages/dockerfile.lua) claims them by; nothing else
