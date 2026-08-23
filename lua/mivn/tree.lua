@@ -264,9 +264,16 @@ require("nvim-tree").setup({
   -- folder that is collapsed over one.
   modified = { enable = true },
 
-  -- The tree is rooted at the working directory and stays there. `update_root`
-  -- off is what keeps it from climbing out of the project when a jump to a
-  -- definition lands in the module cache.
+  -- The tree follows `:cd` and nothing else.
+  --
+  -- Two settings that sound alike and are not. `sync_root_with_cwd` re-roots
+  -- on DirChanged, which is me saying where I am working now, and the tree
+  -- being left behind on the old project after that was the one place a `:cd`
+  -- did not land. `update_root` would re-root on whatever file I jumped to,
+  -- which is not me saying anything: a jump to a definition in the module
+  -- cache would climb the tree straight out of the project.
+  sync_root_with_cwd = true,
+
   update_focused_file = {
     enable = true, -- highlight the file I am editing
     update_root = false,
