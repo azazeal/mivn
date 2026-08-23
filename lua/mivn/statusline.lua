@@ -7,6 +7,7 @@
 -- across the room, the letter confirms it up close, and one letter keeps the
 -- block the same width in every mode, so nothing beside it ever shifts.
 
+local blame = require("mivn.blame")
 local statusline = require("mini.statusline")
 
 --- Git ------------------------------------------------------------------------
@@ -154,12 +155,55 @@ end
 --- wide column of shared prefix. `%f` is the path as opened, relative to the
 --- working directory, and the launcher makes that the project root. `%m` is
 --- the modified flag, `%r` the read-only one; a terminal gets its name.
+--- The base names that more than one listed buffer is using.
+---
+--- Kept rather than counted per redraw: the line is rebuilt many times a
+--- second and walking the buffer list is not free. The autocmd below refreshes
+--- it, and the set is small enough that rebuilding it whole beats keeping it
+--- up to date piece by piece.
+local shared = {}
+
+local function count_shared()
+  local seen = {}
+
+  shared = {}
+
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.bo[buf].buflisted then
+      local name = vim.fs.basename(vim.api.nvim_buf_get_name(buf))
+
+      if name ~= "" then
+        if seen[name] then
+          shared[name] = true
+        end
+
+        seen[name] = true
+      end
+    end
+  end
+end
+
+--- The file, but only the half the tab bar is not already showing.
+---
+--- The bar carries the name of every open buffer, so repeating it here says
+--- nothing. What it cannot always carry is which of two files of the same name
+--- this is: mini.tabline drops the bare name and starts prefixing directories
+--- the moment two buffers share one, and it adds only as much path as it takes
+--- to tell them apart. That is when the full path earns its place, and it is
+--- the only time.
+---
+--- The flags stay either way. Modified and readonly are not on the tab bar at
+--- all, measured, and the gutter only says the first of them.
 local function section_filename()
   if vim.bo.buftype == "terminal" then
     return "%t"
   end
 
-  return "%f%m%r"
+  if shared[vim.fs.basename(vim.api.nvim_buf_get_name(0))] then
+    return "%f%m%r"
+  end
+
+  return "%m%r"
 end
 
 --- The project: the parent directory and the directory, joined.
@@ -289,11 +333,29 @@ statusline.setup({
         "%<", -- where the line is cut first when the window is narrow
         { hl = "MiniStatuslineFilename", strings = { section_filename() } },
         "%=", -- everything after this is pushed to the right
+        --
+        -- The order of what follows is the point, and it is decided by one
+        -- rule: this side is laid out right to left, so when a piece grows,
+        -- everything to its *left* slides over and everything to its right
+        -- stays where it is. The pieces that change width therefore go first,
+        -- and the ones I read at a glance go last.
+        --
         -- `%S` is where 'showcmd' prints the command in progress, which
-        -- init.lua points here with 'showcmdloc'. First slot after `%=` on
-        -- purpose: while a count or an operator is pending the group grows
-        -- leftward into the empty middle, so nothing beside it ever moves.
-        { hl = "MiniStatuslineFileinfo", strings = { "%S", section_search(75), section_filetype(120) } },
+        -- init.lua points here with 'showcmdloc'. It appears and vanishes as I
+        -- type, so it is first after `%=` and grows into the empty middle,
+        -- where there is nothing to disturb. The search count is next for the
+        -- same reason, being there only while a search is live.
+        { hl = "MiniStatuslineFileinfo", strings = { "%S", section_search(75) } },
+        -- Who wrote the line the cursor is on (lua/mivn/blame.lua), here
+        -- rather than at the end of the code line: it never sits on top of
+        -- anything, never depends on how long a line is, and is always in the
+        -- same place. Behind the two above so that a half-typed command cannot
+        -- push it about, which it did when this sat first and was the reason
+        -- the order got written down.
+        { hl = "MivnStatuslineBlame", strings = { blame.line() } },
+        -- The filetype last, beside the location, since between them they are
+        -- what I glance at rather than watch.
+        { hl = "MiniStatuslineFileinfo", strings = { section_filetype(120) } },
         { hl = mode_hl, strings = { LOCATION } },
       })
     end,
@@ -309,5 +371,14 @@ vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained", "DirCha
   group = group,
   callback = schedule_refresh,
 })
+
+-- What the tab bar can say on a name alone changes only when the buffer list
+-- does, or when a buffer is renamed under it.
+vim.api.nvim_create_autocmd({ "BufAdd", "BufDelete", "BufFilePost" }, {
+  group = group,
+  callback = vim.schedule_wrap(count_shared),
+})
+
+count_shared()
 
 refresh()
