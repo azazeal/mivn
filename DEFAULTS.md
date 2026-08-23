@@ -916,8 +916,15 @@ an arrow drops the selection to edit the extension too.
 
 Two of its defaults are removed _(mivn)_: `-` and `Ctrl+]` used to **re-root
 the tree**, one to the parent directory and one to the directory under the
-cursor. The tree is rooted at the project and stays there, so the two keys
-that could walk it out are simply gone.
+cursor. The tree is rooted at the working directory, so the two keys that
+could walk it out from under you are simply gone.
+
+`:cd` is the one thing that moves it _(mivn)_. The tree follows the working
+directory, so telling the editor you are working somewhere else moves the tree
+there too, and `:pwd`, the status line and the tree all agree afterwards.
+Nothing else re-roots it: jumping to a definition that lands in the module
+cache or the standard library opens the file and leaves the tree where it was,
+because that is you following code rather than saying where you are working.
 
 `:bd` typed inside the tree is caught _(mivn)_: the tree is a panel, not a
 file, so instead of deleting the tree's buffer and collapsing the split, the

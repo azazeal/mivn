@@ -75,6 +75,16 @@ vim.opt.smartcase = true -- ...unless the search itself contains a capital
 -- always-on state rather than floating alone at the bottom right.
 vim.opt.shortmess:append("S")
 
+-- No running commentary from the completion menu either. Without "c" every
+-- keystroke while the menu is up prints "match 5 of 141", and with the menu
+-- opening as I type (lua/mivn/complete.lua) that is a message per character,
+-- stacked three deep in the corner. The menu already shows which match is
+-- selected and how many there are; the sentence is the same fact, spoken.
+--
+-- "C" is already in the default and is the other half: quiet while it is
+-- still scanning for matches, rather than quiet about what it found.
+vim.opt.shortmess:append("c")
+
 -- ui2, Neovim's experimental rewrite of the message and command-line layer
 -- (:h ui2). What it changes here: a message longer than 'cmdheight' no
 -- longer blocks on "Press ENTER"; it is cut short behind a `[+x]` marker,
