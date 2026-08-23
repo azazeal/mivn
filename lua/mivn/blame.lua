@@ -79,9 +79,9 @@ end
 ---
 --- git has no username of its own, so this is the nearest thing it knows and
 --- it is the handle the same person goes by everywhere else. It is also much
---- the shorter half, `panos` against `Panagiotis Siatras`, on a line that has
---- other things to say. The full name is what is left when an address is
---- missing, which happens on a commit made without one.
+--- the shorter half, a handle against a full name, on a line that has other
+--- things to say. The full name is what is left when an address is missing,
+--- which happens on a commit made without one.
 local function whom(name, mail)
   local address = mail and mail:match("^<(.*)>$") or mail
   local handle = address and address:match("^([^@]+)@")

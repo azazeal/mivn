@@ -141,10 +141,11 @@ local function gci_format(buf)
   -- One Neovim is one workspace, and the sections above were built for this
   -- one. A file from another checkout, reached by a picker rather than by
   -- opening an editor there, would be regrouped against the wrong prefixes:
-  -- measured 2026-08-15, a smallstep file saved from a session started in
-  -- ~/projects/azazeal gets `github.com/azazeal/` as its "ours" block, which
-  -- is silent churn in someone else's repository. The language servers are
-  -- unaffected, since each roots itself from the file.
+  -- measured 2026-08-15, a file belonging to one checkout, saved from a
+  -- session started in another, is regrouped against the starting session's
+  -- prefixes and lands with the wrong "ours" block: silent churn in a
+  -- repository that never asked for it. The language servers are unaffected,
+  -- since each roots itself from the file.
   --
   -- So nothing happens instead, and it says so once. gopls has already
   -- formatted and organised the imports by then; only the grouping is
