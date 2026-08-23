@@ -174,12 +174,12 @@ vim.keymap.set("n", "<Esc>", "<Cmd>nohlsearch<CR><Esc>", {
 -- Going right lands *after* the last letter rather than on it. 'selection' is
 -- exclusive (init.lua), so the cursor is a boundary between characters, and
 -- landing after the word is what makes a selection back to its start hold the
--- word and nothing else. Measured on "foo bar": `e` then `vb` selects "fo",
--- and `el` then `vb` selects "foo".
+-- word and nothing else. Measured on "foo bar": stopping on the second "o"
+-- and selecting back gives "fo", stopping past it gives "foo".
 --
--- The WORD is bound to nothing here. It crosses `foo::bar(baz(r, g, b))` in
--- one press, which is never the distance meant. `W`, `B`, `E` and `gE` are
--- untouched and still Vim's.
+-- The WORD reaches no arrow. It crosses `foo::bar(baz(r, g, b))` in one
+-- press, which is never the distance meant. `W`, `B` and `gE` are untouched
+-- and still Vim's.
 --
 -- Normal and Insert, and not Visual or Select: there an unshifted special key
 -- ends the selection ('keymodel' has "stopsel") and a mapping would keep it
@@ -196,12 +196,14 @@ vim.keymap.set("n", "<Esc>", "<Cmd>nohlsearch<CR><Esc>", {
 -- Operator-pending takes plain `e`, since an inclusive motion already covers
 -- the same text: `d<C-Right>` is `de`, the word and no more.
 for _, key in ipairs({
-  { lhs = "<C-Right>", forward = true, small = false, to = "past the end of the word" },
-  { lhs = "<C-Left>", forward = false, small = false, to = "to the start of the previous word" },
-  { lhs = "<A-Right>", forward = true, small = true, to = "past the end of the subword" },
-  { lhs = "<A-Left>", forward = false, small = true, to = "to the start of the previous subword" },
+  { lhs = "<C-Right>", forward = true, size = "word", to = "past the end of the word" },
+  { lhs = "<C-Left>", forward = false, size = "word", to = "to the start of the previous word" },
+  { lhs = "<A-Right>", forward = true, size = "subword", to = "past the end of the subword" },
+  { lhs = "<A-Left>", forward = false, size = "subword", to = "to the start of the previous subword" },
 }) do
-  vim.keymap.set({ "n", "i" }, key.lhs, words.move(key.forward, key.small), {
+  -- Going right stops at an end and going left at a start, which is the one
+  -- combination of the two axes the arrows want.
+  vim.keymap.set({ "n", "i" }, key.lhs, words.move(key.forward, key.forward, key.size), {
     desc = "Move " .. key.to,
   })
 end
@@ -217,6 +219,44 @@ vim.keymap.set("o", "<C-Right>", "e", {
 vim.keymap.set("o", "<C-Left>", "b", {
   desc = "To the start of the previous word",
 })
+
+-- The four end keys land past the last character rather than on it. The end
+-- of a piece is one place, and with a bar cursor drawn at the left edge of
+-- the character it sits on, stopping on the last letter of a word puts the
+-- caret one place short of where the word ends. A macro recorded there then
+-- means something other than what I pressed it for, which is the whole
+-- reason these moved.
+--
+-- All four run on words.lua rather than on Vim's keys plus a column, because
+-- Vim's own skip: `e` moves to the end of the *next* word when the caret
+-- already sits at the end of one, so on `foo (bar) baz` landing past `bar`
+-- puts the caret on `)`, which has already ended, and the next press crosses
+-- `)` and `baz` together. `ge` skips the same way going the other direction,
+-- and `gE` plus a column right is a fixed point: it lands back where it
+-- started every time. Measured, all three.
+--
+-- Visual as well as Normal. Vim moves an inclusive motion one further there
+-- when the caret is past the anchor, so `vE` looks right, but only in that
+-- direction: extend a selection leftwards and the compensation is gone. One
+-- rule in both modes is the point.
+--
+-- Operator-pending is left alone, so `de`, `dE`, `dge` and `dgE` are Vim's
+-- inclusive motions and cover the piece and no more. What this costs is `ea`,
+-- which appended at the end of a word and now appends one character further
+-- on; plain `i` is what does that job now.
+--
+-- `w`, `b` and their capitals are untouched. They stop at the first character
+-- of a piece, which is already the boundary a piece starts at.
+for _, key in ipairs({
+  { lhs = "e", forward = true, size = "word", of = "word" },
+  { lhs = "E", forward = true, size = "WORD", of = "WORD" },
+  { lhs = "ge", forward = false, size = "word", of = "previous word" },
+  { lhs = "gE", forward = false, size = "WORD", of = "previous WORD" },
+}) do
+  vim.keymap.set({ "n", "x" }, key.lhs, words.move(key.forward, true, key.size), {
+    desc = "Move past the end of the " .. key.of,
+  })
+end
 
 -- Home and End, on the same model and with Zed's rule for the indent.
 --
@@ -420,17 +460,17 @@ vim.keymap.set("i", "<S-Home>", selecting("<S-Home>"), {
 -- After an operator the key is left alone: `d` and a shifted arrow is not
 -- something I press.
 for _, sel in ipairs({
-  { lhs = "<C-S-Right>", forward = true, small = false, to = "past the end of the word" },
-  { lhs = "<C-S-Left>", forward = false, small = false, to = "to the start of the previous word" },
-  { lhs = "<A-S-Right>", forward = true, small = true, to = "past the end of the subword" },
-  { lhs = "<A-S-Left>", forward = false, small = true, to = "to the start of the previous subword" },
+  { lhs = "<C-S-Right>", forward = true, size = "word", to = "past the end of the word" },
+  { lhs = "<C-S-Left>", forward = false, size = "word", to = "to the start of the previous word" },
+  { lhs = "<A-S-Right>", forward = true, size = "subword", to = "past the end of the subword" },
+  { lhs = "<A-S-Left>", forward = false, size = "subword", to = "to the start of the previous subword" },
 }) do
   -- The one motion Visual and Select share, and what the Insert mapping
   -- reaches on its second press. It puts the cursor somewhere rather than
   -- typing anything, so Select needs no <C-o> around it.
-  local extend = words.move(sel.forward, sel.small)
+  local extend = words.move(sel.forward, sel.forward, sel.size)
 
-  vim.keymap.set("n", sel.lhs, words.select(sel.forward, sel.small), {
+  vim.keymap.set("n", sel.lhs, words.select(sel.forward, sel.forward, sel.size), {
     desc = "Select " .. sel.to,
   })
 

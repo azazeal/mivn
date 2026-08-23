@@ -315,8 +315,8 @@ what it acts on.
 | `b` / `B` | Start of previous word / WORD |
 | Ctrl+`→` / Ctrl+`←` | Past the end of the word / start of the previous one _(mivn)_ |
 | Alt+`→` / Alt+`←` | The same, by subword _(mivn)_ |
-| `e` / `E` | End of word / WORD |
-| `ge` / `gE` | End of the previous word / WORD |
+| `e` / `E` | Past the end of the word / WORD _(mivn)_ |
+| `ge` / `gE` | Past the end of the previous word / WORD _(mivn)_ |
 | `0` | Column zero |
 | `^` | First non-blank character |
 | `$` | End of line |
@@ -334,8 +334,8 @@ A *word* stops at punctuation; a *WORD* is whitespace-delimited. In
 Ctrl and an arrow is the word here, never the WORD _(mivn)_. Vim gives the
 arrows both sizes, `w` on Shift and `W` on Ctrl, but Shift selects here
 instead, and the WORD alone crosses a whole `foo::bar(baz(r, g, b))` in one
-press, which is never the distance meant. `W`, `B`, `E` and `gE` are untouched
-and still Vim's; nothing here is bound to them.
+press, which is never the distance meant. `W`, `B` and `gE` are untouched and
+still Vim's; nothing here is bound to them.
 
 The two directions are deliberately not mirror images. Ctrl+`→` lands *past
 the end* of the word and Ctrl+`←` on the *start* of the previous one, which is
@@ -349,7 +349,9 @@ the `o` and selecting back gives `fo`, stopping past it gives `foo`.
 last word of a line exists at all.
 
 It works after an operator too, where Vim's own inclusive `e` covers the same
-text: `d`+Ctrl+`→` deletes the word and no more.
+text: `d`+Ctrl+`→` deletes the word and no more. An operator still reaches
+that `e`, which is why the key is worth keeping in mind even though pressing
+it alone now does something else.
 
 Both pairs work **while typing** as well _(mivn)_, and they had to be bound
 there rather than left alone: Vim's own Ctrl+`→` in Insert is the start of the
@@ -391,23 +393,59 @@ So from the text it takes two presses to reach the real start of the line, and
 from inside the indentation only one. Vim has the two halves as `^` and `0`
 and no key that alternates between them.
 
-The letters are untouched, and that is deliberate. `w`, `e`, `b` and their
-capitals do what Vim ships, landing *on* the last character where the arrows
-land past it. Only the arrow family moved, so the block model survives
-wherever Vim's own grammar is what you typed, and the two never have to be
-kept in step with each other.
+`e`, `E`, `ge` and `gE` land past the last character too _(mivn)_, in Normal
+and Visual. The end of a piece of text is one place here, and it is the
+boundary after its last character, never the character itself. The reason is
+the bar cursor: it is drawn at the left edge of the character it sits on, so
+stopping *on* the last letter of a word draws the caret one place short of
+where the word ends. Every other end-of-something key here is already a
+boundary, and a macro recorded on a key that is not means something other than
+what was pressed.
+
+`w`, `b` and their capitals are untouched, because they already stop at the
+first character of a piece, which is the boundary a piece starts at. So the
+grid Vim's four keys make, a direction and a side, is intact; only the side
+that had the off-by-one moved.
+
+What it costs is `ea`, which used to append at the end of a word and now
+appends one character further on; plain `i` does that job instead. After an
+operator nothing changed, so `de`, `ce`, `ye`, `dge` and the rest are still
+Vim's inclusive motions and still cover the piece and no more.
+
+Visual is bound for the same reason Normal is, even though `ve` and `vE` look
+right without it. With exclusive selection Vim moves an inclusive motion one
+further in Visual so the selection holds its last character, but only when the
+caret is past the anchor; extend a selection leftwards and the compensation is
+gone. One rule in both modes is the point.
 
 Alt and an arrow does the same by **subword**, the piece of an identifier a
 camel hump or an underscore marks off _(mivn)_. `parseHTTPUrl` is `parse`,
 `HTTP` and `Url`; `foo_bar` is two; `::` is a piece of its own.
 
-Both granularities are parsed in `lua/mivn/words.lua` rather than borrowed
-from `e`, because borrowing leaves a hole: `e` moves to the end of the *next*
-word when the cursor already sits at the end of one, which in this model is
-every time a word ends against the next. Measured on `foo (bar) baz`, the
-borrowed version crossed `)` and `baz` in a single press. The parsed one stops
-after every word, punctuation included: `parseHTTPUrl`, `(`, `foo_bar`, `,`,
-`baz2Qux`, `)`.
+All three sizes are parsed in `lua/mivn/words.lua` rather than borrowed from
+Vim's keys, because borrowing leaves a hole: `e` moves to the end of the
+*next* word when the cursor already sits at the end of one, which in this
+model is every time a word ends against the next. Measured on `foo (bar) baz`,
+the borrowed version crossed `)` and `baz` in a single press, and `ge` skipped
+the same way going back. The parsed one stops after every word, punctuation
+included: `parseHTTPUrl`, `(`, `foo_bar`, `,`, `baz2Qux`, `)`.
+
+The WORD is in that file for `E` and `gE` and reaches no arrow. Borrowing was
+tried there too and `gE` plus a column right turned out to be a fixed point,
+landing back where it started every time.
+
+What all of them count is graphemes, not bytes _(mivn)_, and the kind of each
+one is Vim's own answer rather than a guess. So `καλημέρα` is one word with
+`«` as punctuation beside it, `naïve` does not break at the `ï`, `ΚαλήΜέρα`
+humps under Alt and an arrow the way `FooBar` does, and `👩‍💻` is a single
+thing the caret cannot land inside, whether it stands alone or sits in the
+middle of `foo👩‍💻bar`.
+
+Outside the cased letters the piece is one script, which is what makes these
+keys work on a language written without spaces. `私は日本語を勉強しています`
+is six stops, at every change between kanji and hiragana, and
+`変数nameを設定する` is five. That is where Vim puts a boundary too, and
+without a dictionary there is no better answer.
 
 Neither is an operator-pending motion. After an operator the Ctrl pair falls
 back to Vim's own `e` and `b`, which cover the same text, and the Alt pair has
