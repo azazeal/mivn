@@ -17,6 +17,14 @@ checked off; git remembers them.
 
 - [ ] Check whether treesitter indentation beats the built-in ftplugins for
     any of these. It is off right now on the assumption it does not.
+- [ ] `:MivnInstallGrammars` cannot repair a half-installed grammar. It skips
+    a language whose parser is already there, so a broken query link is
+    invisible: the parser loads, highlighting turns on, and every capture
+    comes back empty, which reads as "the colorscheme forgot this language".
+    That is what the move off lazy.nvim left behind in `~/.config/nvim`: 30
+    languages whose `queries/<lang>` still pointed into the old `lazy/`
+    directory, relinked by hand on 2026-08-03. Either check the links on
+    install or say it in `:checkhealth mivn`.
 - [ ] Markdown: decide what is left of the writing set. Formatting is done:
     `rumdl` with MD060 alone aligns the tables and gives a file with no table
     in it back byte for byte, which is why it is a linter with one rule turned
@@ -40,21 +48,58 @@ checked off; git remembers them.
     was keyed by binary name while everything around it was keyed by
     server, which moved into the language files.
 
-- [ ] `%S` leaves a stray space to its left in the status line's right-hand
-    group, because mini.statusline joins a group's strings with a space and
-    cannot tell that `%S` renders as nothing while no command is pending.
-    Measured, and the options are narrower than they look. Vim's own `%( %)`
-    does drop a group whose items come out empty, but mini.statusline emits
-    the join space before Vim ever evaluates it, so the space outlives the
-    group. `%S`'s content is not reachable from Lua either, which is the
-    reason `showcmdloc` exists at all.
+- [ ] Nothing formats jsonc, and nothing says so. `jq` cannot parse a
+    comment, so json.lua leaves the filetype unmapped on purpose and a save
+    is silently a no-op. Neovim decides the filetype by name and decides it
+    correctly: `tsconfig.json` and `*.jsonc` are jsonc, while `.luarc.json`,
+    `package.json` and the pack lock are plain json, which jq does format.
+    A json file that does carry a comment fails the right way, loudly and
+    without touching the file: `jq: parse error: Invalid numeric literal`.
+    So this is a hole rather than a bug, and closing it means a formatter
+    with a print width that speaks jsonc, `biome` being the one that fits
+    without a runtime. It would also stop `["vim"]` being blown onto three
+    lines, which is jq having no width to measure against rather than an
+    opinion. Not today: costed 2026-08-24 and left.
 
-    The one lever left is moving `%S` to the end of its group, where the
-    orphan space merges into the padding that is already there: measured
-    `[  go   0:1  ]` before and `[ go    0:1  ]` after. The cost is that a
-    pending count or operator then draws to the right of the filetype rather
-    than the left, which is the placement init.lua put there on purpose.
-    A look decision, not a bug.
+- [ ] `:checkhealth mivn` takes about 3.4 seconds now, up from 1.4. The
+    servers with no version flag are started for real and given half a
+    second to prove they did not die on the spot, which is what caught
+    jsonls and cssls shipping without the code behind their launchers. Four
+    healthy ones hold that half second each, one after another. Starting
+    them all before waiting on any would put the time back.
+
+- [ ] `%S` leaves a stray space to its right in the status line's right-hand
+    group. mini.statusline joins a group's non-empty strings with a space and
+    cannot tell that `%S` renders as nothing while no command is pending, so
+    the separator is drawn for a thing that is not there. Found while the
+    filetype was briefly a glyph, which made a one-character orphan obvious;
+    it is there with the name too, just harder to see. The fix is either a
+    group of its own for `%S` or moving the filetype out of that group, and
+    both change the padding either side, so measure before picking.
+
+    Half of that is spent already. Reordering the right-hand side on
+    2026-08-23 put the filetype in a group of its own, so the second lever is
+    pulled and only the first is left to try. Measuring it again is harder
+    than it sounds: everything after `%=` is right aligned, so a stray space
+    at the left edge of a group merges into the empty middle and a rendered
+    line looks the same either way. Catching it needs something sitting hard
+    against that edge, which is the state the glyph put it in.
+
+## Testing
+
+- [ ] Nothing watches the word keys. `.github/scripts/panels` exists because
+    two bugs of one shape reached the banner; the motions are the next shape
+    and they reached me the same way. The parser read bytes, so `café` broke
+    at the `é` and `abcαβγ` broke at the Greek, and the fix for that then
+    swallowed a whole line of Japanese in one press because every script was
+    being called one kind. Both were found by hand, twice, after shipping.
+
+    What would have caught them is a `.github/scripts/motions` asserting
+    where the caret lands for `w`, `e`, `b`, `ge` and their capitals, plus
+    the arrows, over a fixture with an ASCII line, a Greek one, an accented
+    one, a Japanese one and an emoji cluster. The assertions already exist as
+    a throwaway: 76 of them were written while fixing this and thrown away
+    afterwards, which is the part worth not repeating.
 
 ## Plugins
 
@@ -120,6 +165,12 @@ Seen once, not reproduced, not forgotten:
   --remote-expr` from outside and capture 'laststatus', 'cmdheight',
   `nvim_list_uis()` and the window list; those say which half is broken, the
   server or the window.
+
+- The tree grew a second way to re-root on 2026-08-23: `sync_root_with_cwd`
+  moves it on DirChanged, so `:cd` now takes it along. Nothing has gone wrong
+  with it, and it is only worth writing down beside the entry below, which is
+  the other time the tree ended up somewhere unexpected. If that one comes
+  back, this is the new code path near it.
 
 - After a layout collapse in the tree, `:NvimTreeOpen` left a completely blank
   full-window `NvimTree_1` buffer, drawing no listing at all. Scripted repros
