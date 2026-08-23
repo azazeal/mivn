@@ -1305,8 +1305,19 @@ given another directory. Trusting starts the servers there and then, without a
 restart; denying, or moving to an untrusted workspace, stops the ones already
 running. Answers are kept in Neovim's own trust list, the one `:trust` writes
 for `.nvim.lua`, and the nearest answer above a directory wins, so trusting a
-checkout covers everything in it. `~/projects` is trusted a level down, per
-organization, so the question only comes up for somebody else's code.
+checkout covers everything in it.
+
+Nothing is trusted ahead of time _(mivn)_. There is no list of directories the
+question is skipped for, because such a list is one clone landing in the wrong
+place away from running code nobody looked at, and being asked is cheap: once
+per checkout, and it is also what keeps you aware the gate is there.
+
+Cheap because it is not a prompt, and not for every file. Nothing blocks and
+nothing waits for an answer. One line appears the first time you open a file
+in an untrusted workspace that a language server would have started for, and
+that is the whole of it. A `.txt` in the same directory says nothing, since
+nothing was going to run for it either way, and the line comes once per
+workspace per session rather than once per file.
 
 Writing a file formats it _(mivn)_. Vim writes the buffer as it stands; here
 the language server is asked to organize the imports and then to format, and

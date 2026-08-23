@@ -350,8 +350,9 @@ function M.check()
   end
 
   -- info for the same reason check_binary uses it: these rows scan by name.
+  -- Every row is an answer I gave, since nothing is trusted ahead of time.
   for _, entry in ipairs(trust.decided()) do
-    health.info(("%s: %s (%s)"):format(entry.path, entry.state, entry.by == "mivn" and "this config" or ":MivnTrust"))
+    health.info(("%s: %s"):format(entry.path, entry.state))
   end
 
   health.start("clients in this session")

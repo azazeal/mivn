@@ -27,6 +27,12 @@
 -- setting for exactly that case and defaults it to asking; here one window is
 -- one project, so it is not worth the machinery.
 --
+-- Every workspace is asked about, and nothing is trusted ahead of time. A
+-- standing list of directories to skip the question for would be one clone
+-- landing in the wrong place away from running code I never looked at, and
+-- being asked is cheap: it is once per checkout, and it is also the thing
+-- that keeps me aware the gate is there at all.
+--
 -- Decisions live in Neovim's own trust list, the file `:trust` writes, so one
 -- list holds these and the exrc ones together and `:trust` still reads. A
 -- directory in it is trusted by name rather than by content, which is
@@ -38,19 +44,6 @@
 
 local M = {}
 
---- Mine, and trusted without being asked about. Everything I write lives
---- under one of these, so the question is only ever put about a checkout of
---- somebody else's, which is what ~/projects/oss is full of.
----
---- The trade is deliberate: a hostile repository cloned into one of these is
---- trusted by being there. That is the same trust I extend by putting it
---- there in the first place.
-local MINE = {
-  "~/projects/azazeal",
-  "~/projects/nefeloma",
-  "~/projects/smallstep.com",
-}
-
 --- `path` as the trust list spells it, or nil when it does not exist.
 local function real(path)
   if type(path) ~= "string" or path == "" then
@@ -58,14 +51,6 @@ local function real(path)
   end
 
   return vim.uv.fs_realpath(vim.fs.normalize(path))
-end
-
-local mine = {}
-for _, path in ipairs(MINE) do
-  local resolved = real(vim.fn.expand(path))
-  if resolved then
-    mine[resolved] = true
-  end
 end
 
 --- The trust list, path to what was decided about it.
@@ -95,9 +80,8 @@ local function decisions()
   return list
 end
 
---- What was decided about `dir`: "allowed", "denied" or "unknown", the
---- directory that decided it, and whether that decision is one of mine to
---- take back ("list") or one this file makes ("mivn").
+--- What was decided about `dir`: "allowed", "denied" or "unknown", and the
+--- directory that decided it.
 ---
 --- The nearest answer wins, so trusting a checkout covers everything inside
 --- it and denying one covers everything inside that. Neovim's list matches a
@@ -116,8 +100,6 @@ function M.status(dir)
       return "denied", path, "list"
     elseif list[path] then
       return "allowed", path, "list"
-    elseif mine[path] then
-      return "allowed", path, "mivn"
     end
 
     local parent = vim.fs.dirname(path)
@@ -137,20 +119,13 @@ function M.allows(dir)
 end
 
 --- Every directory decided about, whichever way, for `:checkhealth mivn`.
----
---- The ones written into this file are in there too, since a list of what
---- runs code for me that leaves out three entries is worse than none.
 function M.decided()
   local list = {}
-
-  for path in pairs(mine) do
-    list[#list + 1] = { path = path, state = "allowed", by = "mivn" }
-  end
 
   for path, decision in pairs(decisions()) do
     -- A file's entry is its hash, and a denied one is "!" whether it is a
     -- file or a directory, so what it is on disk is the only way to tell.
-    if not mine[path] and vim.fn.isdirectory(path) == 1 and (decision == "directory" or decision == "!") then
+    if vim.fn.isdirectory(path) == 1 and (decision == "directory" or decision == "!") then
       list[#list + 1] = {
         path = path,
         state = decision == "!" and "denied" or "allowed",
