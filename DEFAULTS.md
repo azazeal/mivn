@@ -1036,6 +1036,67 @@ names. Worth learning as one shape rather than six bindings.
 | `]<Space>` / `[<Space>` | Add a blank line below / above the cursor |
 | `]h` / `[h` | Git hunks _(mivn: mini.diff's pair, same shape)_ |
 | `Space t r` | The old text, inline, for every changed line _(mivn)_ |
+| `Space t b` | Who wrote the line you are on, or stop showing it _(mivn)_ |
+
+Who wrote the line under the cursor is **on from the start** _(mivn)_, and
+`<leader>tb` is there to turn it off for the times it needs to be quiet. It is
+a session state rather than a buffer one, so the key takes it off everywhere
+at once. What it says is `panos · 3 months ago`, in the **status line**, on the
+right-hand side just left of the row and column.
+
+The cursor's line and no other, which is the shape Zed's `inline_blame` has
+and the reason to prefer it. Annotating every line was tried here first and
+reads badly: the same name comes back every few lines, a blank line belongs to
+whichever commit added the section above it so its name lands out at column
+zero beside nothing, and a file with unsaved work in it starts a fresh run
+after every line you have touched. Zed keeps the whole-file view as a separate
+thing in the gutter, with avatars and short hashes, rather than the same text
+repeated down the right-hand side.
+
+The status line rather than the end of the code line, which is Zed's other
+location for the same text. It never sits on top of anything, never depends on
+how long a line is, and is always in the same place, so the eye learns where
+to look once. What it gives up is nearness to the line it describes, and that
+is worth giving up when the line in question is the one the cursor is on.
+
+The right-hand side is laid out by one rule, which is worth knowing because it
+decides the order of everything there. It is built right to left, so when a
+piece grows, whatever is to its *left* slides over and whatever is to its
+right stays put. So the pieces that come and go as you type go first, where
+there is empty middle to grow into and nothing to disturb, and the pieces you
+read at a glance go last:
+
+| | |
+|---|---|
+| `%S`, the command in progress | Appears and vanishes while you type |
+| `F: 2/5`, the search count | There only while a search is live |
+| `panos · 3 months ago` | Changes with the cursor |
+| The filetype glyph | Steady |
+| `28:1`, row and column | Steady |
+
+Which renders as `2d  F: 2/5  panos · 3 months ago  󰢱 lua  28:1` with a count
+half typed. Put the blame first instead and a half-typed command shoves it
+sideways, which is what the order above exists to prevent.
+
+The name is the part of the author's address before the `@`, not the full
+name. git has no username of its own and this is the nearest thing it knows,
+as well as much the shorter half of what it does know.
+
+Lines with nothing committed behind them say nothing, and neither do blank
+ones. The gutter already marks what you changed and `<leader>tr` already shows
+what it was, so a line you are in the middle of writing simply goes quiet.
+What gets blamed is the buffer and not the file on disk, so an unsaved change
+is part of the question rather than something the answer disagrees with, and
+typing asks git again once the text sits still.
+
+Making room for it, the status line stopped repeating the file name _(mivn)_.
+The tab bar carries the name of every open buffer already, so saying it twice
+says nothing. What the bar cannot always carry is which of two files of the
+same name this is: mini.tabline drops the bare name and starts prefixing
+directories the moment two open buffers share one, adding only as much path as
+it takes to tell them apart. So the full path appears in the status line then,
+and only then. The modified and readonly flags stay either way, since the tab
+bar shows neither.
 
 ## The command line
 

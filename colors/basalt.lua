@@ -399,6 +399,11 @@ hl({
   -- means "modified" elsewhere.
   MivnStatuslineGit = { fg = c.orange, bg = c.bg3 },
 
+  -- Who wrote the line the cursor is on: the dimmest thing on the line, so it
+  -- takes the structural grey the line numbers use rather than the lighter one
+  -- comments do. It loses to everything beside it, which is the point.
+  MivnStatuslineBlame = { fg = c.bg6, bg = c.bg3 },
+
   -- Two shades either side of the file name, so the line reads as three bands
   -- rather than one strip with text in it.
   MiniStatuslineDevinfo = { fg = c.fg, bg = c.bg3 },

@@ -26,6 +26,104 @@ local function first_line(...)
   return ""
 end
 
+--- The line of a failed start that says what went wrong.
+---
+--- The first line is usually scaffolding: node opens with the file and line of
+--- its own loader, and the sentence worth reading is four lines down. So the
+--- first line naming a fault wins, and the plain first line is the fallback.
+local function first_fault(...)
+  for _, text in ipairs({ ... }) do
+    for line in (text or ""):gmatch("[^\r\n]+") do
+      line = vim.trim(line)
+      if line:match("[Ee]rror") or line:match("FATAL") then
+        return line
+      end
+    end
+  end
+
+  return first_line(...)
+end
+
+--- The command Neovim would actually start `name` with.
+---
+--- It has to be that one and not the bare binary, because the arguments
+--- decide the answer: `expert` exits 2 without a transport flag, so starting
+--- it on its own would condemn a server that works. mivn names `cmd` for some
+--- servers and leaves the rest to nvim-lspconfig, and vim.lsp.config is where
+--- the two meet.
+---
+--- nvim-lspconfig ships a function for some of them, to prefer a copy the
+--- project carries. Those are left alone: the binary already found on PATH is
+--- what this is asking about.
+local function launch_argv(name, path)
+  local configured = vim.lsp.config[name]
+  local cmd = configured and configured.cmd
+
+  if type(cmd) ~= "table" then
+    return { path }
+  end
+
+  local argv = { path }
+  for i = 2, #cmd do
+    argv[#argv + 1] = cmd[i]
+  end
+
+  return argv
+end
+
+--- How long a server with no version flag has to stay up to count as working.
+---
+--- The failure this catches is immediate. A launcher whose package shipped
+--- without the code behind it dies in about 50 milliseconds, measured, so half
+--- a second is ten times the room it needs and still bounded enough that six
+--- of these do not make :checkhealth feel slow.
+local LIVENESS = 500
+
+--- A server that answers no version flag, checked by starting it the way the
+--- editor would and seeing whether it is still there a moment later.
+---
+--- "Found at <path>" was the old answer and it was worth very little. exepath
+--- says a file exists; it does not say the file runs. Measured 2026-08-23,
+--- when every published version of @zed-industries/vscode-langservers-extracted
+--- carried launchers requiring a `lib/` the tarball did not hold: jsonls,
+--- cssls and html were all reported found while none of the three could start,
+--- and the first anyone knew of it was a server exiting 1 on opening a file.
+---
+--- Timing out is the healthy answer here, since a server with nothing to read
+--- should sit and wait rather than return. stdin is a pipe held open for that
+--- reason: closed, a working server would see end-of-file and exit for a good
+--- reason, which is the same shape as the failure being looked for.
+local function check_liveness(label, binary, path)
+  local health = vim.health
+
+  local ok, result = pcall(function()
+    local argv = launch_argv(label, path)
+    return vim.system(argv, { text = true, stdin = true }):wait(LIVENESS)
+  end)
+
+  if not ok then
+    health.error(("%s: %s failed to start: %s"):format(label, binary, result))
+    return
+  end
+
+  -- 124 is what wait() reports when it runs out of patience and kills, which
+  -- is to say the server was still running.
+  if result.code == 124 then
+    health.info(("%s: starts and keeps running (%s)"):format(label, path))
+    return
+  end
+
+  health.error(
+    ("%s: %s is on PATH but exits %d immediately: %s"):format(
+      label,
+      binary,
+      result.code,
+      first_fault(result.stderr, result.stdout)
+    ),
+    "The launcher is there and what it launches is not; check how its package was installed."
+  )
+end
+
 --- Probe one binary; report through vim.health.
 ---
 --- The healthy rows go through info, not ok, on purpose: vim.health.ok
@@ -43,8 +141,7 @@ local function check_binary(label, binary, probe)
   end
 
   if probe == false then
-    health.info(("%s: found at %s; it has no version flag to probe"):format(label, path))
-    return
+    return check_liveness(label, binary, path)
   end
 
   local cmd = { path, unpack(probe or { "--version" }) }

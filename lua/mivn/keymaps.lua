@@ -18,6 +18,7 @@
 -- of them are 'keymodel', 'whichwrap' and 'langmap' in init.lua, and no
 -- mapping is involved.
 
+local blame = require("mivn.blame")
 local complete = require("mivn.complete")
 local filters = require("mivn.filters")
 local find = require("mivn.find")
@@ -646,6 +647,7 @@ leader("<leader>t`", terminal.toggle, "Show or hide the terminal")
 leader("<leader>tw", margins.toggle_wrap, "Wrap long lines in this window, or stop")
 leader("<leader>th", filters.toggle_dotfiles, "Show or hide dotfiles, in the tree and the finders")
 leader("<leader>ti", filters.toggle_ignored, "Show or hide ignored files, in the tree and the finders")
+leader("<leader>tb", blame.toggle, "Show or hide who wrote each line")
 
 -- The gutter says which lines changed; this says what they were. mini.diff
 -- ships no key for it, and the question it answers, "what did I do to this
