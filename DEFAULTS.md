@@ -192,7 +192,7 @@ Greek layout", which are otherwise guesswork.
 | `v` | Visual | Character-wise selection |
 | `V` | Visual line | Whole lines |
 | `Ctrl+V` | Visual block | Columns / rectangles |
-| `gh` / `gH` | Select | Like Visual, but typing replaces the selection |
+| `Ctrl+G` in Visual | Select | Like Visual, but typing replaces the selection |
 | `R` | Replace | Overwrites as you type |
 | `Insert` | Insert / Normal | Whichever of the two you are not in _(mivn)_ |
 | `:` | Command-line | Ex commands |
@@ -284,9 +284,10 @@ mouse there and is deliberately unset: the one habit it bought cost `y` and `d`,
 which replaced the selection with a letter, and copying became `Ctrl+O y`. You
 still meet Select mode where it does earn its keep, which is the paragraph
 above, the floating prompt and the tree's `e` rename, the last two coming up
-with the name preselected so typing replaces it. `gh` starts it by hand,
-`Ctrl+G` switches between the two, and the status line gives Select its own
-color so they are never confused.
+with the name preselected so typing replaces it. `Ctrl+G` switches between the
+two, and the status line and the selection both give Select its own color so
+they are never confused. Vim's own `gh` and `gH` do not start it here: those
+are mini.diff's, staging and resetting the hunk an operator covers.
 
 This is still a bridge for the edit you make once. Replacing a word with
 Ctrl+Shift+`→`, `c` and `NEW` is one change and one undo, but `.` repeats it
@@ -369,6 +370,16 @@ already draws Visual-with-exclusive-selection as a bar in its stock value, for
 this reason; this is that reasoning carried into Normal mode. What it costs is
 `r` and `~`, which act on the character to the right of the bar without
 showing which one that is.
+
+The cursor also carries the mode's color _(mivn)_, the same hue the status
+line's mode block shows: blue in Normal, green in Insert, magenta in Visual,
+red in Replace, yellow on the command line, cyan for the rest. The mode block
+is in the corner and the cursor is where you are already looking. The
+selection is magenta for the same reason, so picking text out lights the
+cursor, the selection and the mode block in one color. The preselection a
+prompt opens with is Select rather than Visual, and it is orange there, which
+is Select's own color in the mode block. A terminal has to support `OSC 12`
+for the cursor half; foot and kitty do.
 
 `End` moves past the end of the line for the same reason _(mivn)_, in Normal
 mode only; `$` is Vim's and stops on the last character. It cannot take a line break with

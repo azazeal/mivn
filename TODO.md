@@ -5,6 +5,14 @@ checked off; git remembers them.
 
 ## UI
 
+- [ ] The caret's Visual color arrives one key late when Visual is entered
+    with `v` or `V`. which-key's `ModeChanged` hook is what swallows the
+    flush: clearing that one autocmd makes the color immediate, and plain
+    Neovim with the same 'guicursor' sends it on the keypress. Shift+arrow,
+    which is how a selection usually starts here, is unaffected, since the
+    motion that comes with it flushes. Measured 2026-08-24. A `redraw` in an
+    autocmd would cover it; not worth one until the `v` path annoys me.
+
 - [ ] Test coverage in the gutter, the way Zed shows it for Go. Nothing live
     exists here: coverage comes from a `go test -coverprofile=...` run, and
     neither the language server nor mini.diff reads the profile. Two routes:

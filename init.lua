@@ -359,7 +359,21 @@ vim.opt.virtualedit = "onemore"
 --
 -- WARN: the two keys that lose by it are `r` and `~`, which act on the
 -- character to the right of the bar and no longer show which one that is.
-vim.opt.guicursor = "n:ver25,v-c-sm:block,i-ci-ve:ver25,r-cr-o:hor20,t:block-blinkon500-blinkoff500-TermCursor"
+--
+-- The color says which mode I am in, in the status line block's own hues:
+-- blue Normal, green Insert, magenta Visual, red Replace, yellow Command,
+-- cyan for the rest. The block sits in a corner and the caret is where I am
+-- already looking, so the mode is said twice on purpose. Only the background
+-- of those groups reaches a terminal: 'guicursor' hands the color over as
+-- OSC 12 and the foreground is ignored there.
+--
+-- `ve` had to come out of the Insert part to say any of it. Visual with
+-- exclusive selection matches `ve` and not `v`, so it was riding on Insert's
+-- entry all along and would have taken Insert's color, which is the one thing
+-- the color is there to prevent. Every shape is what it was.
+vim.opt.guicursor = "n:ver25-Cursor,v:block-vCursor,ve:ver25-vCursor,c-sm:block-cCursor,"
+  .. "i-ci:ver25-iCursor,r-cr:hor20-rCursor,o:hor20-oCursor,"
+  .. "t:block-blinkon500-blinkoff500-TermCursor"
 
 -- 'clipboard' is deliberately left empty. It can only make the unnamed
 -- register *be* the clipboard, which puts every delete on the clipboard along
@@ -403,6 +417,7 @@ require("mivn.zoom") -- Ctrl and =, - or 0, under Neovide alone
 require("mivn.find") -- fuzzy finding, and the few keys Vim has no default for
 require("mivn.external") -- PDFs and their kin offered to the system opener
 require("mivn.prompt") -- vim.ui.input as a float instead of the bottom bar
+require("mivn.select") -- Select mode's own tint, since Neovim paints it with Visual's
 require("mivn.whichkey") -- shows what can follow a key I started typing
 require("mivn.session") -- what happens when buffers and windows run out
 require("mivn.dashboard") -- the landing buffer
