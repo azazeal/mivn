@@ -51,7 +51,7 @@ local c = {
   yellow = "#EBC275", -- types, warnings
   yellow1 = "#E5C07B", -- builtin variables, modified files
   blue = "#5AB0F6", -- functions
-  blue1 = "#528BFF", -- cursor
+  blue1 = "#528BFF", -- terminal bright blue
   blue2 = "#3F7FB8",
   magenta = "#CA72E4", -- keywords
   violet = "#C162DE",
@@ -83,8 +83,20 @@ hl({
   FloatBorder = { fg = c.bg5, bg = c.bg3 },
   FloatTitle = { fg = c.blue, bg = c.bg3, bold = true },
 
-  Cursor = { fg = c.bg, bg = c.blue1 },
+  -- The caret carries the mode, in the same hues the status line's mode block
+  -- uses, and lua/mivn/init.lua's 'guicursor' names which group goes with
+  -- which mode. bg0 for the text under a block, because that is the color
+  -- foot draws it in and this is what makes Neovide agree with it. In a
+  -- terminal the foreground is ignored and only the background travels, as
+  -- OSC 12.
+  Cursor = { fg = c.bg0, bg = c.blue },
   lCursor = { link = "Cursor" },
+  iCursor = { fg = c.bg0, bg = c.green },
+  vCursor = { fg = c.bg0, bg = c.magenta },
+  rCursor = { fg = c.bg0, bg = c.red },
+  cCursor = { fg = c.bg0, bg = c.yellow },
+  oCursor = { fg = c.bg0, bg = c.cyan },
+  TermCursor = { fg = c.bg0, bg = c.cyan },
   CursorLine = { bg = c.bg2 },
   CursorColumn = { bg = c.bg2 },
   ColorColumn = { bg = c.bg3 },
@@ -95,13 +107,24 @@ hl({
   FoldColumn = { fg = c.bg6, bg = c.bg },
   Folded = { fg = c.bg7, bg = c.bg1 },
 
-  -- A tint rather than another grey. The selection sits on the cursor's own
-  -- line most of the time, so what it has to beat is CursorLine and not the
-  -- editor background, and bg4 against bg2 was a step of about 8%: measured,
-  -- and invisible on a short selection. This is blue2 laid over bg2 at 30%,
-  -- which reads as a selection rather than as slightly lighter text.
-  Visual = { bg = "#233950" },
-  VisualNOS = { bg = "#233950" },
+  -- A tint rather than another grey, in Visual's own hue, so that the mode
+  -- block, the caret and the selection all say magenta at once. This is
+  -- magenta laid over the page at 25%, and the tint is the point: the flat
+  -- color would sit under text I still have to read. Measured against every
+  -- foreground in the palette it reads at least as well as the blue it
+  -- replaced, comments included, which are the floor either way.
+  --
+  -- Over the page and not the active row: 'cursorline' is documented as not
+  -- used while Visual is active, so the row under a selection is the page.
+  Visual = { bg = "#3E2A4C" },
+  VisualNOS = { bg = "#3E2A4C" },
+
+  -- Select mode's own tint, orange the way the status line's Select block is,
+  -- and built the same way Visual's is: the mode's hue over the page at 25%.
+  -- Neovim paints Visual and Select with the one `Visual` group, so the
+  -- window in Select points that group here for as long as it is in it;
+  -- lua/mivn/select.lua is what does the pointing.
+  MivnSelect = { bg = "#42342A" },
   Search = { fg = c.bg, bg = c.yellow },
   IncSearch = { fg = c.bg, bg = c.orange },
   CurSearch = { fg = c.bg, bg = c.orange },
