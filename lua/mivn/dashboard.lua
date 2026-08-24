@@ -202,7 +202,16 @@ end
 ---
 --- `d` and `c` are operator prefixes, so this shadows which-key's panel for
 --- them in this one buffer. Accepted, since there is nothing to operate on.
-local EDIT_KEYS = "iIaAoOxXpPrRsScCdD"
+---
+--- `<Insert>` is spelled out because it is a name and not a character:
+--- lua/mivn/keymaps.lua makes it the way in and out of typing, so it opens
+--- Insert here exactly the way `i` does and failed exactly the way `i` would
+--- have.
+local EDIT_KEYS = { "<Insert>" }
+
+for key in ("iIaAoOxXpPrRsScCdD"):gmatch(".") do
+  EDIT_KEYS[#EDIT_KEYS + 1] = key
+end
 
 local function nothing_to_edit()
   vim.notify("Nothing to edit here. <Space>f opens a file.")
@@ -231,7 +240,7 @@ function M.open()
   vim.bo[buf].filetype = FILETYPE
   vim.bo[buf].undolevels = -1
 
-  for key in EDIT_KEYS:gmatch(".") do
+  for _, key in ipairs(EDIT_KEYS) do
     vim.keymap.set("n", key, nothing_to_edit, {
       buffer = buf,
       desc = "Nothing to edit on the landing buffer",
