@@ -1323,12 +1323,15 @@ Writing a file formats it _(mivn)_. Vim writes the buffer as it stands; here
 the language server is asked to organize the imports and then to format, and
 a language that names a formatter of its own runs that instead of the
 server's, since a server having a formatter does not make it the right one.
-Those are `stylua`, `shfmt`, `jq`, `taplo`, `yamlfmt`, `dockerfmt` and
-`xmllint` today. Go takes a second pass after the write, where `gci` re-splits
-the imports into blocks: the standard library, everything else, then one
-block per prefix in `$GOIMPORTPREFIXES`, then this module's own packages. A
-formatter that is not installed is skipped and the file is written as typed;
-one that refuses says so and changes nothing.
+Those are `stylua`, `shfmt`, `jq`, `taplo`, `yamlfmt`, `dockerfmt`, `xmllint`
+and `rumdl` today. Markdown is the one that reads the project: `rumdl` aligns
+the tables and leaves the rest of the file as it was typed, unless the project
+the file sits in carries a `rumdl` or `markdownlint` config, and then that
+config decides what saving does. Go takes a second pass after the write, where
+`gci` re-splits the imports into blocks: the standard library, everything else,
+then one block per prefix in `$GOIMPORTPREFIXES`, then this module's own
+packages. A formatter that is not installed is skipped and the file is written
+as typed; one that refuses says so and changes nothing.
 
 ## Folding
 
