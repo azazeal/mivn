@@ -97,6 +97,11 @@ hl({
   cCursor = { fg = c.bg0, bg = c.yellow },
   oCursor = { fg = c.bg0, bg = c.cyan },
   TermCursor = { fg = c.bg0, bg = c.cyan },
+
+  -- Select's caret, orange the way its mode block and its selection are.
+  -- 'guicursor' has no Select mode to name it in, so lua/mivn/select.lua
+  -- hangs it on every mode for as long as Select lasts.
+  MivnCursorSelect = { fg = c.bg0, bg = c.orange },
   CursorLine = { bg = c.bg2 },
   CursorColumn = { bg = c.bg2 },
   ColorColumn = { bg = c.bg3 },
