@@ -376,10 +376,10 @@ line's mode block shows: blue in Normal, green in Insert, magenta in Visual,
 red in Replace, yellow on the command line, cyan for the rest. The mode block
 is in the corner and the cursor is where you are already looking. The
 selection is magenta for the same reason, so picking text out lights the
-cursor, the selection and the mode block in one color. The preselection a
-prompt opens with is Select rather than Visual, and it is orange there, which
-is Select's own color in the mode block. A terminal has to support `OSC 12`
-for the cursor half; foot and kitty do.
+cursor, the selection and the mode block in one color. Select is orange the
+same way, cursor and selection both, which is where a rename prompt's
+preselection starts and where `Ctrl+G` from Visual lands. A terminal has to
+support `OSC 12` for the cursor half; foot and kitty do.
 
 `End` moves past the end of the line for the same reason _(mivn)_, in Normal
 mode only; `$` is Vim's and stops on the last character. It cannot take a line break with
