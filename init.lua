@@ -344,6 +344,51 @@ vim.opt.selection = "exclusive"
 -- this is that, everywhere.
 vim.opt.virtualedit = "onemore"
 
+-- Leaving Insert leaves the caret where it was.
+--
+-- Vim steps it one place left on the way out, because in Vim the cursor sits
+-- on a character and there is no character past the last one to sit on. Here
+-- it sits between two, so the place I was typing at and the place the bar
+-- stands after are one place, and the step lands the next key a character
+-- earlier than where I stopped. It is the same trade as the two options
+-- above, from the far side.
+--
+-- InsertLeavePre runs before the step and InsertLeave after it, which is why
+-- there are two: one takes the position, the other puts it back. Only a step
+-- leftwards is undone. At the start of a line there is nothing to step over
+-- and nothing to put back, and CTRL-O, which raises both of these without
+-- moving anything, comes out the same on both sides and is left alone.
+local caret = nil
+local caret_group = vim.api.nvim_create_augroup("mivn.caret", { clear = true })
+
+vim.api.nvim_create_autocmd("InsertLeavePre", {
+  group = caret_group,
+  desc = "Remember the boundary the caret was typing at",
+  callback = function()
+    caret = vim.api.nvim_win_get_cursor(0)
+  end,
+})
+
+vim.api.nvim_create_autocmd("InsertLeave", {
+  group = caret_group,
+  desc = "Put the caret back on the boundary it was typing at",
+  callback = function()
+    local was = caret
+    caret = nil
+
+    if not was then
+      return
+    end
+
+    local now = vim.api.nvim_win_get_cursor(0)
+    if now[1] ~= was[1] or now[2] >= was[2] then
+      return
+    end
+
+    pcall(vim.api.nvim_win_set_cursor, 0, was)
+  end,
+})
+
 -- A bar in Normal mode, not a block.
 --
 -- The shape is only a shape: Neovim's cursor is a buffer position either way,

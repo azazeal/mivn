@@ -371,6 +371,13 @@ this reason; this is that reasoning carried into Normal mode. What it costs is
 `r` and `~`, which act on the character to the right of the bar without
 showing which one that is.
 
+Leaving Insert leaves the caret where it was _(mivn)_. Vim steps it one place
+left on the way out, since a block cursor has to sit on a character and there
+is none past the last one; a bar sits between two, so the place you were
+typing at and the place it stands after are one place. `Esc`, `Insert` and
+anything else that ends an insert all land on the boundary you stopped
+typing at.
+
 The cursor also carries the mode's color _(mivn)_, the same hue the status
 line's mode block shows: blue in Normal, green in Insert, magenta in Visual,
 red in Replace, yellow on the command line, cyan for the rest. The mode block
