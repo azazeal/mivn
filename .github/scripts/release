@@ -161,7 +161,17 @@ grep -q '[^[:space:]]' "$notes" || die "the notes are empty, so nothing was rele
 # the terminal itself. fd 3 is /dev/tty from the top of the script, so no
 # pipe, heredoc or yes(1) can answer this; it asks for the version rather
 # than a y so muscle memory cannot either.
-read -r -u 3 -p "release: type $version to confirm: " typed || typed=""
+#
+# What this one follows is named in the prompt itself. The line saying it at
+# the top has scrolled away behind the notes by the time this is read, and
+# the last release is half of what the version being typed has to agree with:
+# v0.3.5 is right after v0.3.4 and wrong after v0.4.0.
+previous="no previous release"
+if [[ -n $last ]]; then
+  previous="previous was $last"
+fi
+
+read -r -u 3 -p "release: type $version to confirm ($previous): " typed || typed=""
 
 [[ $typed == "$version" ]] || die "that was not $version, so nothing was released"
 
