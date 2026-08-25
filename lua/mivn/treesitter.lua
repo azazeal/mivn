@@ -104,12 +104,43 @@ end, { desc = "Update every installed tree-sitter grammar" })
 -- `jsonc` has no grammar of its own and the json parser accepts the comments.
 vim.treesitter.language.register("json", "jsonc")
 
+-- Files that are JSON with comments in them but are not called `.jsonc`.
+--
+-- The file type is what decides how the file is formatted: `jsonc` has no
+-- formatter of its own, so it goes to the language server, which keeps the
+-- comments, while `json` goes to jq, which cannot parse one. So a file
+-- carrying comments under the wrong name is not formatted at all, and says so
+-- on every save.
+--
+-- Neovim already names most of them (`:h ft-jsonc`, and `[jt]sconfig*.json`,
+-- `.babelrc`, `.eslintrc`, `.jshintrc`, `.luaurc`, `bun.lock` among them).
+-- These are the ones it misses. The first four are on Zed's list for the same
+-- language and the rest are documented by the tools that read them.
+--
+-- The `.vscode` pattern is the gap worth having: Neovim reads the *user*
+-- settings under `Code/User/` as jsonc and a project's own `.vscode` as plain
+-- json, and a project's is the one I open.
+vim.filetype.add({
+  filename = {
+    ["devcontainer.json"] = "jsonc",
+    ["pyrightconfig.json"] = "jsonc",
+    [".stylelintrc"] = "jsonc",
+    [".swcrc"] = "jsonc",
+    [".eslintrc.json"] = "jsonc",
+    ["deno.json"] = "jsonc",
+  },
+
+  pattern = {
+    [".*/%.vscode/.*%.json"] = "jsonc",
+  },
+})
+
 -- A Tiltfile is Starlark, and there is no grammar under its own name.
 vim.treesitter.language.register("starlark", "tiltfile")
 
 -- Compose files earn a filetype of their own, because that is the name the
--- Docker language server (lua/mivn/languages/dockerfile.lua) claims them by; nothing else
--- produces it, so it is declared here. The yaml grammar keeps highlighting
+-- Docker language server claims them by (lua/mivn/languages/dockerfile.lua);
+-- nothing else produces it, so it is declared here. The yaml grammar keeps highlighting
 -- them: the dotted name means "yaml, then more specific", and the register
 -- call is what tells tree-sitter that.
 vim.treesitter.language.register("yaml", "yaml.docker-compose")
