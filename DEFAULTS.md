@@ -252,9 +252,10 @@ delete the selection you could not see. `'keymodel'` keeps "stopsel" alone, so
 an unshifted key still ends a selection. Shift+`←`/`→` extends by a
 character, Shift+`↑`/`↓` by a line, Ctrl+Shift+`←`/`→` by a word and
 Alt+Shift+`←`/`→` by a subword _(mivn)_,
-Shift+Home/End to either end of the line, Shift+PageUp/PageDown by a page,
-stopping at the first and last line _(mivn)_. A mouse drag selects the same
-way. `Esc` drops the selection.
+Shift+Home/End to either end of the line, Ctrl+Shift+Home/End to either end of
+the file _(mivn)_, Shift+PageUp/PageDown by a page, stopping at the first and
+last line _(mivn)_. A mouse drag selects the same way. `Esc` drops the
+selection.
 
 What you land in is **Visual mode**, Vim's own, so a selection is only a
 selection and the whole grammar applies to it: `y` copies, `d` and `x` cut, `c`
@@ -389,10 +390,11 @@ preselection starts and where `Ctrl+G` from Visual lands. A terminal has to
 support `OSC 12` for the cursor half; foot and kitty do.
 
 `End` moves past the end of the line for the same reason _(mivn)_, in Normal
-mode only; `$` is Vim's and stops on the last character. It cannot take a line break with
-it: the boundary after the last character is still on that line, before the
-newline, so `v$`, Shift+End and the rest yank the line's text and it takes one
-more press to cross.
+mode only; `$` is Vim's and stops on the last character. `Ctrl+End` follows it
+to the end of the file _(mivn)_, where Vim's own stops on the last character
+too. Neither can take a line break with it: the boundary after the last
+character is still on that line, before the newline, so `v$`, Shift+End and the
+rest yank the line's text and it takes one more press to cross.
 
 `Home` alternates between the indent and column zero _(mivn)_, which is Zed's
 `stop_at_indent` rule taken from its movement code rather than guessed, and
@@ -491,7 +493,7 @@ beside code that does not; while it is on, lines break between words
 | `{` / `}` | Previous / next blank line (paragraph) |
 | `(` / `)` | Previous / next sentence |
 | `gg` / `G` | First / last line |
-| `Ctrl+Home` / `Ctrl+End` | The same two, in the spelling every other editor uses |
+| `Ctrl+Home` / `Ctrl+End` | The start of the file / past its last character _(mivn)_ |
 | `{n}G` or `:{n}` | Line `{n}` |
 | `H` `M` `L` | Top / middle / bottom of the visible screen |
 | `Ctrl+D` / `Ctrl+U` | Half a screen down / up |
@@ -499,9 +501,21 @@ beside code that does not; while it is on, lines break between words
 | `Ctrl+F` / `Ctrl+B` | The same, in Vim's own spelling, without the last part |
 | `zz` `zt` `zb` | Scroll so the cursor line is centered / top / bottom |
 
-Where two spellings exist, they are genuinely equal and neither is more correct,
-with the one exception noted just below. Use `PageUp`/`PageDown` if that is
-where your hand goes. It matters here for one practical reason too: foot binds
+`Ctrl+Home` and `Ctrl+End` go to the file's own two ends, and they are not
+`gg` and `G` in another spelling _(mivn)_. Vim's pair misses both ends by a
+little: `Ctrl+End` stops on the last character rather than past it, and
+`Ctrl+Home` is `gg`, which keeps the column you were in, since
+`'startofline'` is off by default in Neovim. Neither shows itself on a file
+you have only just opened. So these two go where their names say instead, to
+column one of the first line and past the last character of the last one,
+which is the rule `Home` and `End` already follow on a line. `gg` and `G` keep
+Vim's meaning, the first non-blank or the column you were in, and Shift with
+either of the Ctrl pair selects to that end.
+
+Where two spellings exist, they are genuinely equal and neither is more
+correct, apart from the two pairs called out here: `Ctrl+Home`/`Ctrl+End` just
+above, and the page keys just below. Use `PageUp`/`PageDown` if that is where
+your hand goes. It matters here for one practical reason too: foot binds
 `Ctrl+B` to its own link launcher, so that spelling never reaches Neovim in a
 terminal, while the page keys always do.
 
