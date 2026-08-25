@@ -310,6 +310,27 @@ vim.keymap.set("n", "<End>", "$l", {
   desc = "Move past the end of the line",
 })
 
+-- Ctrl with either goes to the file's own ends, and Vim's pair misses both.
+--
+-- Ctrl+End is not `G`: it lands *on* the last character rather than past it,
+-- a column short of where End stops. Ctrl+Home is `gg`, and `gg` keeps the
+-- column while 'startofline' is off, which is Neovim's default, so from the
+-- middle of a line it goes to line one and stays in the column I happened to
+-- be in. Neither shows on a file I have just opened, with the caret at the
+-- top already, which is how both lasted this long.
+--
+-- Normal only, for the same reasons End is: after an operator Vim's own pair
+-- already covers the text I would be asking for, and in Visual an unshifted
+-- key ends the selection before any mapping of mine is reached ('keymodel'
+-- has "stopsel").
+vim.keymap.set("n", "<C-Home>", "gg0", {
+  desc = "Move to the start of the file",
+})
+
+vim.keymap.set("n", "<C-End>", "G$l", {
+  desc = "Move past the end of the file",
+})
+
 -- Shift and an arrow selects by a character or a line. Said here rather than
 -- left to 'keymodel', which is the whole reason 'keymodel' no longer carries
 -- "startsel" at all (init.lua).
@@ -449,6 +470,40 @@ vim.keymap.set("i", "<S-Home>", selecting("<S-Home>"), {
   remap = true,
   desc = "Select to the first character of the line",
 })
+
+-- The same two ends with Shift, and four mappings each the way the Ctrl and
+-- Alt arrows below have them: Normal has no selection yet so it opens Visual,
+-- Insert opens Select through the <Plug> above, and Visual and Select have
+-- one already so they take the plain motion. `$` needs no `l` on this side,
+-- since an exclusive selection gives it the extra column on its own.
+--
+-- WARN: both motions are two commands, and in Select each needs its own
+-- `<C-o>`, which covers one command and no more. Written `<C-o>G$` the `G`
+-- runs in Visual and the `$` arrives back in Select, where a printable key
+-- types over what is picked out.
+for _, sel in ipairs({
+  { lhs = "<C-S-Home>", line = "gg", column = "0", to = "to the start of the file" },
+  { lhs = "<C-S-End>", line = "G", column = "$", to = "past the end of the file" },
+}) do
+  local extend = sel.line .. sel.column
+
+  vim.keymap.set("n", sel.lhs, "v" .. extend, {
+    desc = "Select " .. sel.to,
+  })
+
+  vim.keymap.set("x", sel.lhs, extend, {
+    desc = "Extend the selection " .. sel.to,
+  })
+
+  vim.keymap.set("s", sel.lhs, ("<C-o>%s<C-o>%s"):format(sel.line, sel.column), {
+    desc = "Extend the selection " .. sel.to,
+  })
+
+  vim.keymap.set("i", sel.lhs, selecting(sel.lhs), {
+    remap = true,
+    desc = "Select " .. sel.to,
+  })
+end
 
 -- Ctrl or Alt with Shift selects by the same step. 'keymodel' opens a
 -- selection on its own and reaches for Vim's own meaning of the key, which is
