@@ -427,13 +427,20 @@ hl({
   -- means "modified" elsewhere.
   MivnStatuslineGit = { fg = c.orange, bg = c.bg3 },
 
-  -- Who wrote the line the cursor is on: the dimmest thing on the line, so it
-  -- takes the structural grey the line numbers use rather than the lighter one
-  -- comments do. It loses to everything beside it, which is the point.
-  MivnStatuslineBlame = { fg = c.bg6, bg = c.bg3 },
+  -- Who wrote the line the cursor is on takes the file name's own colors: it
+  -- is the same kind of thing, something the file says about itself rather
+  -- than something I watch. The low background is what parts it from the
+  -- filetype beside it, which on the raised one ran together with it into a
+  -- single block. It still loses to everything around it, which is the point,
+  -- and sinking the surface leaves it a little easier to read than the grey it
+  -- had.
+  MivnStatuslineBlame = { fg = c.bg7, bg = c.bg1 },
 
-  -- Two shades either side of the file name, so the line reads as three bands
-  -- rather than one strip with text in it.
+  -- `%=` fills with whatever color is in force, which is the file name's, so
+  -- the low background runs from the name through the empty middle and comes
+  -- out again under the blame. The line reads as a raised block at each end
+  -- with a trough between them: what I watch sits on the raised part, what is
+  -- only context sits in the trough.
   MiniStatuslineDevinfo = { fg = c.fg, bg = c.bg3 },
   MiniStatuslineFileinfo = { fg = c.fg, bg = c.bg3 },
   MiniStatuslineFilename = { fg = c.bg7, bg = c.bg1 },
