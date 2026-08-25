@@ -56,19 +56,6 @@ checked off; git remembers them.
     was keyed by binary name while everything around it was keyed by
     server, which moved into the language files.
 
-- [ ] Nothing formats jsonc, and nothing says so. `jq` cannot parse a
-    comment, so json.lua leaves the filetype unmapped on purpose and a save
-    is silently a no-op. Neovim decides the filetype by name and decides it
-    correctly: `tsconfig.json` and `*.jsonc` are jsonc, while `.luarc.json`,
-    `package.json` and the pack lock are plain json, which jq does format.
-    A json file that does carry a comment fails the right way, loudly and
-    without touching the file: `jq: parse error: Invalid numeric literal`.
-    So this is a hole rather than a bug, and closing it means a formatter
-    with a print width that speaks jsonc, `biome` being the one that fits
-    without a runtime. It would also stop `["vim"]` being blown onto three
-    lines, which is jq having no width to measure against rather than an
-    opinion. Not today: costed 2026-08-24 and left.
-
 - [ ] `:checkhealth mivn` takes about 3.4 seconds now, up from 1.4. The
     servers with no version flag are started for real and given half a
     second to prove they did not die on the spot, which is what caught
