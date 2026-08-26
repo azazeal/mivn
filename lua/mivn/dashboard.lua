@@ -206,7 +206,9 @@ end
 --- `<Insert>` is spelled out because it is a name and not a character:
 --- lua/mivn/keymaps.lua makes it the way in and out of typing, so it opens
 --- Insert here exactly the way `i` does and failed exactly the way `i` would
---- have.
+--- have. It is also the one key taken in Visual, where it opens Insert as
+--- well. The letters are not: there `i` and `a` pick out a text object and
+--- `o` moves to the other end, and none of that touches the text.
 local EDIT_KEYS = { "<Insert>" }
 
 for key in ("iIaAoOxXpPrRsScCdD"):gmatch(".") do
@@ -246,6 +248,11 @@ function M.open()
       desc = "Nothing to edit on the landing buffer",
     })
   end
+
+  vim.keymap.set("x", "<Insert>", nothing_to_edit, {
+    buffer = buf,
+    desc = "Nothing to edit on the landing buffer",
+  })
 
   vim.api.nvim_win_set_buf(0, buf)
 

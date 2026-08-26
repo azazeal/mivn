@@ -552,14 +552,17 @@ end
 -- a Replace toggle and becomes the pair of the one Vim gave me, with `R`
 -- still the way into Replace for the day I want it.
 --
--- From Select it drops the selection, leaves the text alone, and puts the
--- caret at the end I was moving, which is the end `i` opens before.
+-- From a selection it drops it, leaves the text alone, and starts typing
+-- where the caret already is, which is the end I was moving, or the other one
+-- when `o` has sent it there. Visual and Select both, since the key means the
+-- same in either: I have something picked out and what I want next is to
+-- type. Vim gives Visual no meaning for it at all.
 vim.keymap.set("i", "<Insert>", "<C-\\><C-N>", {
   desc = "Stop typing",
 })
 
-vim.keymap.set("s", "<Insert>", "<C-\\><C-N>i", {
-  desc = "Type on from the end of the selection",
+vim.keymap.set({ "x", "s" }, "<Insert>", "<C-\\><C-N>i", {
+  desc = "Type on from where the caret is",
 })
 
 -- Normal, Visual and Insert. Select mode is left to Vim: there an unshifted key
