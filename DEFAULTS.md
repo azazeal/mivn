@@ -205,8 +205,11 @@ a shifted key pressed while typing lands: see
 [Selecting with Shift](#selecting-with-shift).
 
 `Insert` is Vim's own way into Insert mode from Normal, and here it is the way
-back out too, so the one key covers both directions _(mivn)_. Stock Vim spends
-it in Insert mode on toggling Replace, which `R` reaches anyway.
+back out too, so the one key covers both directions _(mivn)_. With something
+selected, Visual or Select, it drops the selection and leaves you typing where
+the caret is _(mivn)_, which is the end you were moving until `o` puts it on
+the other one. Stock Vim spends it in Insert mode on toggling Replace, which
+`R` reaches anyway.
 
 ## Arrows
 
@@ -255,14 +258,16 @@ Alt+Shift+`←`/`→` by a subword _(mivn)_,
 Shift+Home/End to either end of the line, Ctrl+Shift+Home/End to either end of
 the file _(mivn)_, Shift+PageUp/PageDown by a page, stopping at the first and
 last line _(mivn)_. A mouse drag selects the same way. `Esc` drops the
-selection.
+selection, and `Insert` drops it and leaves you typing where the caret is
+_(mivn)_.
 
 What you land in is **Visual mode**, Vim's own, so a selection is only a
 selection and the whole grammar applies to it: `y` copies, `d` and `x` cut, `c`
-replaces, `>` indents, and a motion adjusts which text is picked out. That `y`
-reaches the system clipboard _(mivn)_, so Ctrl+V in the browser gets what you
-just took; that `d` deliberately does not, and `Alt+D` is the one that cuts to
-the clipboard. [Registers](#registers) is the whole account.
+replaces, `>` indents, `o` puts the caret on the other end of it, and a motion
+adjusts which text is picked out. That `y` reaches the system clipboard
+_(mivn)_, so Ctrl+V in the browser gets what you just took; that `d`
+deliberately does not, and `Alt+D` is the one that cuts to the clipboard.
+[Registers](#registers) is the whole account.
 
 The cost is that a stray letter is a command and not text. `X` deletes the whole
 line, `p` pastes over the selection, `u` lowercases it. Each of those is one `u`
@@ -287,8 +292,11 @@ still meet Select mode where it does earn its keep, which is the paragraph
 above, the floating prompt and the tree's `e` rename, the last two coming up
 with the name preselected so typing replaces it. `Ctrl+G` switches between the
 two, and the status line and the selection both give Select its own color so
-they are never confused. Vim's own `gh` and `gH` do not start it here: those
-are mini.diff's, staging and resetting the hunk an operator covers.
+they are never confused. That switch is also how you reach the keys Select
+spends on text: `o` swaps the ends in Visual, and typed in Select it is a letter
+that replaces the selection, so the way to the other end is `Ctrl+G`, `o`,
+`Ctrl+G`. Vim's own `gh` and `gH` do not start it here: those are mini.diff's,
+staging and resetting the hunk an operator covers.
 
 This is still a bridge for the edit you make once. Replacing a word with
 Ctrl+Shift+`→`, `c` and `NEW` is one change and one undo, but `.` repeats it
