@@ -85,6 +85,37 @@ local function on_attach(bufnr)
 
   map("H", filters.toggle_dotfiles, "Show or hide dotfiles, here and in the finders")
   map("I", filters.toggle_ignored, "Show or hide ignored files, here and in the finders")
+
+  -- The keys that change text, on a buffer that is 'nomodifiable'. Most of
+  -- them are nvim-tree's own here and do real work (`a` creates, `r` renames,
+  -- `d` deletes), so only what it leaves alone is taken, and only to say why
+  -- nothing happens. Reading its mappings first rather than naming the
+  -- leftovers keeps a key it starts binding later as its own.
+  --
+  -- `<Insert>` is spelled out because it is a name and not a character, and it
+  -- is the one taken in Visual as well, since lua/mivn/keymaps.lua opens
+  -- Insert with it from a selection too. The letters are not: there `i` picks
+  -- out a text object and `A` appends to a block.
+  local bound = {}
+  for _, mapping in ipairs(vim.api.nvim_buf_get_keymap(bufnr, "n")) do
+    bound[mapping.lhs] = true
+  end
+
+  local function not_editable()
+    vim.notify("The tree is not editable.")
+  end
+
+  for _, lhs in ipairs({ "i", "A", "X", "<Insert>" }) do
+    if not bound[lhs] then
+      map(lhs, not_editable, "The tree is not editable")
+    end
+  end
+
+  vim.keymap.set("x", "<Insert>", not_editable, {
+    buffer = bufnr,
+    desc = "The tree is not editable",
+    nowait = true,
+  })
 end
 
 --- The right-click menu --------------------------------------------------------
