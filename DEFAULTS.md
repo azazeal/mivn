@@ -711,7 +711,7 @@ with the server's signature and once as a bare word scraped from a call site.
 | `Ctrl+Space` | Open the menu here, top match highlighted _(mivn)_ |
 | `PageUp` / `PageDown` | A screenful of the menu once you are in it, else of the file _(mivn)_ |
 | `Ctrl+E` | Close the menu and put back what you typed |
-| `Esc` | Close the menu and leave Insert mode |
+| `Esc` | Close the menu and keep typing; again to leave Insert _(mivn)_ |
 
 Nothing is highlighted until you press an arrow (or ask, with `Ctrl+Space`,
 below), and that is what keeps `Enter` honest: while the menu is merely open it
