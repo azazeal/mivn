@@ -497,7 +497,7 @@ beside code that does not; while it is on, lines break between words
 |---|---|
 | `j` `k` or `↓` `↑` | Down / up |
 | `gj` `gk` | Down / up by screen line, when text is wrapped |
-| `Space w` | Wrap long lines in this window, off by default _(mivn)_ |
+| `Space t w` | Wrap long lines in this window, off by default _(mivn)_ |
 | `{` / `}` | Previous / next blank line (paragraph) |
 | `(` / `)` | Previous / next sentence |
 | `gg` / `G` | First / last line |

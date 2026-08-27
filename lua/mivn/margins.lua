@@ -210,8 +210,12 @@ end
 --- Long lines run off the right edge ('wrap' is off in init.lua); this brings
 --- them back for the window I am in. Window-local, so a prose buffer can wrap
 --- while the code beside it does not.
+--- It says which way it went, since a window holding no line long enough to
+--- wrap looks the same either way.
 function M.toggle_wrap()
   vim.wo.wrap = not vim.wo.wrap
+
+  vim.notify(("Wrap: %s"):format(vim.wo.wrap and "on" or "off"))
 end
 
 return M
