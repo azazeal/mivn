@@ -9,16 +9,19 @@
 -- it appears here.
 -- Unset is fine: gci still splits standard from third party from local.
 --
--- $GOIMPORTNOGCI, set to anything, turns that second pass off and leaves the
--- imports as gopls grouped them. It is there for a gci older than the
--- standard library in use: gci carries its own list of what the standard
--- library holds, written when it was released, so a package added after that
--- is read as third party and moved out of the standard block on every save.
--- Measured 2026-08-27, gci v0.14.0 does that to `uuid`, which go1.27 added,
--- and building it with go1.27 does not help since the list travels with the
--- release rather than with the toolchain. The switch is read per save, so
--- `:let $GOIMPORTNOGCI = 1` takes hold in a running editor, and unsetting it
--- brings the pass back once a gci that knows the package is out.
+-- $GOIMPORTNOGCI turns that second pass off and leaves the imports as gopls
+-- grouped them. It is there for a gci older than the standard library in use:
+-- gci carries its own list of what the standard library holds, written when it
+-- was released, so a package added after that is read as third party and moved
+-- out of the standard block on every save. Measured 2026-08-27, gci v0.14.0
+-- does that to `uuid`, which go1.27 added, and building it with go1.27 does not
+-- help since the list travels with the release rather than with the toolchain.
+--
+-- The variable is a yes or a no and not a value that only has to be there, so
+-- it can stay exported and be flipped: `0`, `no`, `off`, `false` and an empty
+-- value leave the pass on, anything else turns it off. It is read per save, so
+-- `:let $GOIMPORTNOGCI = 1` takes hold in a running editor, and `= 0` brings
+-- the pass back once a gci that knows the package is out.
 
 --- $GOIMPORTPREFIXES as a list, in the order it was written, without
 --- duplicates or empties. gci hands the same section twice by emptying the
@@ -137,15 +140,27 @@ local function go_context(path)
   return nil
 end
 
+--- The ways of saying no, for a switch that is a yes or a no rather than a
+--- value. Everything else is a yes, since a variable set to a word nobody
+--- reads as no was set to turn something off.
+local NO = { [""] = true, ["0"] = true, ["false"] = true, no = true, off = true }
+
+--- Whether the gci pass is switched off, from $GOIMPORTNOGCI.
+---
+--- Asked per save rather than at load, so the answer can change in a running
+--- editor: `:let $GOIMPORTNOGCI = 1` while the gci on PATH is the wrong one,
+--- `= 0` once it is not.
+local function gci_off()
+  return not NO[vim.trim((vim.env.GOIMPORTNOGCI or ""):lower())]
+end
+
 --- Said once each, when a Go file from outside this workspace is saved, and
 --- when gci itself refuses.
 local warned_outside = false
 local warned_failure = false
 
 local function gci_format(buf)
-  -- Asked here rather than at load, so the switch can be flipped in a running
-  -- editor while the gci on PATH is the wrong one.
-  if (vim.env.GOIMPORTNOGCI or "") ~= "" then
+  if gci_off() then
     return
   end
 
@@ -260,6 +275,10 @@ vim.api.nvim_create_autocmd("BufWritePost", {
 })
 
 return {
+  --- Whether the gci pass is off, so that :checkhealth mivn says off for the
+  --- same reason it does not run.
+  gci_off = gci_off,
+
   servers = {
     gopls = {
       binary = "gopls",

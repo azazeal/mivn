@@ -383,10 +383,10 @@ function M.check()
   --
   -- $GOIMPORTNOGCI is lua/mivn/languages/go.lua's switch for a gci released
   -- before a standard library package it is now meeting, which it reads as
-  -- third party. Named in both places, so this row says off for the same
-  -- reason the pass does not run.
-  if (vim.env.GOIMPORTNOGCI or "") ~= "" then
-    health.info("gci: off ($GOIMPORTNOGCI is set)")
+  -- third party. That module is asked rather than the variable, so what this
+  -- row says and what saving does cannot drift apart.
+  if require("mivn.languages.go").gci_off() then
+    health.info("gci: off (turned off by $GOIMPORTNOGCI)")
   else
     check_binary("gci", "gci", lsp.probes["gci"])
   end
