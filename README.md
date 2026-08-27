@@ -92,7 +92,7 @@ formatters (`stylua`, `shfmt`, `jq`, `taplo`, `yamlfmt`, `dockerfmt`,
 
 What this config owns is everything around that: what each server is told once
 it starts, what runs after it (`gci` re-groups Go imports after the language
-server has formatted, unless `$GOIMPORTNOGCI` is set), and which JSON Schema a
+server has formatted, unless `$GOIMPORTNOGCI` says otherwise), and which JSON Schema a
 file gets. One file per language under `lua/mivn/languages/` holds all of it for
 that language. `:checkhealth mivn` reports the lot.
 
