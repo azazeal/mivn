@@ -1375,8 +1375,12 @@ unless the project the file sits in carries a `rumdl` or `markdownlint` config,
 and then that config decides what saving does. Go takes a second pass after the
 write, where `gci` re-splits the imports into blocks: the standard library,
 everything else, then one block per prefix in `$GOIMPORTPREFIXES`, then this
-module's own packages. A formatter that is not installed is skipped and the file
-is written as typed; one that refuses says so and changes nothing.
+module's own packages. Setting `$GOIMPORTNOGCI` to anything turns that pass off
+and leaves the imports as the language server grouped them, which is what to do
+when the `gci` on `PATH` is an older release than the standard library in use
+and reads one of its packages as third party. A formatter that is not installed
+is skipped and the file is written as typed; one that refuses says so and
+changes nothing.
 
 ## Folding
 

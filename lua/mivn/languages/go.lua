@@ -8,6 +8,17 @@
 -- checkout, by whatever prepares the environment, which is why nothing about
 -- it appears here.
 -- Unset is fine: gci still splits standard from third party from local.
+--
+-- $GOIMPORTNOGCI, set to anything, turns that second pass off and leaves the
+-- imports as gopls grouped them. It is there for a gci older than the
+-- standard library in use: gci carries its own list of what the standard
+-- library holds, written when it was released, so a package added after that
+-- is read as third party and moved out of the standard block on every save.
+-- Measured 2026-08-27, gci v0.14.0 does that to `uuid`, which go1.27 added,
+-- and building it with go1.27 does not help since the list travels with the
+-- release rather than with the toolchain. The switch is read per save, so
+-- `:let $GOIMPORTNOGCI = 1` takes hold in a running editor, and unsetting it
+-- brings the pass back once a gci that knows the package is out.
 
 --- $GOIMPORTPREFIXES as a list, in the order it was written, without
 --- duplicates or empties. gci hands the same section twice by emptying the
@@ -132,6 +143,12 @@ local warned_outside = false
 local warned_failure = false
 
 local function gci_format(buf)
+  -- Asked here rather than at load, so the switch can be flipped in a running
+  -- editor while the gci on PATH is the wrong one.
+  if (vim.env.GOIMPORTNOGCI or "") ~= "" then
+    return
+  end
+
   if vim.fn.executable("gci") ~= 1 then
     return
   end
