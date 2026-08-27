@@ -190,6 +190,7 @@ and these chains are the ones with a panel behind them.
 | `<Space>ti` | Files the SCM ignores, in the tree and the finders at once |
 | `<Space>tr` | The old text, inline, for every line I have changed |
 | `<Space>tb` | Who wrote the line I am on |
+| `<Space>t?` | Nothing; it says which of the five flags are on |
 
 The dotfile and ignored keys answer for both views of a directory, so a file
 drawn in one and missing from the other cannot happen.
@@ -197,7 +198,9 @@ drawn in one and missing from the other cannot happen.
 Every key here says which way it went, except the tree and the terminal: those
 two put a panel on screen, and being told what I am looking at is noise. The
 rest are flags with nowhere to show themselves, and review is the clearest
-case, since on a file I have not changed it looks the same on as off.
+case, since on a file I have not changed it looks the same on as off. `?` asks
+the five of them at once, keyed by the letter that flips each, and answers
+`(b: on, h: shown, i: hidden, r: off, w: off)`.
 
 ## Changed keys
 

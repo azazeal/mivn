@@ -26,6 +26,15 @@ diff.setup({
 
 local M = {}
 
+--- Whether the overlay is on for this buffer, for the summary <leader>t?
+--- prints. A buffer mini.diff never attached to counts as off, since there is
+--- nothing there to turn on.
+function M.reviewing()
+  local data = diff.get_buf_data(0)
+
+  return data ~= nil and data.overlay
+end
+
 --- Show the old text inline for every changed line, or stop; <leader>tr in
 --- lua/mivn/keymaps.lua.
 ---

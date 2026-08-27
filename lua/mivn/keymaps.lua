@@ -714,6 +714,33 @@ leader("<leader>tb", blame.toggle, "Toggle blame")
 -- The guard and the toast are lua/mivn/diff.lua's.
 leader("<leader>tr", diff.toggle_review, "Toggle review")
 
+-- The five flags in one line, keyed by the letter that flips each, since the
+-- panel above is where I am reading them from anyway. The tree and the
+-- terminal are left out: they are on screen or they are not, and a line
+-- saying which is a line about something I can see.
+--
+-- Read fresh at the press rather than remembered, because two of the five are
+-- not the session's to answer: wrap belongs to this window and review to this
+-- buffer.
+--
+-- Two pairs of words, the same two each key uses on its own: a flag is on or
+-- off, and a thing that appears in a listing is shown or hidden.
+leader("<leader>t?", function()
+  local function say(flag, yes, no)
+    return flag and yes or no
+  end
+
+  vim.notify(
+    ("(b: %s, h: %s, i: %s, r: %s, w: %s)"):format(
+      say(blame.on(), "on", "off"),
+      say(filters.dotfiles(), "shown", "hidden"),
+      say(filters.ignored(), "shown", "hidden"),
+      say(diff.reviewing(), "on", "off"),
+      say(vim.wo.wrap, "on", "off")
+    )
+  )
+end, "What is on")
+
 -- <leader>a is what I ask the language server to do to this code, and
 -- <leader>g is where I ask it to take me. Neovim's own gr-keys still work and
 -- are left alone: these are a second way in, grouped so the panel under a

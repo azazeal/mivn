@@ -265,6 +265,11 @@ local function disable()
   pcall(vim.cmd.redrawstatus)
 end
 
+--- Whether the blame is on, for the summary <leader>t? prints.
+function M.on()
+  return enabled
+end
+
 --- Show who wrote the line under the cursor, or stop.
 ---
 --- It says which way it went: the line I am on may well have no answer to
