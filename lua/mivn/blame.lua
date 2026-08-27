@@ -266,12 +266,18 @@ local function disable()
 end
 
 --- Show who wrote the line under the cursor, or stop.
+---
+--- It says which way it went: the line I am on may well have no answer to
+--- show (an unsaved file, a line I just typed), so the text arriving or not
+--- is no answer about the flag.
 function M.toggle()
   if enabled then
     disable()
   else
     enable()
   end
+
+  vim.notify(("Blame: %s"):format(enabled and "on" or "off"))
 end
 
 -- On as soon as this module is loaded, which is while init.lua is still

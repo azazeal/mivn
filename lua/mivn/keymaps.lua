@@ -20,6 +20,7 @@
 
 local blame = require("mivn.blame")
 local complete = require("mivn.complete")
+local diff = require("mivn.diff")
 local filters = require("mivn.filters")
 local find = require("mivn.find")
 local format = require("mivn.format")
@@ -700,29 +701,18 @@ leader("<leader>?", find.keymaps, "Every key, searchable")
 -- list. The two that decide what a listing shows reach the tree and the
 -- finders at once, since those are two views of one directory;
 -- lua/mivn/filters.lua holds that answer and says why.
-leader("<leader>tt", tree.toggle, "Show or hide the file tree")
-leader("<leader>t`", terminal.toggle, "Show or hide the terminal")
-leader("<leader>tw", margins.toggle_wrap, "Wrap long lines in this window, or stop")
-leader("<leader>th", filters.toggle_dotfiles, "Show or hide dotfiles, in the tree and the finders")
-leader("<leader>ti", filters.toggle_ignored, "Show or hide ignored files, in the tree and the finders")
-leader("<leader>tb", blame.toggle, "Show or hide who wrote each line")
+leader("<leader>tt", tree.toggle, "Toggle tree")
+leader("<leader>t`", terminal.toggle, "Toggle terminal")
+leader("<leader>tw", margins.toggle_wrap, "Toggle wrap")
+leader("<leader>th", filters.toggle_dotfiles, "Toggle dotfiles")
+leader("<leader>ti", filters.toggle_ignored, "Toggle ignored files")
+leader("<leader>tb", blame.toggle, "Toggle blame")
 
 -- The gutter says which lines changed; this says what they were. mini.diff
 -- ships no key for it, and the question it answers, "what did I do to this
 -- file", is one I ask far more often than I stage a hunk, which has two keys.
--- Guarded, because mini.diff only attaches to a buffer that has a file behind
--- it. On the banner, the tree or the terminal it raised "Buffer N is not
--- enabled" from inside the plugin, which is a stack trace for a key that
--- simply has nothing to do there.
-leader("<leader>tr", function()
-  local diff = require("mini.diff")
-  if not diff.get_buf_data(0) then
-    vim.notify("Nothing to compare here: this buffer has no file behind it.", vim.log.levels.WARN)
-    return
-  end
-
-  diff.toggle_overlay()
-end, "Show the old text inline for every changed line, or stop")
+-- The guard and the toast are lua/mivn/diff.lua's.
+leader("<leader>tr", diff.toggle_review, "Toggle review")
 
 -- <leader>a is what I ask the language server to do to this code, and
 -- <leader>g is where I ask it to take me. Neovim's own gr-keys still work and

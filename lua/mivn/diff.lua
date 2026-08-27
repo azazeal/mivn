@@ -23,3 +23,30 @@ diff.setup({
     signs = { add = " ▎", change = " ▎", delete = " ▁" },
   },
 })
+
+local M = {}
+
+--- Show the old text inline for every changed line, or stop; <leader>tr in
+--- lua/mivn/keymaps.lua.
+---
+--- Guarded, because mini.diff only attaches to a buffer that has a file behind
+--- it. On the banner, the tree or the terminal it raised "Buffer N is not
+--- enabled" from inside the plugin, which is a stack trace for a key that
+--- simply has nothing to do there.
+---
+--- It says which way it went, and the state is read back rather than assumed:
+--- the overlay is per buffer, and on a file I have not changed there is
+--- nothing on screen either way, so turning it on looks exactly like leaving
+--- it off.
+function M.toggle_review()
+  if not diff.get_buf_data(0) then
+    vim.notify("Nothing to compare here: this buffer has no file behind it.", vim.log.levels.WARN)
+    return
+  end
+
+  diff.toggle_overlay()
+
+  vim.notify(("Review: %s"):format(diff.get_buf_data(0).overlay and "on" or "off"))
+end
+
+return M
