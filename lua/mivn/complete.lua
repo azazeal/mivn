@@ -78,7 +78,7 @@ vim.api.nvim_create_autocmd("LspDetach", {
   end,
 })
 
---- The two keys ---------------------------------------------------------------
+--- The keys -------------------------------------------------------------------
 --
 -- Which keys these are is lua/mivn/keymaps.lua's; this is what they do.
 
@@ -117,6 +117,21 @@ function M.tab()
   end
 
   return "<Tab>"
+end
+
+--- Close the menu, or stop typing when there is none.
+---
+--- The menu arrives on its own, so being rid of it should not cost me the mode
+--- I am in: this puts back what I typed and leaves me typing, which is Ctrl+E,
+--- Vim's own key for it. A second Esc then leaves Insert, where Vim spends the
+--- first press on both at once. `<Insert>` is still one press out of typing,
+--- menu or no menu.
+function M.escape()
+  if vim.fn.pumvisible() == 1 then
+    return "<C-e>"
+  end
+
+  return "<Esc>"
 end
 
 -- Ctrl+Space asks for the menu and it arrives stepped in: the top match is

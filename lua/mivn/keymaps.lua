@@ -662,6 +662,15 @@ vim.keymap.set("i", "<Tab>", complete.tab, {
   desc = "Accept the highlighted completion, or the first one, else indent",
 })
 
+-- Esc with the menu open closes the menu and leaves me typing, the way it does
+-- in Zed and VS Code; a second Esc leaves Insert. Vim spends the one press on
+-- both at once, and a menu I never asked for is not worth the mode I am in.
+-- Ctrl+E, Vim's own key for this, is untouched and still does it.
+vim.keymap.set("i", "<Esc>", complete.escape, {
+  expr = true,
+  desc = "Close the completion menu, or stop typing",
+})
+
 -- Ctrl+Space asks for the menu, the way it does in Zed and VS Code, and like
 -- there it arrives stepped in: the top match is highlighted, so Enter takes
 -- it, the arrows move from it, and PageUp and PageDown page the list. Asking
