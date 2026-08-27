@@ -633,7 +633,7 @@ is most of the daily payoff:
 | `s` / `S` | Substitute a character / a whole line, then Insert |
 | `~` | Toggle the case of one character |
 | `J` / `gJ` | Join with the next line, with / without a space |
-| `p` / `P` | Paste after / before the cursor: the system clipboard _(mivn)_ |
+| `p` / `P` | Paste after / before the cursor: the system clipboard, with the caret left after the pasted text _(mivn)_ |
 | `Alt+D` / `Alt+C` | Delete / change, and put it on the clipboard _(mivn)_ |
 | `u` / `Ctrl+R` | Undo / redo |
 | `.` | Repeat the last change |

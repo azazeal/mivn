@@ -83,15 +83,52 @@ copy_paste({ "n", "x" }, "y", "y", "Copy to the clipboard")
 copy_paste("n", "Y", "y$", "Copy to the end of the line, to the clipboard")
 copy_paste("x", "Y", "Y", "Copy the selected lines to the clipboard")
 
-copy_paste("n", "p", "p", "Paste the clipboard after the cursor")
-copy_paste("n", "P", "P", "Paste the clipboard before the cursor")
+--- Paste, leaving the caret after what was pasted rather than on its last
+--- character.
+---
+--- `gp` and `gP` are Vim's own pair for that, and 'virtualedit' being onemore
+--- (init.lua) is what lets the caret sit past the end of the line when the
+--- paste ends there. Every other editor I use puts it there, and it is where
+--- I type from next.
+---
+--- Charwise only. On a line-wise register `gp` lands on the line *after* the
+--- block and a block-wise one below it, which is past the text rather than
+--- after it, so those two keep Vim's landing inside what was pasted. The
+--- register is read rather than assumed, since it is whatever the clipboard
+--- happens to hold.
+local function paste(keys)
+  return function()
+    local named = vim.v.register == '"' and '"+' or ""
+    local register = vim.v.register == '"' and "+" or vim.v.register
+    local after = vim.fn.getregtype(register):sub(1, 1) == "v" and "g" or ""
+
+    return named .. after .. keys
+  end
+end
+
+vim.keymap.set("n", "p", paste("p"), {
+  expr = true,
+  desc = "Paste the clipboard after the cursor",
+})
+
+vim.keymap.set("n", "P", paste("P"), {
+  expr = true,
+  desc = "Paste the clipboard before the cursor",
+})
 
 -- Over a selection both keys are `P`, which puts without touching a register
 -- (`:h v_P`). Plain `p` there would replace the selection *and* move the
 -- replaced text into the clipboard, so pasting the same thing over two
 -- selections in a row would paste something different the second time.
-copy_paste("x", "p", "P", "Paste the clipboard over the selection")
-copy_paste("x", "P", "P", "Paste the clipboard over the selection")
+vim.keymap.set({ "x" }, "p", paste("P"), {
+  expr = true,
+  desc = "Paste the clipboard over the selection",
+})
+
+vim.keymap.set({ "x" }, "P", paste("P"), {
+  expr = true,
+  desc = "Paste the clipboard over the selection",
+})
 
 copy_paste({ "n", "x" }, "<A-d>", "d", "Delete, and put it on the clipboard")
 copy_paste({ "n", "x" }, "<A-c>", "c", "Change, and put what was there on the clipboard")
