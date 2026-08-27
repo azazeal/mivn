@@ -54,9 +54,41 @@ local open = {
   file = function() vim.cmd("edit README.md") end,
 }
 
+-- Which buffer the keys have to land in, and the window to put them in.
+--
+-- WARN: opening a panel is not the same as being in it. <leader>tt opens the
+-- tree beside the cursor and leaves focus where it is, on purpose, so until
+-- this check existed every `tree` row was really the startup buffer being
+-- fine: `i` in the tree had been raising E21 for months while this said ok.
+local holds = {
+  dashboard = function(buf) return vim.bo[buf].filetype == "mivn-dashboard" end,
+  tree = function(buf) return vim.bo[buf].filetype == "NvimTree" end,
+  terminal = function(buf) return vim.bo[buf].buftype == "terminal" end,
+  file = function(buf) return vim.bo[buf].filetype == "markdown" end,
+}
+
+local function focus()
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if holds[where](vim.api.nvim_win_get_buf(win)) then
+      vim.api.nvim_set_current_win(win)
+      return true
+    end
+  end
+
+  return false
+end
+
 vim.wait(600)
 open[where]()
 vim.wait(400)
+
+-- Nothing to say about a panel that never opened, and saying "ok" about it
+-- would be worse than saying nothing.
+if not focus() then
+  io.write(("  %-10s MISSING the panel never opened, so nothing was tried\n"):format(where))
+  vim.cmd("qa!")
+  return
+end
 
 vim.cmd("messages clear")
 
@@ -84,7 +116,7 @@ for panel in dashboard tree terminal file; do
   out=$(MIVN_KIND="$kind" MIVN_SUBJECT="$subject" MIVN_PANEL="$panel" \
     timeout 40 env NVIM_APPNAME=mivn nvim --headless -S "$probe" 2>&1 | tail -1)
   echo "$out"
-  case $out in *RAISED*) status=1 ;; esac
+  case $out in *RAISED* | *MISSING*) status=1 ;; esac
 done
 
 exit $status
