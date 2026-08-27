@@ -428,7 +428,11 @@ the bar cursor: it is drawn at the left edge of the character it sits on, so
 stopping *on* the last letter of a word draws the caret one place short of
 where the word ends. Every other end-of-something key here is already a
 boundary, and a macro recorded on a key that is not means something other than
-what was pressed.
+what was pressed. A paste leaves the caret on that same boundary _(mivn)_, so
+`p` ends where the pasted text ends rather than on its last character. `$` is
+the one that stays Vim's, because it is an operator target before it is a
+motion: `d$` and `y$` mean "including the last character", and that meaning is
+the useful one.
 
 `w`, `b` and their capitals are untouched, because they already stop at the
 first character of a piece, which is the boundary a piece starts at. So the
@@ -633,7 +637,7 @@ is most of the daily payoff:
 | `s` / `S` | Substitute a character / a whole line, then Insert |
 | `~` | Toggle the case of one character |
 | `J` / `gJ` | Join with the next line, with / without a space |
-| `p` / `P` | Paste after / before the cursor: the system clipboard _(mivn)_ |
+| `p` / `P` | Paste after / before the cursor: the system clipboard, with the caret left after the pasted text _(mivn)_ |
 | `Alt+D` / `Alt+C` | Delete / change, and put it on the clipboard _(mivn)_ |
 | `u` / `Ctrl+R` | Undo / redo |
 | `.` | Repeat the last change |
