@@ -380,7 +380,16 @@ function M.check()
   end
   -- gci is additional, not essential: gopls already formats and organizes
   -- imports, gci only re-groups them into the configured blocks.
-  check_binary("gci", "gci", lsp.probes["gci"])
+  --
+  -- $GOIMPORTNOGCI is lua/mivn/languages/go.lua's switch for a gci released
+  -- before a standard library package it is now meeting, which it reads as
+  -- third party. Named in both places, so this row says off for the same
+  -- reason the pass does not run.
+  if (vim.env.GOIMPORTNOGCI or "") ~= "" then
+    health.info("gci: off ($GOIMPORTNOGCI is set)")
+  else
+    check_binary("gci", "gci", lsp.probes["gci"])
+  end
 end
 
 return M
