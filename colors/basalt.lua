@@ -334,6 +334,16 @@ hl({
   ["@lsp.type.namespace"] = { link = "@module" },
   ["@lsp.type.parameter"] = { link = "@variable.parameter" },
   ["@lsp.type.property"] = { link = "@property" },
+
+  -- WARN: cleared, like the comment token above, and for a sharper reason. A
+  -- semantic token is drawn at priority 125 and tree-sitter at 100, so a
+  -- server marking a whole string literal as a string paints over whatever is
+  -- injected inside it. In Go that is the SQL in queries/go/injections.scm:
+  -- the fragment parsed, the keywords were captured, and every one of them
+  -- still came out the green of the string around it (measured 2026-08-27,
+  -- gopls). Cleared, the token paints nothing and the injection shows through.
+  ["@lsp.type.string"] = {},
+
   ["@lsp.type.struct"] = { link = "@type" },
   ["@lsp.type.type"] = { link = "@type" },
   ["@lsp.type.typeParameter"] = { link = "@type" },

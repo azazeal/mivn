@@ -28,6 +28,13 @@
 ;; `:MivnInstallGrammars` installs it. The `;; extends` above matters too; it is
 ;; what adds these rules to nvim-treesitter's own Go injections (regex, printf)
 ;; rather than replacing them.
+;;
+;; The other way it goes quiet is a language server marking the whole literal
+;; as a string: a semantic token is drawn above tree-sitter and paints over
+;; every colour in here, so the SQL parses and still looks like a string.
+;; colors/basalt.lua clears `@lsp.type.string` for that reason. `:Inspect` on a
+;; keyword is what tells the two apart: it lists the tree-sitter capture and
+;; the semantic token side by side, with the priority each is drawn at.
 
 ; db.Query( /* sql */ `...`, arg)
 ((comment) @_sqltag

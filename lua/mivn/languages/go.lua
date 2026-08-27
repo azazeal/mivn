@@ -338,6 +338,10 @@ return {
             -- advertising semantic tokens in v0.22, so they have to be asked
             -- for. nvim-lspconfig asks too; this says it anyway rather than
             -- resting on a default that lives in someone else's file.
+            --
+            -- These are drawn above tree-sitter, so the one token that has to
+            -- be given up is the string: colors/basalt.lua clears it, or it
+            -- would paint over the SQL in queries/go/injections.scm.
             semanticTokens = true,
           },
         },
