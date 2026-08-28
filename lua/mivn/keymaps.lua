@@ -24,6 +24,7 @@ local diff = require("mivn.diff")
 local filters = require("mivn.filters")
 local find = require("mivn.find")
 local format = require("mivn.format")
+local hints = require("mivn.hints")
 local margins = require("mivn.margins")
 local page = require("mivn.page")
 local restart = require("mivn.restart")
@@ -754,20 +755,25 @@ leader("<leader>th", filters.toggle_dotfiles, "Toggle dotfiles")
 leader("<leader>ti", filters.toggle_ignored, "Toggle ignored files")
 leader("<leader>tb", blame.toggle, "Toggle blame")
 
+-- `n` because the two letters of "hints" that would have been obvious are
+-- spent: `h` hides dotfiles and `i` the ignored files. The hints are off in
+-- Go to begin with, which lua/mivn/hints.lua explains.
+leader("<leader>tn", hints.toggle, "Toggle inlay hints")
+
 -- The gutter says which lines changed; this says what they were. mini.diff
 -- ships no key for it, and the question it answers, "what did I do to this
 -- file", is one I ask far more often than I stage a hunk, which has two keys.
 -- The guard and the toast are lua/mivn/diff.lua's.
 leader("<leader>tr", diff.toggle_review, "Toggle review")
 
--- The five flags in one line, keyed by the letter that flips each, since the
+-- The six flags in one line, keyed by the letter that flips each, since the
 -- panel above is where I am reading them from anyway. The tree and the
 -- terminal are left out: they are on screen or they are not, and a line
 -- saying which is a line about something I can see.
 --
--- Read fresh at the press rather than remembered, because two of the five are
--- not the session's to answer: wrap belongs to this window and review to this
--- buffer.
+-- Read fresh at the press rather than remembered, because three of the six
+-- are not the session's to answer: wrap belongs to this window, and review
+-- and the hints to this buffer.
 --
 -- Two pairs of words, the same two each key uses on its own: a flag is on or
 -- off, and a thing that appears in a listing is shown or hidden.
@@ -777,10 +783,11 @@ leader("<leader>t?", function()
   end
 
   vim.notify(
-    ("(b: %s, h: %s, i: %s, r: %s, w: %s)"):format(
+    ("(b: %s, h: %s, i: %s, n: %s, r: %s, w: %s)"):format(
       say(blame.on(), "on", "off"),
       say(filters.dotfiles(), "shown", "hidden"),
       say(filters.ignored(), "shown", "hidden"),
+      say(hints.on(), "on", "off"),
       say(diff.reviewing(), "on", "off"),
       say(vim.wo.wrap, "on", "off")
     )

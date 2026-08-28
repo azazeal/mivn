@@ -164,20 +164,6 @@ require("mivn.trust").gate(enabled)
 
 require("mivn.format").setup(formatters, muted)
 
---- Inlay hints ----------------------------------------------------------------
-
--- The facts the server inferred, drawn dimly inline. Neovim leaves this off;
--- the dial for how loud they read is the LspInlayHint highlight group.
-vim.api.nvim_create_autocmd("LspAttach", {
-  group = vim.api.nvim_create_augroup("mivn.lsp.hints", { clear = true }),
-  callback = function(ev)
-    local client = vim.lsp.get_client_by_id(ev.data.client_id)
-    if client and client:supports_method("textDocument/inlayHint") then
-      vim.lsp.inlay_hint.enable(true, { bufnr = ev.buf })
-    end
-  end,
-})
-
 --- Code lenses ----------------------------------------------------------------
 
 -- The actions a server offers on a line, drawn above it. Neovim leaves them
