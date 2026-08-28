@@ -1,0 +1,149 @@
+#!/usr/bin/env bash
+#
+# Makes the screenshot in the README out of a raw window capture.
+#
+#   .github/scripts/screenshot ~/shot.png
+#
+# The capture is trimmed to the editor alone and framed as a window: a title
+# bar in the status line's own shade carrying the three lights, rounded
+# corners, a hairline edge, and a contact and an ambient shadow on a
+# transparent ground, so it reads on either of GitHub's themes. It writes
+# assets/screenshot.png and prints what it wrote.
+#
+# Wants magick (ImageMagick 7) on $PATH. Uses pngquant when it is there.
+
+set -euo pipefail
+
+prog=${0##*/}
+root=$(cd "$(dirname "$0")/../.." && pwd)
+
+die() {
+  printf '%s: %s\n' "$prog" "$*" >&2
+  exit 1
+}
+
+usage() {
+  cat >&2 <<EOF
+usage: $prog <capture.png> [out.png]
+
+  capture.png  the raw window capture to frame
+  out.png      where to write it; assets/screenshot.png by default
+EOF
+  exit 2
+}
+
+[ $# -ge 1 ] && [ $# -le 2 ] || usage
+[ -r "$1" ] || die "cannot read $1"
+command -v magick >/dev/null || die "ImageMagick 7 is not installed (magick)"
+
+# Both paths are resolved against the caller's directory, not the repository
+# root, so a relative capture means what it looks like it means. The default
+# output is the one file this exists to write.
+SRC=$(realpath -- "$1")
+OUT=$([ $# -eq 2 ] && realpath -m -- "$2" || printf '%s\n' "$root/assets/screenshot.png")
+
+cd "$root"
+
+# WARN: measured for one capture, not general. They cut the window manager's
+# focus border off the edges it painted on, and one empty screen row off the
+# top, which is the row that otherwise reads as a black gap under the title
+# bar. Another capture needs them measured again: sample pixels in from each
+# edge until the colour stops changing.
+CROP_X=${CROP_X:-0}
+CROP_Y=${CROP_Y:-32}
+CROP_W=${CROP_W:-1992}
+CROP_H=${CROP_H:-1417}
+
+BAR_H=${BAR_H:-56}              # macOS's 28pt title bar, doubled for a HiDPI shot
+BAR_BG=${BAR_BG:-'#1E242E'}     # bg3
+RADIUS=${RADIUS:-22}
+HAIRLINE=${HAIRLINE:-'#2C313A'} # bg4
+
+DOT_D=${DOT_D:-24} # diameter
+DOT_X=${DOT_X:-40} # centre of the first light
+DOT_GAP=${DOT_GAP:-40}
+DOT1=${DOT1:-'#FF5F57'}
+DOT2=${DOT2:-'#FEBC2E'}
+DOT3=${DOT3:-'#28C840'}
+
+# Two shadows: a tight contact one and a wide ambient one. Sigma is half the
+# CSS blur radius, so a 12px blur is 6 and a 60px blur is 30.
+CON_SIGMA=${CON_SIGMA:-6}
+CON_DY=${CON_DY:-6}
+CON_A=${CON_A:-0.35}
+AMB_SIGMA=${AMB_SIGMA:-30}
+AMB_DY=${AMB_DY:-24}
+AMB_A=${AMB_A:-0.45}
+
+PAD=${PAD:-140} # has to clear the ambient blur plus its offset
+
+W=$CROP_W
+H=$((CROP_H + BAR_H))
+CW=$((W + PAD * 2))
+CH=$((H + PAD * 2))
+
+r=$((DOT_D / 2))
+cy=$((BAR_H / 2))
+
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+
+# The capture, with the window manager's border and the empty row cut off.
+magick "$SRC" -crop "${CROP_W}x${CROP_H}+${CROP_X}+${CROP_Y}" +repage "$work/body.png"
+
+# The title bar and its three lights.
+draw="fill $DOT1 circle $DOT_X,$cy $((DOT_X + r)),$cy"
+draw+=" fill $DOT2 circle $((DOT_X + DOT_GAP)),$cy $((DOT_X + DOT_GAP + r)),$cy"
+draw+=" fill $DOT3 circle $((DOT_X + DOT_GAP * 2)),$cy $((DOT_X + DOT_GAP * 2 + r)),$cy"
+magick -size "${W}x${BAR_H}" "xc:$BAR_BG" -draw "$draw" "$work/bar.png"
+
+# Stacked, clipped to the rounded rectangle, then the hairline inset on the
+# edge so it does not fight the corners.
+magick "$work/bar.png" "$work/body.png" -append "$work/win.png"
+
+magick -size "${W}x${H}" xc:none \
+  -draw "roundrectangle 0,0 $((W - 1)),$((H - 1)) $RADIUS,$RADIUS" \
+  -alpha extract "$work/mask.png"
+
+magick "$work/win.png" "$work/mask.png" \
+  -alpha off -compose CopyOpacity -composite \
+  -fill none -stroke "$HAIRLINE" -strokewidth 1 \
+  -draw "roundrectangle 0.5,0.5 $((W - 1)).5,$((H - 1)).5 $RADIUS,$RADIUS" \
+  "$work/window.png"
+
+# One shadow per call: offset the window's silhouette, blur it, then use it as
+# the alpha of a black plate scaled down to the opacity wanted.
+#
+# WARN: the mask has to be built on black rather than on nothing. -alpha
+# extract returns an opaque grayscale image, so compositing it over a
+# transparent canvas pastes a hard rectangle instead of a silhouette, and the
+# shadow comes out as a slab across half the page.
+shadow() { # sigma dy alpha out
+  magick -size "${CW}x${CH}" xc:black \
+    \( "$work/window.png" -alpha extract \) \
+    -geometry "+${PAD}+$((PAD + $2))" -composite \
+    -blur "0x$1" -evaluate multiply "$3" \
+    "$work/plate.png"
+
+  magick -size "${CW}x${CH}" xc:black "$work/plate.png" \
+    -alpha off -compose CopyOpacity -composite "$4"
+}
+
+shadow "$AMB_SIGMA" "$AMB_DY" "$AMB_A" "$work/ambient.png"
+shadow "$CON_SIGMA" "$CON_DY" "$CON_A" "$work/contact.png"
+
+magick -size "${CW}x${CH}" xc:none \
+  "$work/ambient.png" -composite \
+  "$work/contact.png" -composite \
+  "$work/window.png" -geometry "+${PAD}+${PAD}" -composite \
+  "$work/final.png"
+
+# pngquant only saves space: on a shot of this size it was 75KB against 327KB
+# at an RMSE of 0.1%, which leaves no banding in the shadow.
+if command -v pngquant >/dev/null; then
+  pngquant --quality 90-100 --speed 1 --strip --force --output "$OUT" -- "$work/final.png"
+else
+  magick "$work/final.png" -strip -define png:compression-level=9 "$OUT"
+fi
+
+magick identify "$OUT"
