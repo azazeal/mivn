@@ -4,14 +4,22 @@
 # whose notes are the pull requests merged since the last one, opened in my
 # editor first so I can fix them before anyone sees them.
 #
-#   .github/scripts/release patch|minor|major
+#   .github/scripts/release patch|minor|major|vX.Y.Z
 #
-# The argument is the bump, not the version: the next version is computed from
-# the highest release tag, minor for a monthly batch, patch for a fix between
-# batches. Versions are semver with a leading v, since a tag that is not semver
-# is invisible to anything that compares versions. The confirmation before the
-# tag asks for the computed version, typed back in full, so which version is
-# being cut is never left unread.
+# The argument is usually the bump, not the version: the next version is
+# computed from the last release, minor for a monthly batch, patch for a fix
+# between batches. Versions are semver with a leading v, since a tag that is
+# not semver is invisible to anything that compares versions. The confirmation
+# before the tag asks for the computed version, typed back in full, so which
+# version is being cut is never left unread.
+#
+# A version can be spelled out instead of a bump, but only when it is one of
+# the three the bumps already offer, so it is a restatement of patch, minor or
+# major and never a number of its own. It is the way in when I sat down
+# meaning to cut a particular version: the confirmation at the end asks for
+# whatever the script computed, and typing that back is no help if it was
+# never the version I came for. Spelled out up front, a wrong one is refused
+# before any of the work.
 #
 # The checkout only supplies git plumbing. The tag is cut at the tip of origin's
 # default branch, a commit everyone else can already fetch, so nothing here
@@ -44,11 +52,12 @@ die() {
 
 usage() {
   cat >&2 <<EOF
-usage: $prog {patch|minor|major}
+usage: $prog {patch|minor|major|vX.Y.Z}
 
-  patch   v0.3.5 -> v0.3.6
-  minor   v0.3.5 -> v0.4.0
-  major   v0.3.5 -> v1.0.0
+  patch    v0.3.5 -> v0.3.6
+  minor    v0.3.5 -> v0.4.0
+  major    v0.3.5 -> v1.0.0
+  vX.Y.Z   whichever of the three above it spells out
 EOF
   exit 2
 }
@@ -63,11 +72,33 @@ fits16() {
   [ ${#1} -le 5 ] && [ "$1" -le 32767 ]
 }
 
+kind=''
+want=''
 case ${1:-} in
 patch | minor | major) kind=$1 ;;
+v*) want=$1 ;;
 *) usage ;;
 esac
 [ $# -eq 1 ] || usage
+
+# A spelled out version is checked for shape only here. Whether it is one this
+# release may take needs the tags, so that waits until they are fetched.
+if [ -n "$want" ]; then
+  case $want in
+  *.*.*) ;;
+  *) die "$want is not a version: write it as vX.Y.Z" ;;
+  esac
+
+  rest=${want#v}
+  wma=${rest%%.*}
+  rest=${rest#*.}
+  wmi=${rest%%.*}
+  wpa=${rest#*.}
+  for c in "$wma" "$wmi" "$wpa"; do
+    fits16 "$c" ||
+      die "$want is not a version: X, Y and Z must be plain numbers, at most 32767"
+  done
+fi
 
 # Every git command below asks about this script's own repository, not whatever
 # directory I called it from.
@@ -117,11 +148,19 @@ git fetch --quiet --tags --force "$REMOTE" "refs/heads/$branch" ||
   die "could not fetch $branch and tags from $REMOTE"
 sha=$(git rev-parse --verify --quiet "FETCH_HEAD^{commit}") ||
   die "could not resolve the head of $branch"
+short=$(git rev-parse --short "$sha")
 
-# The highest release tag, or nothing. Pre-releases do not count, and neither
-# does what the head can reach: this reads every tag the fetch just brought
-# over, so a release cut on another machine still moves the number.
-current=$(git tag --list --sort=v:refname 'v*' |
+# The release this one follows: the highest plain vX.Y.Z the head can reach,
+# or nothing. Pre-releases do not count. A release cut on another machine
+# counts, since the fetch above brought its tag over and it sits on this
+# branch like any other.
+#
+# One reading, used twice: this is both the number that gets bumped and the
+# point the notes start from. Read two ways they can disagree, and the release
+# would then be numbered off one tag and described from another. Ancestry is
+# the reading that holds, because a tag that this branch cannot reach is not a
+# release of it.
+previous=$(git tag --list --merged "$sha" --sort=v:refname 'v*' |
   grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' |
   tail -n1)
 
@@ -158,7 +197,28 @@ bump() {
 
 # With no release yet the bump reads off v0.0.0, so the first one is whichever
 # of v0.0.1, v0.1.0 and v1.0.0 was asked for.
-next=$(bump "${current:-v0.0.0}" "$kind")
+base=${previous:-v0.0.0}
+
+if [ -n "$want" ]; then
+  # All three, because the version spelled out is checked against them and the
+  # refusal names them.
+  patchv=$(bump "$base" patch)
+  minorv=$(bump "$base" minor)
+  majorv=$(bump "$base" major)
+
+  case $want in
+  "$patchv" | "$minorv" | "$majorv") next=$want ;;
+  *)
+    die "$base does not take $want; it takes" \
+      "$patchv (patch), $minorv (minor), $majorv (major)"
+    ;;
+  esac
+else
+  # Only the one asked for. Bumping all three here would let a component at
+  # the int16 ceiling refuse a release that never touches it: v1.32767.0 takes
+  # a patch perfectly well, and it is the minor that has nowhere to go.
+  next=$(bump "$base" "$kind")
+fi
 
 # Both can still trip: the tag list above is local, so a release cut elsewhere
 # a moment ago shows up only when the remote is asked directly.
@@ -173,18 +233,14 @@ elif [ $? -ne 2 ]; then
   die "could not check $REMOTE for $next"
 fi
 
-# The notes are diffed against the nearest release tag the branch head can
-# reach; anything that is not a plain vX.Y.Z (pre-releases included) is
-# skipped. If there is none, GitHub picks. Left to itself the API has been seen
-# to reach past the last tag and list the whole history again.
-previous=$(git describe --tags --abbrev=0 \
-  --match 'v[0-9]*.[0-9]*.[0-9]*' --exclude 'v*[!0-9.]*' "$sha" 2>/dev/null || true)
-
+# The notes are diffed against that release. With none, GitHub picks: left to
+# itself the API has been seen to reach past the last tag and list the whole
+# history again.
 if [ -n "$previous" ] && [ "$(git rev-list --count "$previous..$sha")" -eq 0 ]; then
   die "nothing has landed on $branch since $previous"
 fi
 
-printf '%s: %s is at %.7s (%s)\n' "$prog" "$branch" "$sha" \
+printf '%s: %s is at %s (%s)\n' "$prog" "$branch" "$short" \
   "$(git log -1 --format=%s "$sha")" >&2
 printf '%s: preparing %s (notes since %s)\n' "$prog" "$next" "${previous:-the first commit}" >&2
 
@@ -250,15 +306,15 @@ grep -q '[^[:space:]]' "$notes" || die 'the notes are empty, so nothing was tagg
 # The backstop: with the notes still on screen, the version is typed back on
 # the terminal itself, straight from /dev/tty. It asks for the version and not
 # a y, so muscle memory cannot answer it. It also names what this release
-# follows, because the line that said so has scrolled away behind the notes,
-# and the previous release is half of what the typed version has to agree with:
-# v0.3.5 is right after v0.3.4 and wrong after v0.4.0.
+# follows and the commit it lands on, because the lines that said so have
+# scrolled away behind the notes, and those two are what the typed version has
+# to agree with: v0.3.5 is right after v0.3.4 and wrong after v0.4.0.
 if [ -n "$previous" ]; then
   prevnote="previous was $previous"
 else
   prevnote='no previous release'
 fi
-printf '%s: type %s to confirm (%s): ' "$prog" "$next" "$prevnote" >&2
+printf '%s: type %s to confirm (%s, at %s): ' "$prog" "$next" "$prevnote" "$short" >&2
 reply=''
 IFS= read -r reply </dev/tty || true
 [ "$reply" = "$next" ] || die "that was not $next, so nothing was tagged"
@@ -307,4 +363,4 @@ else
   git fetch --quiet "$REMOTE" "refs/heads/$branch:refs/heads/$branch" 2>/dev/null || true
 fi
 
-printf '%s: released %s at %.7s\n' "$prog" "$next" "$sha"
+printf '%s: released %s at %s\n' "$prog" "$next" "$short"
