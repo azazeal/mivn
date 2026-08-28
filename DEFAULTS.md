@@ -1297,6 +1297,19 @@ seven on a `go.mod` for tidy, vendor, govulncheck and the upgrades.
 rust-analyzer adds a reference count per item and Run and Debug above each
 test and above `main`.
 
+Inlay hints are the other thing a server draws into a file: the type behind a
+`:=`, the name of the parameter an argument is going into, the error a
+statement drops on the floor. Neovim draws none of them until it is asked, and
+mivn asks wherever a server offers them _(mivn)_. `<leader>tn` shows or hides
+them for the buffer you are in _(mivn)_, and says which way it went.
+
+Go is the one language that starts with them hidden _(mivn)_. gopls is asked
+for all eight kinds and Go infers a type on nearly every line, so the eight
+together end up on most of the file; `<leader>tn` is how you get them for the
+one you are lost in. The answer belongs to that buffer and lasts as long as
+the server stays attached, so a `:LspRestart` puts the language's default
+back.
+
 The hover float and the others Neovim opens are framed _(mivn)_, stock draws
 them with no border and their text sits straight on top of the buffer. The
 picker and the rename prompt always looked this way; this is the rest of them

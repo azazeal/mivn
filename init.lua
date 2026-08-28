@@ -451,6 +451,7 @@ vim.cmd.colorscheme("basalt")
 require("mivn.plugins") -- vim.pack; every module below is one of its consumers
 require("mivn.treesitter") -- grammars, highlighting, injections
 require("mivn.lsp") -- language servers, diagnostics, format on save; one file per language
+require("mivn.hints") -- the LSP inlay hints, and which languages start without them
 require("mivn.complete") -- the Insert-mode completion menu
 require("mivn.pairs") -- auto-closing pairs; complete.lua's Enter calls into it
 require("mivn.diff") -- git changes in the gutter
