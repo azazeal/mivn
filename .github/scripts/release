@@ -219,7 +219,15 @@ gh api -X POST "repos/$repo/releases/generate-notes" "$@" --jq .body >"$work/raw
 # file is opened in an editor and read as markdown before it is rendered
 # anywhere, so one blank line goes around a heading, never two in a row, and
 # none is left at the end.
+#
+# The first line goes with it. Having a release.yml at all makes the API stamp
+# an html comment on top, naming the file and the revision it read it at.
+# Nothing renders it on the release page, but the tag carries the notes as
+# plain text, so there it is a line like any other. There is no way to ask the
+# API not to write it.
 awk '
+  NR == 1 && /^<!--.*-->$/ { next }
+
   $0 == "" { pending = 1; next }
   {
     cur = ($0 ~ /^#+ /)
