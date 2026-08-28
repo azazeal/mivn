@@ -222,6 +222,62 @@ vim.api.nvim_create_autocmd("MenuPopup", {
   end,
 })
 
+--- The count under a filtered directory -----------------------------------------
+--
+-- A directory whose contents are all filtered out reads as empty otherwise,
+-- which is the lie lua/mivn/filters.lua exists to avoid, told inside the tree
+-- instead of between the tree and the finders.
+--
+-- nvim-tree's own two answers are both wrong here: "simple" says "(3 hidden)"
+-- without saying which key brings the rows back, and "all" spells the reason
+-- out with nvim-tree's internal names and runs to about 30 columns, which
+-- wraps in a panel this wide. So the reasons get the words the keys use, in
+-- the order nvim-tree checks them.
+--
+-- Two of them at once is the ceiling in normal use, which fits: `.git/` is
+-- the only thing the custom filter hides and it counts as a dotfile whenever
+-- dotfiles are hidden, so `custom` and `dotfile` are never both above zero.
+-- Only the live filter can make it three, and there the line is cut off at
+-- the panel's edge.
+
+--- The filters that hide a row: nvim-tree's name for it, then the word to
+--- count in, singular and plural. `buf` and `no_bookmark` are off here, so
+--- they are not named; they and anything nvim-tree adds later fall into the
+--- plain "hidden" below rather than going missing from the total.
+local HIDDEN_REASONS = {
+  { "git", "ignored", "ignored" },
+  { "dotfile", "dotfile", "dotfiles" },
+  { "custom", "filtered", "filtered" }, -- .git/, and only it
+  { "live_filter", "unmatched", "unmatched" },
+}
+
+local function hidden_display(stats)
+  local total = 0
+  for _, count in pairs(stats) do
+    total = total + count
+  end
+
+  if total == 0 then
+    return nil
+  end
+
+  local parts, named = {}, 0
+
+  for _, reason in ipairs(HIDDEN_REASONS) do
+    local count = stats[reason[1]] or 0
+    if count > 0 then
+      named = named + count
+      parts[#parts + 1] = ("%d %s"):format(count, count == 1 and reason[2] or reason[3])
+    end
+  end
+
+  if total > named then
+    parts[#parts + 1] = ("%d hidden"):format(total - named)
+  end
+
+  return ("(%s)"):format(table.concat(parts, ", "))
+end
+
 require("nvim-tree").setup({
   on_attach = on_attach,
 
@@ -253,13 +309,7 @@ require("nvim-tree").setup({
     highlight_diagnostics = "name", -- the undercurl, not a colour
     highlight_modified = "none", -- the dot says it; a colour would hide git's
 
-    -- Otherwise a directory whose contents are all filtered out reads as
-    -- empty, which is the lie lua/mivn/filters.lua exists to avoid, told
-    -- inside the tree instead of between the tree and the finders.
-    --
-    -- "all" breaks the count down by reason and runs to about 30 columns,
-    -- which wraps in a panel this wide.
-    hidden_display = "simple",
+    hidden_display = hidden_display, -- see above
 
     -- Nothing is special. The stock list draws README.md and Cargo.toml in
     -- the colour an open directory uses.
