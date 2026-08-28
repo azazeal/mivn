@@ -1015,6 +1015,12 @@ hide it either. It is named on its own and hidden, because it is machinery
 rather than part of the project. The finders leave it out for the same reason,
 whatever the other two are set to.
 
+A directory whose contents are all filtered out would read as empty, so the
+tree writes what it left out under it, counted by reason _(mivn)_: `(3
+ignored)`, `(4 dotfiles)`, or both at once. Stock says `(7 hidden)` and leaves
+you to guess which key brings them back. `.git/` is counted as `filtered`,
+since it is the one thing hidden by neither rule.
+
 All of it is view state, not settings. A flip lasts as long as the session and
 belongs to that session alone, so a second window keeps the starting state and
 the next start begins there again. Going to look at something cannot leave a
