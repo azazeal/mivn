@@ -7,6 +7,11 @@
 #   panels --cmd 'MivnBdAll'      run an Ex command
 #   panels --write                run the save chain (BufWritePre)
 #
+# Any of them takes --pty first, which runs the editor on a pty with a real
+# UI instead of headlessly. That is the only way to reach anything that draws:
+# without a UI nothing is ever painted, so a headless row can say ok about
+# code that was never asked to do its half of the work.
+#
 # Why this exists. Twice now a key has been added that assumes a file behind
 # the buffer, and twice the banner was where it fell over: `:ls` there is
 # empty by construction, and `<Space>tr` raised out of mini.diff. Both were
@@ -30,13 +35,19 @@ die() {
   exit 1
 }
 
+pty=""
+if [ "${1:-}" = --pty ]; then
+  pty=yes
+  shift
+fi
+
 kind="${1:-}"
 case $kind in
   --key | --cmd)
-    subject="${2:?usage: panels --key <keys> | --cmd <command> | --write}"
+    subject="${2:?usage: panels [--pty] --key <keys> | --cmd <command> | --write}"
     ;;
   --write) subject="" ;;
-  *) die "usage: panels --key <keys> | --cmd <command> | --write" ;;
+  *) die "usage: panels [--pty] --key <keys> | --cmd <command> | --write" ;;
 esac
 
 # The suffix matters: `-S` decides how to read a file by its extension, so
@@ -46,6 +57,20 @@ trap 'rm -f "$probe"' EXIT
 
 cat > "$probe" <<'LUA'
 local kind, subject, where = vim.env.MIVN_KIND, vim.env.MIVN_SUBJECT, vim.env.MIVN_PANEL
+
+-- Where the verdict goes. On a pty the screen belongs to the editor, so the
+-- line leaves through a file rather than through stdout.
+local function say(line)
+  if not vim.env.MIVN_OUT then
+    io.write(line)
+    return
+  end
+
+  local out = assert(io.open(vim.env.MIVN_OUT, "w"))
+
+  out:write(line)
+  out:close()
+end
 
 local open = {
   dashboard = function() require("mivn.dashboard").open() end,
@@ -78,43 +103,82 @@ local function focus()
   return false
 end
 
-vim.wait(600)
-open[where]()
-vim.wait(400)
+--- Everything this script came to do, run once the editor has settled.
+---
+--- WARN: none of it may run while the editor is still starting up, which is
+--- where `-S` puts it. With a UI attached, a blank buffer and no banner yet
+--- is the state lua/mivn/session.lua reads as "the last file is gone" and
+--- quits on, so the probe took the editor down before it had tried anything.
+local function probe()
+  vim.wait(600)
+  open[where]()
+  vim.wait(400)
 
--- Nothing to say about a panel that never opened, and saying "ok" about it
--- would be worse than saying nothing.
-if not focus() then
-  io.write(("  %-10s MISSING the panel never opened, so nothing was tried\n"):format(where))
+  -- Nothing to say about a panel that never opened, and saying "ok" about it
+  -- would be worse than saying nothing.
+  if not focus() then
+    say(("  %-10s MISSING the panel never opened, so nothing was tried\n"):format(where))
+    vim.cmd("qa!")
+    return
+  end
+
+  vim.cmd("messages clear")
+
+  if kind == "--key" then
+    pcall(vim.api.nvim_feedkeys, vim.keycode(subject), "mx", false)
+  elseif kind == "--cmd" then
+    pcall(vim.cmd, subject)
+  else
+    pcall(vim.cmd, "doautocmd BufWritePre")
+  end
+
+  vim.wait(600)
+
+  -- Nothing draws until it is asked to, and what draws is half of what a key
+  -- does. No-op without a UI, which is why --pty exists.
+  pcall(vim.cmd, "redraw")
+  vim.wait(200)
+
+  -- Only what a reader would call a failure. A notify at WARN is this config
+  -- declining on purpose, which is the outcome being tested for.
+  -- E1568 is the terminal not answering what its background color is, which
+  -- is the pty and not this config. Left in, it would fail every panel of a
+  -- --pty run at once.
+  local said = vim.fn.execute("messages"):gsub("E1568:[^\n]*", "")
+  local bad = said:match("E%d+:[^\n]*")
+    or said:match("Error in decoration provider[^\n]*")
+    or said:match("stack traceback")
+
+  say(("  %-10s %s\n"):format(where, bad and ("RAISED  " .. bad:sub(1, 60)) or "ok"))
   vim.cmd("qa!")
-  return
 end
 
-vim.cmd("messages clear")
-
-if kind == "--key" then
-  pcall(vim.api.nvim_feedkeys, vim.keycode(subject), "mx", false)
-elseif kind == "--cmd" then
-  pcall(vim.cmd, subject)
-else
-  pcall(vim.cmd, "doautocmd BufWritePre")
-end
-
-vim.wait(600)
-
--- Only what a reader would call a failure. A notify at WARN is this config
--- declining on purpose, which is the outcome being tested for.
-local said = vim.fn.execute("messages")
-local bad = said:match("E%d+:[^\n]*") or said:match("stack traceback")
-
-io.write(("  %-10s %s\n"):format(where, bad and ("RAISED  " .. bad:sub(1, 60)) or "ok"))
-vim.cmd("qa!")
+vim.api.nvim_create_autocmd("VimEnter", {
+  once = true,
+  callback = function()
+    vim.schedule(probe)
+  end,
+})
 LUA
 
 status=0
 for panel in dashboard tree terminal file; do
-  out=$(MIVN_KIND="$kind" MIVN_SUBJECT="$subject" MIVN_PANEL="$panel" \
-    timeout 40 env NVIM_APPNAME=mivn nvim --headless -S "$probe" 2>&1 | tail -1)
+  if [ -n "$pty" ]; then
+    # `script` is what hands the editor a pty; setsid keeps it off this
+    # shell's terminal. The verdict comes back through the file, since the
+    # pty itself carries the editor's screen and not much else.
+    verdict=$(mktemp) || die "could not make a scratch file"
+    timeout 40 setsid script -qec \
+      "env NVIM_APPNAME=mivn TERM=xterm-256color MIVN_KIND='$kind' MIVN_SUBJECT='$subject' MIVN_PANEL='$panel' MIVN_OUT='$verdict' nvim -S '$probe'" \
+      /dev/null > /dev/null 2>&1 || true
+    out=$(cat "$verdict")
+    rm -f "$verdict"
+    [ -n "$out" ] || out=$(printf '  %-10s RAISED  the editor said nothing, so it died on the way' "$panel")
+  else
+    out=$(MIVN_KIND="$kind" MIVN_SUBJECT="$subject" MIVN_PANEL="$panel" \
+      timeout 40 env NVIM_APPNAME=mivn nvim --headless -S "$probe" 2>&1 | tail -1)
+  fi
+
   echo "$out"
   case $out in *RAISED* | *MISSING*) status=1 ;; esac
 done
