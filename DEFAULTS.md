@@ -269,6 +269,17 @@ _(mivn)_, so Ctrl+V in the browser gets what you just took; that `d`
 deliberately does not, and `Alt+D` is the one that cuts to the clipboard.
 [Registers](#registers) is the whole account.
 
+While a selection is up, every other copy of it in the window gets a quiet tint
+_(mivn)_, the way Zed marks them. What counts as a copy is the selected
+characters exactly, case and all, and word boundaries are ignored, so picking
+out `for` also marks the middle of `before`. That is on purpose: half a word is
+usually what you select when you want to see where else it is. One line at a
+time, though, so a selection running over several lines marks nothing, and
+neither does one made of spaces. Select mode counts the same as Visual, since
+a shifted key pressed while you are typing lands there rather than in Visual,
+and that is where most selections start. The tint is its own color, cyan, so
+the copies never read as a second selection.
+
 The cost is that a stray letter is a command and not text. `X` deletes the whole
 line, `p` pastes over the selection, `u` lowercases it. Each of those is one `u`
 away from being undone, and none of them is quiet enough to miss.

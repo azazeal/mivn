@@ -130,6 +130,17 @@ hl({
   -- window in Select points that group here for as long as it is in it;
   -- lua/mivn/select.lua is what does the pointing.
   MivnSelect = { bg = "#42342A" },
+
+  -- The other copies of what is selected (lua/mivn/occurrences.lua). Cyan
+  -- over the page at 20%, built the way the two selection tints above are.
+  -- It started as Visual's own magenta at a weaker strength, on the argument
+  -- that the same hue would say "the same text"; on screen it only said
+  -- "another selection", and the one place the caret actually was took a
+  -- second to find. So the copies get a hue of their own, and the only
+  -- magenta in the window is the selection. Not Search's yellow either,
+  -- which answers a different question.
+  MivnOccurrence = { bg = "#1B343D" },
+
   Search = { fg = c.bg, bg = c.yellow },
   IncSearch = { fg = c.bg, bg = c.orange },
   CurSearch = { fg = c.bg, bg = c.orange },
