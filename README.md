@@ -9,7 +9,7 @@ my way, unless I'm about to do something smart, like `:restart` in a
 Neovide instance that happens to be wrapping a Neovim session on another
 host.
 
-![The mivn dashboard: the block logo and its key hints, with the file tree open beside it and the status line reading NORMAL on branch main](assets/screenshot.png)
+![The mivn dashboard: the block logo and its key hints, with the file tree open beside it and the status line reading N on branch main](assets/screenshot.png)
 
 ## Installing
 
