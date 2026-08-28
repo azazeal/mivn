@@ -10,10 +10,13 @@
 -- `before`. Half a word is usually what I select when I want to see where
 -- else it is, and a word-bounded rule finds nothing for those.
 --
--- Charwise Visual on one line, and nothing else. A selection over several
--- lines is a block I am about to move rather than a phrase I am looking for,
--- and in Select mode the next letter I type replaces what is picked out, so
--- reading the file is not what I am doing there.
+-- Charwise on one line, and nothing else: a selection running over several
+-- lines is a block I am about to move rather than a phrase I am looking for.
+--
+-- Select counts as much as Visual does, though. Most of what I pick out
+-- starts while I am typing, and a shifted key from Insert lands in Select
+-- rather than in Visual (lua/mivn/keymaps.lua), so leaving Select out would
+-- leave out most of the selections I make.
 --
 -- Only the lines the window is showing are searched. Zed spends a 100ms
 -- debounce and a second pass over the whole file at this point, and neither
@@ -52,7 +55,9 @@ end
 --- because 'selection' is what decides whether the end column is in or out.
 --- getregion() already knows; this does not have to.
 local function selected()
-  if vim.fn.mode() ~= "v" then
+  local mode = vim.fn.mode()
+
+  if mode ~= "v" and mode ~= "s" then
     return nil
   end
 
