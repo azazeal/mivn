@@ -71,6 +71,17 @@ local function selected()
     return nil
   end
 
+  -- WARN: both columns have to be inside the line before getregion() sees
+  -- them. It raises on a column past the end of the line rather than clamping
+  -- it (E964), and a position can be out of date for the moment a mode is
+  -- changing under it. Seen once, on a column 15 of a line that no longer had
+  -- 15 bytes in it; what put it there was never found again.
+  local line = vim.fn.getline(anchor[2])
+
+  if anchor[3] > #line + 1 or caret[3] > #line + 1 then
+    return nil
+  end
+
   local text = vim.fn.getregion(anchor, caret, { type = "v" })[1]
 
   -- Whitespace alone would mark every indent in the window, which is noise
@@ -113,18 +124,21 @@ end
 local function refresh()
   clear()
 
-  local selection = selected()
-
-  if not selection then
-    return
-  end
-
   local bufnr = vim.api.nvim_get_current_buf()
 
   -- Only a file is read for repeats. The tree, the terminal and the banner
   -- hold something else, and a selection in one of them is on its way to
   -- being copied rather than looked up.
+  --
+  -- First, before a selection is read at all: this decides the whole
+  -- question, and everything below it is work those buffers never need.
   if vim.bo[bufnr].buftype ~= "" then
+    return
+  end
+
+  local selection = selected()
+
+  if not selection then
     return
   end
 
