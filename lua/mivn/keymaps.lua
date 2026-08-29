@@ -25,6 +25,7 @@ local filters = require("mivn.filters")
 local find = require("mivn.find")
 local format = require("mivn.format")
 local hints = require("mivn.hints")
+local indent = require("mivn.indent")
 local margins = require("mivn.margins")
 local page = require("mivn.page")
 local restart = require("mivn.restart")
@@ -698,6 +699,27 @@ vim.keymap.set("i", "<CR>", complete.enter, {
 vim.keymap.set("i", "<Tab>", complete.tab, {
   expr = true,
   desc = "Accept the completion, or jump to the next placeholder, else a tab",
+})
+
+-- Shift+Tab is the other half of Zed's pair, and while typing that is one step
+-- of indent off the line. It replaces Neovim's own Insert-mode Shift+Tab, so
+-- lua/mivn/indent.lua answers the placeholder first the way that one did.
+vim.keymap.set("i", "<S-Tab>", indent.dedent_line, {
+  expr = true,
+  desc = "Jump to the previous placeholder, or dedent the line",
+})
+
+-- The same pair over a selection, in Visual and in Select. Select costs
+-- nothing here: Tab is not a printable key as far as Select mode is
+-- concerned, so neither of these took anything that was replacing text.
+-- lua/mivn/indent.lua carries the argument, the snippet order and what `gv`
+-- gets wrong.
+vim.keymap.set({ "x", "s" }, "<Tab>", indent.indent, {
+  desc = "Indent the selected lines, and keep the selection",
+})
+
+vim.keymap.set({ "x", "s" }, "<S-Tab>", indent.dedent, {
+  desc = "Dedent the selected lines, and keep the selection",
 })
 
 -- Esc with the menu open closes the menu and leaves me typing, the way it does
