@@ -2,10 +2,12 @@
 -- lists to point at, so both hide the cursor and let the highlighted row say
 -- where I am.
 --
--- It is a module of its own because 'guicursor' is global. Hiding the cursor
--- in one window means swapping the whole option on the way in and putting it
--- back on the way out, and two callers doing that separately would race over
--- which of them saved the real value. One autocmd owns the state instead.
+-- It is a module of its own because the panels are, not because of the caret.
+-- 'guicursor' is global and lua/mivn/caret.lua owns it, so hiding is an
+-- override asked for by name here rather than the option being swapped out and
+-- put back, which is what used to leak when Select mode wanted it too.
+
+local caret = require("mivn.caret")
 
 local M = {}
 
@@ -19,31 +21,6 @@ local GROUP = "MivnCursorHidden"
 
 --- The filetypes whose windows hide the cursor, as a set.
 local panels = {}
-
---- The 'guicursor' to put back, and nil when it is not swapped out. Doubles as
---- the "is it hidden right now" flag, so the two can never disagree.
-local saved = nil
-
-local function hide()
-  if saved then
-    return
-  end
-
-  saved = vim.o.guicursor
-
-  -- Appended rather than replacing: a later entry wins for the modes it names,
-  -- so this recolors every cursor shape without redefining any of them.
-  vim.o.guicursor = saved .. ",a:" .. GROUP .. "/" .. GROUP
-end
-
-local function show()
-  if not saved then
-    return
-  end
-
-  vim.o.guicursor = saved
-  saved = nil
-end
 
 --- Hide the cursor while a window showing `filetype` is the focused one.
 function M.hide_cursor_in(filetype)
@@ -62,10 +39,10 @@ vim.api.nvim_create_autocmd({ "WinEnter", "BufEnter", "BufWinEnter" }, {
   group = group,
   callback = function()
     if panels[vim.bo.filetype] then
-      return hide()
+      return caret.override("panel", GROUP)
     end
 
-    show()
+    caret.drop("panel")
   end,
 })
 
