@@ -350,6 +350,19 @@ vim.keymap.set("n", "<End>", "$l", {
   desc = "Move past the end of the line",
 })
 
+-- WARN: Visual needs its own, and not because the landing differs there. The
+-- key is unmapped in Visual, so a press is resolved against Visual's table,
+-- finds nothing, and 'keymodel' ends the selection and runs Vim's own End
+-- rather than the mapping above. The caret then stops on the last character
+-- instead of past it. Measured on a sixteen-character line: column 17 pressing
+-- End from Normal, column 16 pressing it out of a selection.
+--
+-- `<Esc>` first, because ending the selection is what an unshifted key means
+-- here, which is what "stopsel" was doing before the caret landed wrong.
+vim.keymap.set("x", "<End>", "<Esc>$l", {
+  desc = "Drop the selection and move past the end of the line",
+})
+
 -- Ctrl with either goes to the file's own ends, and Vim's pair misses both.
 --
 -- Ctrl+End is not `G`: it lands *on* the last character rather than past it,
