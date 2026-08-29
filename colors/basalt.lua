@@ -80,7 +80,7 @@ hl({
   Normal = { fg = c.fg, bg = c.bg },
   NormalNC = { fg = c.fg, bg = c.bg },
   NormalFloat = { fg = c.fg, bg = c.bg3 },
-  FloatBorder = { fg = c.bg5, bg = c.bg3 },
+  FloatBorder = { fg = c.bg7, bg = c.bg3 },
   FloatTitle = { fg = c.blue, bg = c.bg3, bold = true },
 
   -- The caret carries the mode, in the same hues the status line's mode block
@@ -442,10 +442,24 @@ hl({
   MiniStatuslineModeCommand = { fg = c.bg0, bg = c.yellow, bold = true }, -- types
   MiniStatuslineModeOther = { fg = c.bg0, bg = c.cyan, bold = true }, -- terminal, rest
 
-  -- The branch in orange, the color my shell prompt already gives branch
-  -- names, so the statusline and the prompt say it in the same voice. The
-  -- dirty dot rides along: it is one token with the name, and yellow1 already
-  -- means "modified" elsewhere.
+  -- The branch in orange, for what orange means here: a fixed label naming
+  -- where I am, which is the company constants and numbers keep. The dirty
+  -- dot rides along: it is one token with the name, and yellow1 already means
+  -- "modified" elsewhere.
+  --
+  -- Yellow was the other candidate and it lost on that same test. Yellow is
+  -- this palette's attention color, warnings and Todo and Search, and yellow1
+  -- is "modified" in the tree, the tabline and the gutter. A branch name is on
+  -- screen every second and asks for none of that.
+  --
+  -- WARN: this used to say the color came from my shell prompt, and that is
+  -- the one reason it must not give. The prompt asks for ANSI slot 3, which
+  -- is yellow here (terminal_color_3 above) and is becoming yellow in foot as
+  -- well, so the two stopped agreeing inside a :terminal without a line here
+  -- changing. The prompt lives in my dotfiles repository and is moving to
+  -- name basalt's orange outright rather than borrow a slot, so the two will
+  -- agree again; that is welcome and it is still not the reason. Either way,
+  -- do not repaint this one to chase the other.
   MivnStatuslineGit = { fg = c.orange, bg = c.bg3 },
 
   -- Who wrote the line the cursor is on takes the file name's own colors: it
