@@ -697,7 +697,7 @@ vim.keymap.set("i", "<CR>", complete.enter, {
 -- is settled by EditorConfig and applied on save.
 vim.keymap.set("i", "<Tab>", complete.tab, {
   expr = true,
-  desc = "Accept the highlighted completion, or the first one, else indent",
+  desc = "Accept the completion, or jump to the next placeholder, else a tab",
 })
 
 -- Esc with the menu open closes the menu and leaves me typing, the way it does

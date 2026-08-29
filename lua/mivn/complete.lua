@@ -106,7 +106,19 @@ function M.enter()
   return ok and pairs.cr() or vim.keycode("<CR>")
 end
 
---- Accept the highlighted completion, or the first one, else indent.
+--- Accept the highlighted completion, or the first one, else jump to the next
+--- placeholder, else indent.
+---
+--- WARN: the placeholder branch is Neovim's own Insert-mode Tab, and taking
+--- the key here took it with it. Neovim maps Tab in Insert and Select to
+--- vim.snippet.jump when a snippet is live, so accepting a server's snippet
+--- and pressing Tab for the next placeholder typed a tab into the middle of
+--- the line. Shift+Tab is not mapped here, so jumping back never broke, which
+--- is how it went unnoticed.
+---
+--- The menu comes first, and Zed reads the same way round: its snippet
+--- bindings carry `!showing_completions`, so a match beats a placeholder
+--- there too.
 function M.tab()
   if selected() then
     return "<C-y>"
@@ -114,6 +126,10 @@ function M.tab()
 
   if vim.fn.pumvisible() == 1 then
     return "<C-n><C-y>"
+  end
+
+  if vim.snippet.active({ direction = 1 }) then
+    return "<Cmd>lua vim.snippet.jump(1)<CR>"
   end
 
   return "<Tab>"
