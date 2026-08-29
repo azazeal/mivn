@@ -269,6 +269,16 @@ _(mivn)_, so Ctrl+V in the browser gets what you just took; that `d`
 deliberately does not, and `Alt+D` is the one that cuts to the clipboard.
 [Registers](#registers) is the whole account.
 
+`Tab` and `Shift+Tab` indent and dedent every line the selection touches, and
+leave it picked out afterwards so the key can be held _(mivn)_. That is Zed's
+pair, and it is the whole reason they are bound: `>` and `<` are untouched and
+still Vim's operators, so they still indent once and end the selection the way
+every operator does. Two things fall out of Vim rather than being added here: a
+selection ending at the very start of a line leaves that line alone, which is
+'selection' being exclusive, and the shift is a flat 'shiftwidth' rather than a
+step to the next multiple of it, since 'shiftround' is off and an indent that
+does not sit on the grid is usually deliberate alignment.
+
 While a selection is up, every other copy of it in the window gets a quiet tint
 _(mivn)_, the way Zed marks them. What counts as a copy is the selected
 characters exactly, case and all, and word boundaries are ignored, so picking
@@ -735,6 +745,14 @@ which match you want does `Enter` take one. `Tab` is the short way past that,
 since it takes the top match with no arrow first, and the literal tab it costs
 is only ever lost mid-word, where a tab was not what you wanted.
 
+A match from a language server can arrive as a snippet, with its arguments left
+as placeholders to fill in. `Tab` steps forward through them and `Shift+Tab`
+back, which is Neovim's own pair on the same two keys the menu uses, so the
+order matters: the menu answers first, then the placeholders, then the key does
+what it does with neither in the way. Zed reads the same way round. With no
+placeholder to go back to, `Shift+Tab` while typing takes one step of indent off
+the line _(mivn)_, which is Vim's own `Ctrl+D` and the other half of Zed's pair.
+
 `PageUp` and `PageDown` follow the same rule as `Enter`, and for the same
 reason. Vim hands them to the menu whenever the menu is open, which was fair
 when the menu only appeared on request; now that it comes on its own, that would
@@ -828,7 +846,9 @@ last yank now, so nothing was lost with it.
 
 `Ctrl+O` is the "back" button after a go-to-definition. `Ctrl+I` is forward, and
 it is worth knowing that `Tab` is the same key: that is why nothing here maps
-`Tab`, and why the tab bar's chords are `Ctrl+Tab` and not it.
+`Tab` in Normal mode, and why the tab bar's chords are `Ctrl+Tab` and not it.
+Where the jumplist has no claim on the key, while typing and over a selection,
+`Tab` does have jobs _(mivn)_.
 
 ## Windows, buffers, tabs
 
@@ -907,13 +927,17 @@ They need a surface that speaks the extended keyboard protocol, and that is
 worth knowing rather than discovering. In the older encoding a terminal has no
 way to say Ctrl and Tab together, so it sends a plain Tab, and Normal-mode Tab
 is `Ctrl+I`, forward through the jumplist. That half of `Ctrl+O` is worth more
-than a convenience key, so nothing here is mapped to Tab: only `<C-Tab>` and
-`<C-S-Tab>` are, and on a surface that cannot send them the two chords do
-nothing at all while Tab keeps its own job. Neovide and a kitty-protocol
-terminal like foot send them and both directions work; measured, by feeding the
-encodings in and watching which way the buffers moved. `]b` and `[b` are there
-on every surface and do the same thing, which is the answer if you are somewhere
-the chords do not arrive.
+than a convenience key, so nothing here is mapped to Tab in Normal: only
+`<C-Tab>` and `<C-S-Tab>` are, and on a surface that cannot send them the two
+chords do nothing at all while Tab keeps its own job. Neovide and a
+kitty-protocol terminal like foot send them and both directions work; measured,
+by feeding the encodings in and watching which way the buffers moved. `]b` and
+`[b` are there on every surface and do the same thing, which is the answer if
+you are somewhere the chords do not arrive.
+
+Shift+Tab is not in that boat. It is `\E[Z`, terminfo's `kcbt`, an old enough
+sequence that every terminal sends it, which is why the selection keys and the
+placeholder keys can be had where `Ctrl+Tab` cannot.
 
 Nothing about them changes on a Greek layout. `'langmap'` translates letters,
 and Tab is not one; the physical key sends Tab under every layout.
