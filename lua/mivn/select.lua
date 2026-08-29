@@ -14,15 +14,16 @@
 -- The caret is the same problem one level down. 'guicursor' has no Select
 -- mode to name: the list it takes is `n v ve o i r c ci cr sm t a`, and
 -- asking for `s` is E546, so Select is drawn with whatever Visual's entry
--- says. So the option itself is swapped for as long as Select lasts, the way
--- lua/mivn/panel.lua does it to hide the cursor: an appended `a:` names a
--- highlight group for every mode without touching a single shape, and the
--- saved value goes back on the way out.
+-- says. An override for as long as Select lasts is the answer, and
+-- lua/mivn/caret.lua is what applies it: the option is global and two modules
+-- want it, so neither of them touches it directly.
+
+local caret = require("mivn.caret")
 
 local group = vim.api.nvim_create_augroup("mivn.select", { clear = true })
 
---- The window whose 'winhighlight' was swapped, what it held before, and the
---- 'guicursor' that was in force. Nil whenever Select is not the mode.
+--- The window whose 'winhighlight' was swapped and what it held before. Nil
+--- whenever Select is not the mode.
 local restore = nil
 
 --- The caret while Select lasts. Named here rather than in 'guicursor',
@@ -46,9 +47,9 @@ vim.api.nvim_create_autocmd("ModeChanged", {
       local win = vim.api.nvim_get_current_win()
       local held = vim.wo[win].winhighlight
 
-      restore = { win = win, winhighlight = held, guicursor = vim.o.guicursor }
+      restore = { win = win, winhighlight = held }
       vim.wo[win].winhighlight = held ~= "" and (held .. ",Visual:MivnSelect") or "Visual:MivnSelect"
-      vim.o.guicursor = restore.guicursor .. ",a:" .. CURSOR .. "/" .. CURSOR
+      caret.override("select", CURSOR)
 
       return
     end
@@ -61,7 +62,7 @@ vim.api.nvim_create_autocmd("ModeChanged", {
       vim.wo[restore.win].winhighlight = restore.winhighlight
     end
 
-    vim.o.guicursor = restore.guicursor
+    caret.drop("select")
     restore = nil
   end,
 })
