@@ -21,12 +21,12 @@
 -- :terminal must keep my real git config.
 --
 -- Nothing updates itself. The notice is the feature, and :MivnUpdate is me
--- saying yes to it: a fast-forward onto the release the notice named, refused
--- outright if this checkout has anything of its own in it, and never a
--- restart. Neovim is running the Lua it loaded at startup, so moving the files
--- under a live session changes nothing that is read again until :restart, and
--- the pins in plugins.lua move without the plugins moving with them. Both of
--- those are for me to do, once I am ready.
+-- saying yes to it: a move onto the release the notice named, refused outright
+-- if this checkout has anything of its own in it, and never a restart. Neovim
+-- is running the Lua it loaded at startup, so moving the files under a live
+-- session changes nothing that is read again until :restart, and the pins in
+-- plugins.lua move without the plugins moving with them. Both of those are for
+-- me to do, once I am ready.
 
 local M = {}
 
@@ -288,12 +288,17 @@ end
 
 --- Take the release the notice is about.
 ---
---- A fast-forward onto the newest release tag, and not a pull of the branch:
---- the branch moves on with every merge, so pulling it lands on whatever main
+--- A move onto the newest release tag, and not a pull of the branch: the
+--- branch moves on with every merge, so pulling it lands on whatever main
 --- happens to be today, which is not the version the banner named and is not
---- a version I decided anything about. --ff-only means a checkout carrying
---- commits of its own stops instead of growing a merge; a dirty tree and a
---- detached HEAD stop earlier still.
+--- a version I decided anything about.
+---
+--- Two shapes, because a checkout can be on a branch or not. On a branch the
+--- move is a fast-forward. Detached is where a clone of a release tag lands,
+--- and is a fine way to run this, so there the move is a checkout of the new
+--- tag and HEAD stays detached. Neither shape is allowed to drop work: a
+--- dirty tree stops before the fetch, and a HEAD the release does not already
+--- carry stops after it.
 ---
 --- The fetch happens before the question, because what is worth asking about
 --- is what the release actually carries: how many commits, and whether the
@@ -307,17 +312,13 @@ local function pull()
     return
   end
 
-  -- Nothing to fast-forward without a branch, and `git checkout <tag>` is the
-  -- ordinary way into that state.
-  if not here({ "symbolic-ref", "-q", "HEAD" }) then
-    vim.notify("Your config is not on a branch. Run `git switch main` in it first.", vim.log.levels.WARN)
-    return
-  end
-
   if here({ "status", "--porcelain" }) then
     vim.notify("Your config has changes of its own, so nothing was taken.", vim.log.levels.WARN)
     return
   end
+
+  -- nil when HEAD is detached, which is what picks the move made below.
+  local branch = here({ "symbolic-ref", "-q", "HEAD" })
 
   vim.notify("Fetching...")
 
@@ -338,9 +339,19 @@ local function pull()
       -- than nesting another callback under this one.
       --
       -- A release this checkout already has, or sits past, is nothing to ask
-      -- about: a fast-forward onto it would be a no-op that still exits 0.
+      -- about: a move onto it would be a no-op that still exits 0.
       if take({ "merge-base", "--is-ancestor", target, "HEAD" }):wait(5000).code == 0 then
         vim.notify(("Already on %s, or past it."):format(target))
+        return
+      end
+
+      -- WARN: the other direction is what keeps a detached checkout's own
+      -- commits. `merge --ff-only` refuses on its own, but only after the
+      -- question has been asked and answered; `checkout` does not refuse at
+      -- all, and would walk off the commits leaving nothing but the reflog to
+      -- find them by. So the release has to already carry every commit here.
+      if take({ "merge-base", "--is-ancestor", "HEAD", target }):wait(5000).code ~= 0 then
+        vim.notify("Your config has commits of its own, so nothing was taken.", vim.log.levels.WARN)
         return
       end
 
@@ -360,9 +371,15 @@ local function pull()
           return
         end
 
-        local merged = take({ "merge", "--ff-only", target }):wait(30000)
-        if merged.code ~= 0 then
-          vim.notify(("Moving to %s failed:\n%s"):format(target, trouble(merged)), vim.log.levels.ERROR)
+        -- On a branch the branch itself has to move, which is what the merge
+        -- is for. Detached there is nothing to move, so the tag is checked
+        -- out and HEAD is left detached on it, the same state the checkout
+        -- was already in.
+        local move = branch and { "merge", "--ff-only", target } or { "checkout", "--detach", target }
+
+        local moved = take(move):wait(30000)
+        if moved.code ~= 0 then
+          vim.notify(("Moving to %s failed:\n%s"):format(target, trouble(moved)), vim.log.levels.ERROR)
           return
         end
 
