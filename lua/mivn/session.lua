@@ -222,6 +222,19 @@ vim.api.nvim_create_autocmd("BufEnter", {
       return
     end
 
+    -- Not while Neovim is still starting. The blank buffer it holds before
+    -- the argument list is opened looks exactly like the one `:bd` leaves
+    -- behind, and ending the session there means a file named on the command
+    -- line never gets opened at all. That is not hypothetical either:
+    -- `neovide <file>` quit on the spot, because Neovide runs nvim with
+    -- `--embed` and the wait for the UI to attach gives this check a tick of
+    -- the loop before the file arrives. A terminal opens the file first and
+    -- hides the race. Startup is the banner's case anyway (dashboard.lua's
+    -- VimEnter); this rule is only about what happens afterwards.
+    if vim.v.vim_did_enter == 0 then
+      return
+    end
+
     local dashboard = require("mivn.dashboard")
 
     -- Already there. Without this the landing buffer re-triggers itself.
