@@ -89,6 +89,15 @@ the file has seen while it was open, and `'undofile'` means it keeps walking
 back through the changes from before you last closed it. The worst outcome of a
 keyboard being sat on is a layout to put back.
 
+Swap files, the other half of that, are kept as Vim ships them: one beside
+every open file, holding what a crash would otherwise take. What is not kept
+is the prompt about a swap file nothing is using any more _(mivn)_. An editor
+that was killed rather than closed leaves one behind, and the next time you
+open that file Vim stops to ask what to do about it, when the answer is
+always "it held nothing, drop it". Those are cleared at startup, and only
+those: a swap file with unsaved work in it, or one an editor is still using,
+is left alone and still asks.
+
 The screen mivn opens on is an ordinary buffer, which is why the motions work on
 it: `j`, `w` and `G` move a cursor over the banner that is deliberately not
 drawn, and where it lands makes no difference to anything. There is nothing
