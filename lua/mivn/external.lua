@@ -53,6 +53,18 @@ for i, extension in ipairs(EXTENSIONS) do
   patterns[i] = "*." .. extension
 end
 
+--- Wipe the buffer the autocmd is editing, once the read event is over.
+---
+--- Deleting it out from under the edit crashes the redraw. After the event,
+--- the window has moved on to whatever buffer is next in line.
+local function drop(buf)
+  vim.schedule(function()
+    if vim.api.nvim_buf_is_valid(buf) then
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end
+  end)
+end
+
 vim.api.nvim_create_autocmd("BufReadCmd", {
   group = vim.api.nvim_create_augroup("mivn.external", { clear = true }),
   pattern = patterns,
@@ -69,30 +81,36 @@ vim.api.nvim_create_autocmd("BufReadCmd", {
     -- Only ask when someone is there to answer: with no UI attached,
     -- confirm() quietly returns its default button, and a headless script
     -- touching a PDF would pop a viewer onto the desktop. Measured, not
-    -- hypothetical.
-    local ask = #vim.api.nvim_list_uis() > 0
+    -- hypothetical. No UI reads as No, the raw view every other file gets.
+    local choice = 2
 
-    local name = vim.fs.basename(path)
+    if #vim.api.nvim_list_uis() > 0 then
+      local name = vim.fs.basename(path)
+      local question = name .. " is not text. Open it with the system app?"
 
-    if ask and vim.fn.confirm(name .. " is not text. Open it with the system app?", "&Yes\n&No", 1) == 1 then
+      choice = vim.fn.confirm(question, "&Yes\n&No\n&Cancel", 1)
+    end
+
+    if choice == 1 then
       local _, err = vim.ui.open(path)
 
       if not err then
-        -- This buffer is the one the autocmd is editing, and deleting it
-        -- out from under the edit crashes the redraw. After the event, the
-        -- window has moved on to whatever buffer is next in line.
-        vim.schedule(function()
-          if vim.api.nvim_buf_is_valid(ev.buf) then
-            vim.api.nvim_buf_delete(ev.buf, { force = true })
-          end
-        end)
-
+        drop(ev.buf)
         return
       end
 
       -- No opener took it; fall through to the raw view, which beats an
       -- empty buffer shadowing a real file.
       vim.notify(err, vim.log.levels.ERROR)
+    elseif choice ~= 2 and not vim.b[ev.buf].mivn_raw then
+      -- Cancel, which is also what Escape answers (0, no button at all):
+      -- neither the app nor the raw view, so the open never happened. The
+      -- buffer goes with it, because an empty buffer named after a real
+      -- file is that file truncated on the next `:w`. Cancelling a reload
+      -- of a raw view falls through instead: it arrives here emptied, and
+      -- the read below puts back exactly what was on screen.
+      drop(ev.buf)
+      return
     end
 
     -- Declined: do what the read would have done. The wipe first, because a
@@ -105,6 +123,10 @@ vim.api.nvim_create_autocmd("BufReadCmd", {
     vim.cmd("silent keepalt read ++edit " .. vim.fn.fnameescape(path))
     vim.cmd("silent 1delete _")
     vim.bo[ev.buf].modified = false
+
+    -- What a later cancel reads to tell a reload from a first open.
+    vim.b[ev.buf].mivn_raw = true
+
     vim.api.nvim_exec_autocmds("BufReadPost", { pattern = path, modeline = false })
   end,
 })
