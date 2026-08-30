@@ -112,11 +112,13 @@ no release to name drops it and the byline reads as it always did.
 One line can appear under that banner _(mivn)_, and only one: a newer mivn
 release is out. The config directory is a git clone, so mivn asks GitHub once a
 day whether a release tag exists that this checkout does not have, and says
-nothing at all the rest of the time. `:MivnUpdate` takes it, as a fast-forward
-onto that release and not onto whatever the branch carries today, refused
-outright if the checkout has any changes of its own or is not on a branch;
-`:restart` is what actually loads the new files. `:checkhealth mivn` says the
-same thing when the banner is not on screen.
+nothing at all the rest of the time. `:MivnUpdate` takes it, moving onto that
+release and not onto whatever the branch carries today: a fast-forward when the
+checkout is on a branch, and a checkout of the tag when it is detached, which is
+where a clone of a release sits. Either way it is refused outright if the
+checkout has changes or commits of its own; `:restart` is what actually loads
+the new files. `:checkhealth mivn` says the same thing when the banner is not on
+screen.
 
 ### Chords your hands already have
 
