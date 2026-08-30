@@ -448,6 +448,7 @@ vim.opt.langmap = table.concat({
 -- mivn's default theme; lives in colors/ next to this file.
 vim.cmd.colorscheme("basalt")
 
+require("mivn.swap") -- answers the prompt about a swap file no editor is using
 require("mivn.plugins") -- vim.pack; every module below is one of its consumers
 require("mivn.treesitter") -- grammars, highlighting, injections
 require("mivn.lsp") -- language servers, diagnostics, format on save; one file per language
