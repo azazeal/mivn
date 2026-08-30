@@ -31,8 +31,13 @@ checked off; git remembers them.
     comes back empty, which reads as "the colorscheme forgot this language".
     That is what the move off lazy.nvim left behind in `~/.config/nvim`: 30
     languages whose `queries/<lang>` still pointed into the old `lazy/`
-    directory, relinked by hand on 2026-08-03. Either check the links on
-    install or say it in `:checkhealth mivn`.
+    directory, relinked by hand on 2026-08-03.
+
+    Half of this is spent. `:checkhealth mivn` now walks the installed
+    grammars and says how many have their queries, so a broken link is
+    findable. What is left is the repair: the install still skips a language
+    whose parser is there, so the check can name the problem and nothing
+    fixes it.
 - [ ] Markdown: decide what is left of the writing set. Formatting is done:
     `rumdl` with MD060 alone aligns the tables and gives a file with no table
     in it back byte for byte, which is why it is a linter with one rule turned
