@@ -35,14 +35,25 @@ local group = vim.api.nvim_create_augroup("mivn.panel", { clear = true })
 --
 -- BufEnter is needed beside WinEnter because the landing buffer arrives by
 -- being put into the window I am already in, which is not a window change.
+--
+-- WARN: the work is put off to the next tick because these events also fire
+-- while a plugin is standing in another window for a moment. Opening the tree
+-- without giving it focus is that case: it enters its own window, fills it,
+-- and puts me back without a second arrival, so the last event says NvimTree
+-- while I am sitting in the file. Read at the event, the caret stays hidden
+-- for the rest of the session; read a tick later, every one of them agrees on
+-- the window I am actually in. Both calls are no-ops when nothing changed, so
+-- a burst of events costs one write to the option at most.
 vim.api.nvim_create_autocmd({ "WinEnter", "BufEnter", "BufWinEnter" }, {
   group = group,
   callback = function()
-    if panels[vim.bo.filetype] then
-      return caret.override("panel", GROUP)
-    end
+    vim.schedule(function()
+      if panels[vim.bo.filetype] then
+        return caret.override("panel", GROUP)
+      end
 
-    caret.drop("panel")
+      caret.drop("panel")
+    end)
   end,
 })
 
