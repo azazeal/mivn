@@ -28,6 +28,7 @@ local hints = require("mivn.hints")
 local indent = require("mivn.indent")
 local margins = require("mivn.margins")
 local page = require("mivn.page")
+local pairing = require("mivn.pairs") -- not `pairs`, which is Lua's own
 local restart = require("mivn.restart")
 local terminal = require("mivn.terminal")
 local tree = require("mivn.tree")
@@ -194,6 +195,18 @@ for _, mv in ipairs({
   vim.keymap.set("i", mv.lhs, insert_move(mv.line), {
     expr = true,
     desc = "Move the line " .. mv.word,
+  })
+end
+
+-- A bracket or a quote typed over a selection wraps it instead of replacing
+-- it, the way every other editor I use answers that key. Which characters
+-- these are is mini.pairs' table and not a list written here, so the pairs
+-- stay configured in one place; lua/mivn/pairs.lua carries the trade-offs.
+for _, wrap in ipairs(pairing.surrounds()) do
+  vim.keymap.set("s", wrap.key, function()
+    pairing.surround(wrap.open, wrap.close)
+  end, {
+    desc = ("Wrap the selection in %s%s"):format(wrap.open, wrap.close),
   })
 end
 

@@ -5,13 +5,19 @@ checked off; git remembers them.
 
 ## UI
 
-- [ ] The caret's Visual color arrives one key late when Visual is entered
-    with `v` or `V`. which-key's `ModeChanged` hook is what swallows the
-    flush: clearing that one autocmd makes the color immediate, and plain
-    Neovim with the same 'guicursor' sends it on the keypress. Shift+arrow,
-    which is how a selection usually starts here, is unaffected, since the
-    motion that comes with it flushes. Measured 2026-08-24. A `redraw` in an
-    autocmd would cover it; not worth one until the `v` path annoys me.
+- [ ] A key that arrives while a shifted arrow is still running goes first.
+    `arrow()` in keymaps.lua clears 'keymodel', feeds the plain key with
+    nvim_feedkeys' "x" and puts the option back. "x" runs everything already
+    waiting, and what it feeds joins the end of that queue rather than the
+    front, so the key I typed after the arrow is the one that runs first.
+    Typed `abc`, Shift+`←`, Shift+`←`, `x` arriving together leaves `abcx`
+    and not `ax`: the `x` replaced a selection that had not been opened yet.
+    Measured 2026-08-31 through a socket, the same input path as typing, and
+    it takes keys arriving in one piece: a paste, a key held down, or a
+    terminal handing over a burst. Typed apart they are correct. Wrapping in
+    pairs.lua steers around the same "x" by using :normal, which is the shape
+    of the fix, except that 'keymodel' has to stay cleared for exactly the
+    fed keys and no others, and every arrow mapping goes through here.
 
 - [ ] Test coverage in the gutter, the way Zed shows it for Go. Nothing live
     exists here: coverage comes from a `go test -coverprofile=...` run, and
