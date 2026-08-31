@@ -316,6 +316,16 @@ moving. Every shifted key reaches Insert: the arrows, `Home`, `End`, the Ctrl
 and Alt word pairs, and the pages. Keys pressed from Normal are untouched and
 still open Visual.
 
+Six characters are not letters there _(mivn)_. `(`, `[`, `{`, `"`, `'` and a
+backtick wrap the selection instead of replacing it, and what they wrapped
+stays picked out, so `"` and then `(` over `word` gives `"(word)"`. That is
+Zed's `use_auto_surround`, and Zed's rule about which characters it is: the
+closing halves are not in it, so `)` over a selection still replaces. A wrap
+comes off on its own `u` and the typing around it stays, except that dropping
+the selection with `Esc` first spends one `u` on nothing. In Visual the same
+keys keep Vim's meaning, where `"` names a register and `'` and a backtick are
+mark motions.
+
 Vim's other selection mode, **Select** (`:h select-mode`), is the one where
 typing replaces the selection. `'selectmode'` would put the shifted keys and the
 mouse there and is deliberately unset: the one habit it bought cost `y` and `d`,
@@ -727,6 +737,11 @@ One divergence _(mivn)_: brackets and quotes close themselves. `(` inserts
 `()` with the cursor between them, typing the closing character walks over the
 one already there, and Backspace inside an empty pair deletes both. That is
 mini.pairs with its defaults, and `lua/mivn/pairs.lua` is the whole of it.
+
+The same characters wrap a selection rather than replacing it _(mivn)_, which
+is the Selecting with Shift section above. mini.pairs has no notion of that
+half, so `lua/mivn/pairs.lua` carries it and takes the characters out of the
+plugin's own table, which is why the two lists are the same list.
 
 ## Completion
 
