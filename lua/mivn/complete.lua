@@ -78,6 +78,42 @@ vim.api.nvim_create_autocmd("LspDetach", {
   end,
 })
 
+-- Vim's own sql completion is dropped, so `o` finds nothing in a sql buffer
+-- and the word sources answer instead.
+--
+-- It completes table and column names by asking a live database, through the
+-- dbext plugin, which is not installed here and is not going to be: I do not
+-- want the editor talking to a database as I type. Without dbext every call
+-- prints an error and then sits in `:sleep 2`, and 'autocomplete' calls it on
+-- the keys I type, so a sql buffer stalls two seconds at a time. Measured: a
+-- burst of five characters took 2.08s to land.
+--
+-- The sleep is also what raised E565 out of ui2's message timer: `:sleep`
+-- runs the event loop while completion holds the buffer against changes, so a
+-- message on its way out was removed at the one moment that is not allowed.
+-- The timer is Neovim's and the missing guard is Neovim's; this only takes
+-- away the one thing here that reaches it.
+--
+-- The flag is the sql ftplugin's own switch and goes first, since the
+-- ftplugin reads it while the file type is being set. It turns off thirteen
+-- Insert-mode mappings the ftplugin makes on Ctrl+C, all of them ways into
+-- the completion below: with them, Ctrl+C in a sql buffer waits to see
+-- whether a second key is coming instead of leaving Insert.
+vim.g.omni_sql_no_default_maps = 1
+
+vim.api.nvim_create_autocmd("FileType", {
+  group = group,
+  pattern = "sql",
+  desc = "Drop the sql omni-completion, which wants a database behind it",
+  callback = function(ev)
+    -- Named rather than blanked, so that a language server which got there
+    -- first keeps the omnifunc it set.
+    if vim.bo[ev.buf].omnifunc == "sqlcomplete#Complete" then
+      vim.bo[ev.buf].omnifunc = ""
+    end
+  end,
+})
+
 --- The keys -------------------------------------------------------------------
 --
 -- Which keys these are is lua/mivn/keymaps.lua's; this is what they do.

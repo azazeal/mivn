@@ -737,6 +737,14 @@ buffers, so completion still works where no server runs. That split is Zed's
 rule, adopted because Vim would otherwise list the same identifier twice, once
 with the server's signature and once as a bare word scraped from a call site.
 
+One filetype is short a source _(mivn)_. Vim's own sql completion answers by
+asking a live database, through the `dbext` plugin, and without that plugin
+every call prints an error and then sleeps two seconds, mid-keystroke. It is
+dropped, so `Ctrl+X Ctrl+O` finds nothing in a sql buffer and the words in the
+open buffers are what the menu offers. The thirteen `Ctrl+C` mappings the sql
+filetype adds to Insert mode go with it, since each of them was a way into
+that completion; `Ctrl+C` there leaves Insert, as it does everywhere else.
+
 | Key | Does |
 |---|---|
 | `Down` / `Up` | Next / previous match, without writing it into the line |
