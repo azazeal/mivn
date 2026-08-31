@@ -5,14 +5,6 @@ checked off; git remembers them.
 
 ## UI
 
-- [ ] The caret's Visual color arrives one key late when Visual is entered
-    with `v` or `V`. which-key's `ModeChanged` hook is what swallows the
-    flush: clearing that one autocmd makes the color immediate, and plain
-    Neovim with the same 'guicursor' sends it on the keypress. Shift+arrow,
-    which is how a selection usually starts here, is unaffected, since the
-    motion that comes with it flushes. Measured 2026-08-24. A `redraw` in an
-    autocmd would cover it; not worth one until the `v` path annoys me.
-
 - [ ] A key that arrives while a shifted arrow is still running goes first.
     `arrow()` in keymaps.lua clears 'keymodel', feeds the plain key with
     nvim_feedkeys' "x" and puts the option back. "x" runs everything already
