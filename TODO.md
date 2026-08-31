@@ -19,6 +19,31 @@ checked off; git remembers them.
     of the fix, except that 'keymodel' has to stay cleared for exactly the
     fed keys and no others, and every arrow mapping goes through here.
 
+- [ ] `%S` leaves a stray space to its right in the status line's right-hand
+    group. mini.statusline joins a group's non-empty strings with a space and
+    cannot tell that `%S` renders as nothing while no command is pending, so
+    the separator is drawn for a thing that is not there. Found while the
+    filetype was briefly a glyph, which made a one-character orphan obvious;
+    it is there with the name too, just harder to see. The fix is either a
+    group of its own for `%S` or moving the filetype out of that group, and
+    both change the padding either side, so measure before picking.
+
+    Half of that is spent already. Reordering the right-hand side on
+    2026-08-23 put the filetype in a group of its own, so the second lever is
+    pulled and only the first is left to try. The shape of it is already in
+    the file: the panel branch gives `%S` a group to itself, a few lines above
+    the file branch that still shares one with the search count. Measuring it
+    again is harder than it sounds: everything after `%=` is right aligned, so
+    a stray space at the left edge of a group merges into the empty middle and
+    a rendered line looks the same either way. Catching it needs something
+    sitting hard against that edge, which is the state the glyph put it in.
+
+- [ ] A fact written twice, waiting to drift; found by the 2026-08-04 review,
+    parked for a monthly batch. find.lua's BUILTINS table hand-describes 21 Ex
+    commands, and its prose-vs-code regex hides any real description that
+    mentions a call like `foldexpr()`. It is fine today and wrong the day its
+    twin changes.
+
 - [ ] Test coverage in the gutter, the way Zed shows it for Go. Nothing live
     exists here: coverage comes from a `go test -coverprofile=...` run, and
     neither the language server nor mini.diff reads the profile. Two routes:
@@ -29,8 +54,12 @@ checked off; git remembers them.
 
 ## Languages
 
-- [ ] Check whether treesitter indentation beats the built-in ftplugins for
-    any of these. It is off right now on the assumption it does not.
+- [ ] Check whether tree-sitter indentation beats the built-in ftplugins for
+    any of the languages in treesitter.lua's list. It is off right now on the
+    assumption it does not, and that assumption is written beside the setting
+    rather than measured. What would settle it is a file per candidate
+    language, indented both ways and compared.
+
 - [ ] `:MivnInstallGrammars` cannot repair a half-installed grammar. It skips
     a language whose parser is already there, so a broken query link is
     invisible: the parser loads, highlighting turns on, and every capture
@@ -44,6 +73,7 @@ checked off; git remembers them.
     findable. What is left is the repair: the install still skips a language
     whose parser is there, so the check can name the problem and nothing
     fixes it.
+
 - [ ] Markdown: decide what is left of the writing set. Formatting is done:
     `rumdl` with MD060 alone aligns the tables and gives a file with no table
     in it back byte for byte, which is why it is a linter with one rule turned
@@ -57,39 +87,25 @@ checked off; git remembers them.
     polish: render-markdown.nvim prettifies headings and tables in place but
     renders no diagrams. A monthly-batch decision, not a today one.
 
-- [ ] Facts written twice, waiting to drift; found by the 2026-08-04
-    review, parked for a monthly batch. find.lua's BUILTINS table
-    hand-describes 21 Ex commands, and its prose-vs-code regex hides any
-    real description that mentions a call like `foldexpr()`.
-    Each is fine today and wrong the day its twin changes. The other two
-    the review found are gone: local.example.lua mirrored lsp.lua's
-    behavior by hand and no longer exists, and health.lua's PROBES table
-    was keyed by binary name while everything around it was keyed by
-    server, which moved into the language files.
+## Health
 
-- [ ] `:checkhealth mivn` takes about 3.4 seconds now, up from 1.4. The
-    servers with no version flag are started for real and given half a
-    second to prove they did not die on the spot, which is what caught
-    jsonls and cssls shipping without the code behind their launchers. Four
-    healthy ones hold that half second each, one after another. Starting
-    them all before waiting on any would put the time back.
+- [ ] `:checkhealth mivn` takes about 4.7 seconds now, up from the 3.4 it was
+    at last time and the 1.4 it started from. The servers with no version flag
+    are started for real and given half a second to prove they did not die on
+    the spot, which is what caught jsonls and cssls shipping without the code
+    behind their launchers. Four healthy ones hold that half second each, one
+    after another. Starting them all before waiting on any would put the time
+    back. Measured 2026-08-31 with every server on PATH; a machine missing
+    them pays none of it, since only a server that is there is waited on.
 
-- [ ] `%S` leaves a stray space to its right in the status line's right-hand
-    group. mini.statusline joins a group's non-empty strings with a space and
-    cannot tell that `%S` renders as nothing while no command is pending, so
-    the separator is drawn for a thing that is not there. Found while the
-    filetype was briefly a glyph, which made a one-character orphan obvious;
-    it is there with the name too, just harder to see. The fix is either a
-    group of its own for `%S` or moving the filetype out of that group, and
-    both change the padding either side, so measure before picking.
-
-    Half of that is spent already. Reordering the right-hand side on
-    2026-08-23 put the filetype in a group of its own, so the second lever is
-    pulled and only the first is left to try. Measuring it again is harder
-    than it sounds: everything after `%=` is right aligned, so a stray space
-    at the left edge of a group merges into the empty middle and a rendered
-    line looks the same either way. Catching it needs something sitting hard
-    against that edge, which is the state the glyph put it in.
+- [ ] `:checkhealth mivn` should list plugin clones on disk that plugins.lua
+    no longer mentions. vim.pack deletes nothing on its own, so a dropped
+    plugin lingers under site/pack on every other machine, and each boot there
+    "repairs" the lock to account for the orphan, which keeps
+    nvim-pack-lock.json forever dirty in git. Measured 2026-08-04: a leftover
+    SchemaStore.nvim did exactly that on another machine, and
+    `:lua vim.pack.del({ "<name>" })` was the cleanup; the check should name
+    the orphans and point at it.
 
 ## Testing
 
@@ -107,16 +123,12 @@ checked off; git remembers them.
     a throwaway: 76 of them were written while fixing this and thrown away
     afterwards, which is the part worth not repeating.
 
-## Plugins
-
-- [ ] `:checkhealth mivn` should list plugin clones on disk that
-    plugins.lua no longer mentions. vim.pack deletes nothing on its own, so
-    a dropped plugin lingers under site/pack on every other machine, and
-    each boot there "repairs" the lock to account for the orphan, which
-    keeps nvim-pack-lock.json forever dirty in git. Measured 2026-08-04: a
-    leftover SchemaStore.nvim did exactly that on another machine, and
-    `:lua vim.pack.del({ "<name>" })` was the cleanup; the check should
-    name the orphans and point at it.
+    The gap is two keys wide now. The wrapping keys of 2026-08-31 could only
+    be checked by driving a real editor over a socket: headless feedkeys
+    queues keys in a different order than a terminal does, so it said yes to a
+    broken version and no to a working one. Twelve assertions, thrown away the
+    same way. Whatever `motions` turns out to be wants room for a Select-mode
+    buffer beside the caret ones, and it has to drive a real one.
 
 ## Dashboard
 
