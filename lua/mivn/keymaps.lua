@@ -166,22 +166,29 @@ vim.keymap.set("n", "<C-Del>", "dw", {
 -- took the indent off (measured 2026-09-03). The selection is dropped first,
 -- since the undo may well take the text under it away.
 --
--- The case keys are xileh's, which helix spells the same way: a backtick
--- lowercases the selection, Alt and a backtick uppercases it, and `~` toggles
--- it, which Vim already does. What the backtick costs in Visual is Vim's
--- jump to a mark, which `'` still does by the line. Not Ctrl and a backtick:
--- a terminal without the kitty keyboard protocol sends that as NUL, the same
--- byte Ctrl+Space arrives as. `U`, Vim's own uppercase, stays as well.
+-- The case keys sit on the backtick: alone it toggles the case of the
+-- selection, with Ctrl it uppercases, with Alt it lowercases. Vim's own `~`
+-- and `U` keep doing the first two as well. What the backtick costs in
+-- Visual is Vim's jump to a mark, which `'` still does by the line.
+--
+-- Ctrl and a backtick reaches Neovim from Neovide and from a terminal that
+-- speaks the kitty keyboard protocol, which foot does; an older terminal
+-- sends it as NUL, the byte Ctrl+Space arrives as, and there the key does
+-- nothing. `U` is the spelling that works everywhere.
 vim.keymap.set("x", "u", "<Esc>u", {
   desc = "Drop the selection, then undo",
 })
 
-vim.keymap.set("x", "`", "u", {
-  desc = "Make the selection lowercase",
+vim.keymap.set("x", "`", "~", {
+  desc = "Toggle the case of the selection",
 })
 
-vim.keymap.set("x", "<A-`>", "U", {
+vim.keymap.set("x", "<C-`>", "U", {
   desc = "Make the selection uppercase",
+})
+
+vim.keymap.set("x", "<A-`>", "u", {
+  desc = "Make the selection lowercase",
 })
 
 -- Ctrl and a vertical arrow carries the line, or the selected lines, up or

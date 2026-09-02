@@ -146,15 +146,19 @@ case("visual, tab indents and keeps the selection", 1, 4, { "<S-Down>", "<Tab>" 
   lines = { "        abc def_ghi jkl", "    καλημέρα κόσμε", FIXTURE[3], FIXTURE[4], FIXTURE[5], FIXTURE[6], FIXTURE[7] },
 })
 case("visual, u after tab undoes the indent", 1, 4, { "<S-Down>", "<Tab>", "u" }, { mode = "n", lines = FIXTURE })
-case("visual, a backtick lowercases", 6, 5, { "<S-Right>", "<S-Right>", "<S-Right>", "<S-Right>", "`" }, {
+case("visual, a backtick toggles the case", 6, 3, { "<S-Right>", "<S-Right>", "<S-Right>", "<S-Right>", "`" }, {
   mode = "n",
-  line = "parsehttpUrl foo_bar baz2Qux",
+  line = "parSEhtTPUrl foo_bar baz2Qux",
 })
-case("visual, alt+backtick uppercases", 6, 0, { "<S-Right>", "<S-Right>", "<S-Right>", "<A-`>" }, {
+case("visual, ctrl+backtick uppercases", 6, 0, { "<S-Right>", "<S-Right>", "<S-Right>", "<C-`>" }, {
   mode = "n",
   line = "PARseHTTPUrl foo_bar baz2Qux",
 })
-case("visual, tilde toggles the case", 6, 0, { "<S-Right>", "<S-Right>", "<S-Right>", "~" }, {
+case("visual, alt+backtick lowercases", 6, 5, { "<S-Right>", "<S-Right>", "<S-Right>", "<S-Right>", "<A-`>" }, {
+  mode = "n",
+  line = "parsehttpUrl foo_bar baz2Qux",
+})
+case("visual, tilde toggles the case too", 6, 0, { "<S-Right>", "<S-Right>", "<S-Right>", "~" }, {
   mode = "n",
   line = "PARseHTTPUrl foo_bar baz2Qux",
 })

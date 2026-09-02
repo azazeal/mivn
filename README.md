@@ -227,7 +227,7 @@ Keys that already meant something in stock Vim and mean something else here:
 | Shift+PageUp / PageDown | Select a page, stopping at the first and last line |
 | `Tab` / `Shift+Tab` over a selection | Indent / dedent it, and keep it selected |
 | `u` over a selection | Undo, rather than lowercase |
-| `` ` `` / `` Alt+` `` / `~` over a selection | Lowercase / uppercase / toggle its case, helix's trio |
+| `` ` `` / `` Ctrl+` `` / `` Alt+` `` over a selection | Toggle its case / uppercase / lowercase |
 | `Enter`, `Tab`, `Ctrl+Space` while typing | Take a completion, take the top one, open the menu |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Along the tab bar of buffers |
 | `Ctrl+↑` / `Ctrl+↓` | Move the line, or the selected lines |

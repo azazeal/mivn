@@ -318,10 +318,13 @@ away from being undone, and none of them is quiet enough to miss. `u` itself
 is undo here even with a selection up _(mivn)_, dropping the selection first:
 Vim spends it on lowercasing the selection, and after `Tab` had indented one
 and left it picked out, the `u` meant to take that back lowercased it instead.
-The case keys are helix's _(mivn)_: a backtick lowercases the selection,
-Alt+backtick uppercases it, and `~` toggles it, which is Vim's own. The
-backtick costs Vim's jump to a mark from inside a selection; `'` still jumps
-to the mark's line.
+The case keys sit on the backtick _(mivn)_: alone it toggles the case of the
+selection, with Ctrl it uppercases, with Alt it lowercases; Vim's own `~` and
+`U` still do the first two. The backtick costs Vim's jump to a mark from
+inside a selection, and `'` still jumps to the mark's line. Ctrl+backtick
+needs a terminal that speaks the kitty keyboard protocol, as foot does, or
+Neovide; an older terminal sends it as the same byte as Ctrl+Space, and there
+`U` is the spelling.
 
 Pressed **while typing**, the same keys open **Select** instead _(mivn)_. You
 are in the middle of a word, and what you do next to something picked out there

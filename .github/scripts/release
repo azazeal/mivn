@@ -113,7 +113,9 @@ git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die 'not inside a git rep
 # fds must be terminals, because every prompt lands on stderr; and /dev/tty is
 # probed in a subshell, because a failed redirect on exec, a special builtin,
 # kills POSIX shells on the spot with the message lost.
-[ -t 0 ] && [ -t 1 ] && [ -t 2 ] || die 'there is no terminal, so the notes cannot be reviewed'
+if ! { [ -t 0 ] && [ -t 1 ] && [ -t 2 ]; }; then
+  die 'there is no terminal, so the notes cannot be reviewed'
+fi
 (exec </dev/tty) 2>/dev/null || die '/dev/tty will not open, so the notes cannot be reviewed'
 
 # gh: present, new enough, and logged in. The floor is what `gh release create
