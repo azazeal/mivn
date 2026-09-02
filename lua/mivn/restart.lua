@@ -126,14 +126,20 @@ vim.api.nvim_create_autocmd("CmdlineLeavePre", {
 
 --- Restart, keeping the session and the panels; ZR and :restart both land
 --- here, the key through lua/mivn/keymaps.lua and the command through the
---- rewrite above.
+--- rewrite above. `plain` is a restart without the session, what `:restart!`
+--- and a counted ZR mean, and it needs none of the panel work.
 ---
 --- ZR is :restart's Normal-mode spelling, but the key cannot simply be fed
 --- back through: the panels have to be closed first, and the reopen has to
 --- ride along in the [command] tail, which only the command form can carry.
-local function restart()
+local function restart(plain)
   if remote_ui() then
     vim.notify(MESSAGE, vim.log.levels.WARN)
+    return
+  end
+
+  if plain then
+    vim.cmd("restart!")
     return
   end
 

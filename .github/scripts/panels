@@ -26,9 +26,14 @@
 # The dashboard does not open on its own without a UI, so it is summoned. The
 # ui2 pager cannot be reached at all headlessly: its windows are built lazily
 # and there is no UI to build them for, so nothing here covers it.
+#
+# The editor is the working copy, through NVIM_APPNAME=mivn, unless the
+# environment already names one; CI has only ~/.config/nvim and says so.
 
 set -euo pipefail
 cd "$(dirname "$0")/../.."
+
+export NVIM_APPNAME="${NVIM_APPNAME:-mivn}"
 
 die() {
   echo "panels: $1" >&2
@@ -169,14 +174,14 @@ for panel in dashboard tree terminal file; do
     # pty itself carries the editor's screen and not much else.
     verdict=$(mktemp) || die "could not make a scratch file"
     timeout 40 setsid script -qec \
-      "env NVIM_APPNAME=mivn TERM=xterm-256color MIVN_KIND='$kind' MIVN_SUBJECT='$subject' MIVN_PANEL='$panel' MIVN_OUT='$verdict' nvim -S '$probe'" \
+      "env TERM=xterm-256color MIVN_KIND='$kind' MIVN_SUBJECT='$subject' MIVN_PANEL='$panel' MIVN_OUT='$verdict' nvim -S '$probe'" \
       /dev/null > /dev/null 2>&1 || true
     out=$(cat "$verdict")
     rm -f "$verdict"
     [ -n "$out" ] || out=$(printf '  %-10s RAISED  the editor said nothing, so it died on the way' "$panel")
   else
     out=$(MIVN_KIND="$kind" MIVN_SUBJECT="$subject" MIVN_PANEL="$panel" \
-      timeout 40 env NVIM_APPNAME=mivn nvim --headless -S "$probe" 2>&1 | tail -1)
+      timeout 40 nvim --headless -S "$probe" 2>&1 | tail -1)
   fi
 
   echo "$out"

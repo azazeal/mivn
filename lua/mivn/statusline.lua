@@ -53,9 +53,13 @@ local function refresh()
   local dir = vim.fn.getcwd()
   refreshing = true
 
+  -- No index refresh: `git status` otherwise takes the index lock to write
+  -- one back, and this runs on every buffer change and every return to the
+  -- window, which is exactly when a commit in the terminal beside it wants
+  -- that lock. lua/mivn/blame.lua asks the same of its git.
   vim.system(
     { "git", "status", "--porcelain=v2", "--branch" },
-    { cwd = dir, text = true },
+    { cwd = dir, text = true, env = { GIT_OPTIONAL_LOCKS = "0", GIT_TERMINAL_PROMPT = "0" } },
     vim.schedule_wrap(function(res)
       refreshing = false
 
@@ -140,13 +144,18 @@ local function section_recording()
   return rec ~= "" and ("rec @" .. rec) or ""
 end
 
---- Is this a buffer holding a file, rather than a panel?
+--- Is this a buffer with something to read in it, rather than a panel?
 ---
---- The file tree, the landing buffer, help and quickfix all have a 'buftype'
---- and none of them has a path worth showing. Unchecked, the banner gets a
---- `[Scratch][-]` and a column number.
+--- A file, and also a help page or a quickfix list: those two have a
+--- 'buftype' but they are text I am looking at, with a row and a column
+--- worth reading, and left with the panels they showed the project's name
+--- while the tab bar named a file I was not looking at (measured
+--- 2026-08-30). The file tree, the landing buffer and the terminal are the
+--- panels: unchecked, the banner gets a `[Scratch][-]` and a column number.
+local READABLE = { [""] = true, help = true, quickfix = true }
+
 local function is_file()
-  return vim.bo.buftype == ""
+  return READABLE[vim.bo.buftype] == true
 end
 
 --- The file, as a path relative to the project.
@@ -195,8 +204,24 @@ end
 --- The flags stay either way. Modified and readonly are not on the tab bar at
 --- all, measured, and the gutter only says the first of them.
 local function section_filename()
-  if vim.bo.buftype == "terminal" then
+  local buftype = vim.bo.buftype
+
+  if buftype == "terminal" then
     return "%t"
+  end
+
+  -- A help page by its name, the way lua/mivn/title.lua titles the window,
+  -- and a quickfix list by its title, which is what filled it: the grep, the
+  -- diagnostics, the marked picker rows. Neither is in the tab bar.
+  if buftype == "help" then
+    return "help " .. vim.fn.expand("%:t:r")
+  end
+
+  if buftype == "quickfix" then
+    local list = vim.fn.win_gettype() == "loclist" and vim.fn.getloclist(0, { title = 1 })
+      or vim.fn.getqflist({ title = 1 })
+
+    return list.title ~= "" and list.title or "%q"
   end
 
   if shared[vim.fs.basename(vim.api.nvim_buf_get_name(0))] then

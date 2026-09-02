@@ -23,12 +23,34 @@ M.FILE = "\0file\0"
 --- be asked. Both arrive from the language files through setup() below.
 local formatters, muted = {}, {}
 
+--- The formatter for `filetype`, or nil.
+---
+--- A dotted file type is "this, then more specific" (`yaml.docker-compose` is
+--- yaml first), so the whole name is looked up and then each part in front of
+--- a dot, nearest first. Looked up whole alone, a compose file matched nothing
+--- and was never formatted (measured 2026-09-03).
+local function formatter_for(filetype)
+  local spec = formatters[filetype]
+
+  while spec == nil do
+    local shorter = filetype:match("^(.*)%.[^.]*$")
+    if not shorter then
+      return nil
+    end
+
+    filetype = shorter
+    spec = formatters[filetype]
+  end
+
+  return spec
+end
+
 --- Format `buf` with its external formatter. Returns whether one ran.
 ---
 --- Synchronous: these all read stdin, so there is no file on disk to wait
 --- for, and the write that follows has to see the result.
 local function external(buf)
-  local spec = formatters[vim.bo[buf].filetype]
+  local spec = formatter_for(vim.bo[buf].filetype)
   if type(spec) == "function" then
     spec = spec(buf)
   end
@@ -42,9 +64,18 @@ local function external(buf)
     return arg == M.FILE and path or arg
   end, spec)
 
+  -- Run beside the file, not where the editor started. Every one of these
+  -- tools that reads a project's configuration looks for it from its working
+  -- directory upwards (taplo and yamlfmt among them), so a file from another
+  -- checkout was formatted by this checkout's rules; lua/mivn/languages/
+  -- markdown.lua walks for rumdl's by hand for the same reason. A buffer with
+  -- no file behind it keeps the editor's directory.
+  local cwd = path ~= "" and vim.fs.dirname(path) or nil
+
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local result = vim
     .system(cmd, {
+      cwd = cwd,
       stdin = table.concat(lines, "\n") .. "\n",
       text = true,
     })

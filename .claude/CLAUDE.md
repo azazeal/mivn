@@ -8,10 +8,15 @@ The tools themselves come from `$PATH` as the session was handed it, and
 nothing here resolves a toolchain or asks a version manager anything. So a
 server that is not on `PATH` is a language with tree-sitter colors and nothing
 else, and a project's import prefixes arrive as `$GOIMPORTPREFIXES` rather
-than through a config key.
+than through a config key. On my machines that `PATH` is mise's: a shell that
+did not go through it wants `~/.local/share/mise/shims` in front, or `stylua`
+and every server read as missing.
 
 To exercise this working copy without touching my real config, `~/.config/mivn`
-points at this repo and `NVIM_APPNAME=mivn` runs it.
+points at this repo and `NVIM_APPNAME=mivn` runs it. `~/.config/nvim` is a
+clone of the same repository sitting on a release tag, which `:MivnUpdate`
+moves. Each has runtime state of its own under `~/.local/share` and
+`~/.local/state`, plugin clones included.
 
 ## Philosophy
 
@@ -38,6 +43,16 @@ points at this repo and `NVIM_APPNAME=mivn` runs it.
   exports a function and this file picks the key. A mapping that exists only
   while some buffer does (made inside an autocmd, `buffer = ...`) stays with
   its module.
+- A key means the same thing in every mode the hand can press it in: Normal,
+  Insert, Visual and Select are one keyboard. Unshifted and pressed over a
+  selection it drops the selection and then does the same; shifted, it
+  extends one. Every key that goes to the end of something lands to the right
+  of the last character, because the caret here is a boundary between two
+  characters and never sits on one. `'keymodel'` cannot carry the first half:
+  over a selection it runs Vim's own key and never a mapping, so a key left
+  out of Visual or Select lands somewhere else there. A new key is therefore
+  written for all four modes, or the mode it leaves to Vim is listed in
+  `.github/scripts/keys` with the reason, and `keys --check` refuses the rest.
 - Every highlight group lives in `colors/basalt.lua`, the plugins' and mivn's
   own included, written through that file's palette names. Never a hex, and
   never a highlight group or a `ColorScheme` autocmd under `lua/mivn/`.
@@ -48,16 +63,24 @@ points at this repo and `NVIM_APPNAME=mivn` runs it.
   comment above each entry: purpose, then the pin in parentheses.
   `.github/scripts/repin` maintains the pins and `nvim-pack-lock.json`; edit
   the purpose text freely, keep the shape.
-- Lua is formatted by stylua.
+- Lua is formatted by stylua, which reads `.editorconfig` for the indent.
 
 ## Verify before calling anything done
 
-- `stylua --check .`
+- `stylua --check .` and `shellcheck .github/scripts/*`.
 - `timeout 60 env NVIM_APPNAME=mivn nvim --headless "+lua io.write('ok\n')" +qa`
   must print `ok` and nothing else.
-- Headless boot does not exercise UI paths, so a clean boot is not a passing
-  test for one. When a change touches a UI path, drive it with `:normal` or
-  feedkeys and read back what actually happened.
+- `.github/scripts/keys --check`, after any change to `lua/mivn/keymaps.lua`:
+  the modes every session-wide key is bound in, against the rule above, and
+  whether README.md and DEFAULTS.md name every leader key. Without `--check`
+  it prints the table, which is the thing to read when adding a key.
+- `.github/scripts/motions`, after any change to a key that moves or selects:
+  it presses the keys on a real editor behind a socket and checks where the
+  caret lands, over ASCII, Greek, accented, Japanese and an emoji line, in
+  all four modes. Headless boot does not exercise UI paths, and headless
+  feedkeys orders keys differently from a terminal and has said yes to broken
+  keys before; a key gets a case here, not a headless check. `motions
+  <pattern>` runs the cases whose name matches.
 - A new key, command or save-time behavior has to be tried on the buffers
   that have no file behind them, not only on a file. `.github/scripts/panels
   --key '<Space>x'`, `--cmd 'MivnThing'` or `--write` runs it against the
@@ -65,9 +88,11 @@ points at this repo and `NVIM_APPNAME=mivn` runs it.
   exits non-zero on the ones it raises in. Two keys have shipped broken on
   the banner already.
 - When a bug gets through, say what would have caught it and offer to add
-  that, whether or not it is about the panels. The panels script exists
-  because two bugs of one shape got through; the next shape will need its
+  that, whether or not it is about the panels. Each of the three scripts
+  exists because a bug of its shape got through; the next shape will need its
   own check, and the useful moment to notice is while the bug is fresh.
+- CI runs all of the above on every push and pull request, with the checkout
+  as `~/.config/nvim` and `NVIM_APPNAME=nvim`.
 
 ## Releasing
 
@@ -81,6 +106,7 @@ points at this repo and `NVIM_APPNAME=mivn` runs it.
 
 ## Agents
 
-- `ux-advisor`: consult for interaction and ergonomics decisions.
-- `ui-advisor`: consult before visual, layout, or color decisions.
+- `advisor`: consult before a change that touches what I press or what I see:
+  a key, a workflow, a panel, the status line, a colour. It answers with both
+  lenses, the hands and the eyes, since most questions need both.
 - `implementer`: writes Lua and bash to spec.

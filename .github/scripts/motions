@@ -1,0 +1,358 @@
+#!/usr/bin/env bash
+#
+# Presses the movement keys on a real editor and says where the caret landed.
+#
+#   motions            every case
+#   motions <pattern>  the cases whose name matches the Lua pattern
+#
+# Wants nvim on $PATH and a pty, which `script` (util-linux) provides. Prints
+# one row per case, ok or FAIL with what was expected and what happened, and
+# exits non-zero on any FAIL.
+#
+# The editor runs on a pty with a socket, and every key goes in through
+# nvim_input over that socket, one call per key: the same queue a terminal
+# fills, in the same order. Headless feedkeys is not that queue, and it has
+# said yes to a broken version of these keys and no to a working one, which is
+# why this is not a headless script.
+#
+# The cases are the keys lua/mivn/words.lua and lua/mivn/keymaps.lua own: the
+# word, subword and WORD ends over ASCII, Greek, accented, Japanese and an
+# emoji cluster, and every unshifted key pressed with something picked out,
+# in Visual and in Select, which has to land where it lands without one.
+#
+# The editor is the working copy, through NVIM_APPNAME=mivn, unless the
+# environment already names one; CI has only ~/.config/nvim and says so.
+
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+export NVIM_APPNAME="${NVIM_APPNAME:-mivn}"
+
+die() {
+  echo "motions: $1" >&2
+  exit 1
+}
+
+only="${1:-}"
+
+sock="${XDG_RUNTIME_DIR:-/tmp}/mivn-motions.$$.sock"
+work=$(mktemp -d) || die "could not make a scratch directory"
+trap 'rm -rf "$work" "$sock"' EXIT
+
+cases=$work/cases.lua
+fixture=$work/fixture.txt
+: > "$fixture"
+
+cat > "$cases" <<'LUA'
+local M = { cases = {} }
+
+-- Byte columns, since that is what the cursor API counts in: a Greek letter
+-- is two, a kanji three, and the emoji cluster eleven.
+local FIXTURE = {
+  "    abc def_ghi jkl", -- 1
+  "καλημέρα κόσμε", -- 2
+  "naïve café", -- 3
+  "私は日本語を勉強しています", -- 4
+  "foo👩‍💻bar", -- 5
+  "parseHTTPUrl foo_bar baz2Qux", -- 6
+  "foo::bar(baz) qux", -- 7
+}
+
+--- A case: where the caret starts, what is pressed, and what has to be true
+--- afterwards. `mode` is the first letter of mode(1), `cursor` and `anchor`
+--- are {row, col} with the column in bytes, `line` the text of the caret's
+--- line, and `lines` the whole buffer. A case that wants a buffer other than
+--- the fixture names its `lines`.
+local function case(name, row, col, keys, expect, lines)
+  M.cases[#M.cases + 1] = { name = name, row = row, col = col, keys = keys, expect = expect, lines = lines }
+end
+
+--- The fixture with line 6 carried up, and with it carried down.
+local UP = { FIXTURE[1], FIXTURE[2], FIXTURE[3], FIXTURE[4], FIXTURE[6], FIXTURE[5], FIXTURE[7] }
+local DOWN = { FIXTURE[1], FIXTURE[2], FIXTURE[3], FIXTURE[4], FIXTURE[5], FIXTURE[7], FIXTURE[6] }
+
+--- The word ends, Ctrl+Right, over every script ----------------------------
+
+case("word end, ascii", 1, 4, { "<C-Right>" }, { cursor = { 1, 7 } })
+case("word end, ascii, twice", 1, 4, { "<C-Right>", "<C-Right>" }, { cursor = { 1, 15 } })
+case("word end, ascii, to the end of the line", 1, 15, { "<C-Right>" }, { cursor = { 1, 19 } })
+case("word end, ascii, crosses to the next line", 1, 19, { "<C-Right>" }, { cursor = { 2, 16 } })
+case("word start, ascii", 1, 15, { "<C-Left>" }, { cursor = { 1, 8 } })
+case("word start, ascii, twice", 1, 15, { "<C-Left>", "<C-Left>" }, { cursor = { 1, 4 } })
+case("e is the same boundary", 1, 4, { "e" }, { cursor = { 1, 7 } })
+case("ge is the previous one", 1, 15, { "ge" }, { cursor = { 1, 7 } })
+case("word end, greek", 2, 0, { "<C-Right>" }, { cursor = { 2, 16 } })
+case("word end, greek, twice", 2, 0, { "<C-Right>", "<C-Right>" }, { cursor = { 2, 27 } })
+case("word start, greek", 2, 27, { "<C-Left>" }, { cursor = { 2, 17 } })
+case("word end, accented", 3, 0, { "<C-Right>" }, { cursor = { 3, 6 } })
+case("word end, accented, twice", 3, 0, { "<C-Right>", "<C-Right>" }, { cursor = { 3, 12 } })
+case("word end, japanese, first script", 4, 0, { "<C-Right>" }, { cursor = { 4, 3 } })
+case("word end, japanese, six stops", 4, 0, {
+  "<C-Right>",
+  "<C-Right>",
+  "<C-Right>",
+  "<C-Right>",
+  "<C-Right>",
+  "<C-Right>",
+}, { cursor = { 4, 39 } })
+case("word end, japanese, third stop", 4, 0, { "<C-Right>", "<C-Right>", "<C-Right>" }, { cursor = { 4, 15 } })
+case("word end, emoji is one piece", 5, 0, { "<C-Right>", "<C-Right>" }, { cursor = { 5, 14 } })
+case("word end, past the emoji", 5, 0, { "<C-Right>", "<C-Right>", "<C-Right>" }, { cursor = { 5, 17 } })
+case("word start, back over the emoji", 5, 17, { "<C-Left>", "<C-Left>" }, { cursor = { 5, 3 } })
+
+--- The subwords, Alt+Right ------------------------------------------------
+
+case("subword end, first hump", 6, 0, { "<A-Right>" }, { cursor = { 6, 5 } })
+case("subword end, capitals as one piece", 6, 0, { "<A-Right>", "<A-Right>" }, { cursor = { 6, 9 } })
+case("subword end, the tail of the word", 6, 0, { "<A-Right>", "<A-Right>", "<A-Right>" }, { cursor = { 6, 12 } })
+case("subword end, underscore splits", 6, 12, { "<A-Right>" }, { cursor = { 6, 16 } })
+case("subword end, after the underscore", 6, 12, { "<A-Right>", "<A-Right>" }, { cursor = { 6, 20 } })
+case("subword end, digits stay with letters", 6, 20, { "<A-Right>" }, { cursor = { 6, 25 } })
+case("subword start, back", 6, 28, { "<A-Left>" }, { cursor = { 6, 25 } })
+case("subword start, back over the underscore", 6, 20, { "<A-Left>", "<A-Left>" }, { cursor = { 6, 13 } })
+case("subword start, back to the head", 6, 12, { "<A-Left>", "<A-Left>", "<A-Left>" }, { cursor = { 6, 0 } })
+case("subword end, greek humps", 2, 0, { "<A-Right>" }, { cursor = { 2, 16 } })
+
+--- The WORD, E and gE ------------------------------------------------------
+
+case("WORD end", 7, 0, { "E" }, { cursor = { 7, 13 } })
+case("WORD end, twice", 7, 0, { "E", "E" }, { cursor = { 7, 17 } })
+case("WORD end, back", 7, 17, { "gE" }, { cursor = { 7, 13 } })
+
+--- The same keys while typing ----------------------------------------------
+
+case("insert, word end", 1, 4, { "i", "<C-Right>" }, { mode = "i", cursor = { 1, 7 } })
+case("insert, subword end", 6, 0, { "i", "<A-Right>" }, { mode = "i", cursor = { 6, 5 } })
+case("insert, home alternates", 1, 9, { "i", "<Home>" }, { mode = "i", cursor = { 1, 4 } })
+case("insert, home again", 1, 9, { "i", "<Home>", "<Home>" }, { mode = "i", cursor = { 1, 0 } })
+case("insert, end", 1, 4, { "i", "<End>" }, { mode = "i", cursor = { 1, 19 } })
+case("insert, ctrl+del takes the word", 1, 8, { "i", "<C-Del>" }, { mode = "i", line = "    abc jkl" })
+case("normal, ctrl+del takes the word", 1, 8, { "<C-Del>" }, { mode = "n", line = "    abc jkl" })
+
+--- Picking text out --------------------------------------------------------
+
+case("shift+right selects, from normal", 1, 9, { "<S-Right>", "<S-Right>" }, { mode = "v", cursor = { 1, 11 } })
+case("shift+right selects, while typing", 1, 9, { "i", "<S-Right>", "<S-Right>" }, { mode = "s", cursor = { 1, 11 } })
+case("shift+left crosses a line", 2, 0, { "<S-Left>" }, { mode = "v", cursor = { 1, 19 } })
+case("ctrl+shift+right selects the word", 1, 4, { "<C-S-Right>" }, { mode = "v", cursor = { 1, 7 } })
+case("ctrl+shift+right selects the word, while typing", 1, 4, { "i", "<C-S-Right>" }, { mode = "s", cursor = { 1, 7 } })
+case("alt+shift+right selects the subword, while typing", 6, 0, { "i", "<A-S-Right>" }, { mode = "s", cursor = { 6, 5 } })
+case("e extends a selection", 1, 4, { "v", "e" }, { mode = "v", cursor = { 1, 7 } })
+
+--- Tab indents a selection and keeps it; u after it is still undo ---------
+
+case("visual, tab indents and keeps the selection", 1, 4, { "<S-Down>", "<Tab>" }, {
+  mode = "v",
+  lines = { "        abc def_ghi jkl", "    καλημέρα κόσμε", FIXTURE[3], FIXTURE[4], FIXTURE[5], FIXTURE[6], FIXTURE[7] },
+})
+case("visual, u after tab undoes the indent", 1, 4, { "<S-Down>", "<Tab>", "u" }, { mode = "n", lines = FIXTURE })
+case("visual, a backtick lowercases", 6, 5, { "<S-Right>", "<S-Right>", "<S-Right>", "<S-Right>", "`" }, {
+  mode = "n",
+  line = "parsehttpUrl foo_bar baz2Qux",
+})
+case("visual, alt+backtick uppercases", 6, 0, { "<S-Right>", "<S-Right>", "<S-Right>", "<A-`>" }, {
+  mode = "n",
+  line = "PARseHTTPUrl foo_bar baz2Qux",
+})
+case("visual, tilde toggles the case", 6, 0, { "<S-Right>", "<S-Right>", "<S-Right>", "~" }, {
+  mode = "n",
+  line = "PARseHTTPUrl foo_bar baz2Qux",
+})
+case("select, tab indents and keeps the selection", 1, 4, { "i", "<S-Down>", "<Tab>" }, {
+  mode = "s",
+  lines = { "        abc def_ghi jkl", "    καλημέρα κόσμε", FIXTURE[3], FIXTURE[4], FIXTURE[5], FIXTURE[6], FIXTURE[7] },
+})
+
+--- A bracket or a quote over a selection made while typing wraps it -------
+
+case("select, a quote wraps", 1, 8, { "i", "<S-Right>", "<S-Right>", "<S-Right>", '"' }, {
+  mode = "s",
+  line = '    abc "def"_ghi jkl',
+  anchor = { 1, 9 },
+  cursor = { 1, 12 },
+})
+case("select, a second key wraps again", 1, 8, { "i", "<S-Right>", "<S-Right>", "<S-Right>", '"', "(" }, {
+  mode = "s",
+  line = '    abc "(def)"_ghi jkl',
+  anchor = { 1, 10 },
+  cursor = { 1, 13 },
+})
+case("select, typing after a wrap replaces", 1, 8, { "i", "<S-Right>", "<S-Right>", "<S-Right>", '"', "X" }, {
+  mode = "i",
+  line = '    abc "X"_ghi jkl',
+  cursor = { 1, 10 },
+})
+case("select, a closing bracket replaces", 1, 8, { "i", "<S-Right>", "<S-Right>", "<S-Right>", ")" }, {
+  mode = "i",
+  line = "    abc )_ghi jkl",
+  cursor = { 1, 9 },
+})
+case("select, a wrap backwards keeps the caret end", 1, 11, { "i", "<S-Left>", "<S-Left>", "<S-Left>", "[" }, {
+  mode = "s",
+  line = "    abc [def]_ghi jkl",
+  anchor = { 1, 12 },
+  cursor = { 1, 9 },
+})
+-- The Esc at the end is the case's own: a register prefix left waiting takes
+-- the next case's first key as the register's name. It ends Visual as well.
+case("visual, a quote is a register prefix", 1, 8, { "<S-Right>", "<S-Right>", "<S-Right>", '"', "<Esc>" }, {
+  mode = "n",
+  line = "    abc def_ghi jkl",
+  cursor = { 1, 11 },
+})
+case("a burst is typed in order", 1, 0, { "iabc<S-Left><S-Left>x" }, { mode = "i", line = "ax" }, { "" })
+
+--- An unshifted key drops the selection and lands where it lands alone ----
+
+case("visual, left drops and moves", 1, 9, { "<S-Right>", "<S-Right>", "<Left>" }, { mode = "n", cursor = { 1, 10 } })
+case("select, left drops and moves", 1, 9, { "i", "<S-Right>", "<S-Right>", "<Left>" }, { mode = "i", cursor = { 1, 10 } })
+case("visual, ctrl+right", 1, 9, { "v", "<C-Right>" }, { mode = "n", cursor = { 1, 15 } })
+case("select, ctrl+right", 1, 9, { "i", "<S-Right>", "<S-Right>", "<C-Right>" }, { mode = "i", cursor = { 1, 15 } })
+case("visual, ctrl+left", 1, 15, { "v", "<C-Left>" }, { mode = "n", cursor = { 1, 8 } })
+case("select, ctrl+left", 1, 15, { "i", "<S-Left>", "<C-Left>" }, { mode = "i", cursor = { 1, 8 } })
+case("visual, alt+right", 6, 0, { "v", "<A-Right>" }, { mode = "n", cursor = { 6, 5 } })
+case("select, alt+right", 6, 0, { "i", "<S-Right>", "<A-Right>" }, { mode = "i", cursor = { 6, 5 } })
+case("visual, home", 1, 9, { "<S-Right>", "<S-Right>", "<Home>" }, { mode = "n", cursor = { 1, 4 } })
+case("select, home", 1, 9, { "i", "<S-Right>", "<S-Right>", "<Home>" }, { mode = "i", cursor = { 1, 4 } })
+case("visual, end", 1, 9, { "<S-Right>", "<S-Right>", "<End>" }, { mode = "n", cursor = { 1, 19 } })
+case("select, end", 1, 9, { "i", "<S-Right>", "<S-Right>", "<End>" }, { mode = "i", cursor = { 1, 19 } })
+case("visual, ctrl+home", 2, 3, { "v", "<C-Home>" }, { mode = "n", cursor = { 1, 0 } })
+case("select, ctrl+home", 2, 3, { "i", "<S-Right>", "<C-Home>" }, { mode = "i", cursor = { 1, 0 } })
+case("visual, ctrl+end", 2, 3, { "v", "<C-End>" }, { mode = "n", cursor = { 7, 17 } })
+case("select, ctrl+end", 2, 3, { "i", "<S-Right>", "<C-End>" }, { mode = "i", cursor = { 7, 17 } })
+case("visual, pagedown on a short file", 1, 9, { "v", "<PageDown>" }, { mode = "n", cursor = { 7, 9 } })
+case("select, pageup on a short file", 7, 2, { "i", "<S-Right>", "<PageUp>" }, { mode = "i", cursor = { 1, 3 } })
+case("visual, ctrl+del takes the selection", 1, 9, { "<S-Right>", "<S-Right>", "<C-Del>" }, { mode = "n", line = "    abc d_ghi jkl" })
+case("select, ctrl+del takes the selection", 1, 9, { "i", "<S-Right>", "<S-Right>", "<C-Del>" }, { mode = "i", line = "    abc d_ghi jkl" })
+
+--- Ctrl and a vertical arrow carries the selection along ------------------
+
+case("normal, ctrl+up moves the line", 6, 3, { "<C-Up>" }, { mode = "n", cursor = { 5, 3 }, lines = UP })
+case("normal, ctrl+up at the top does nothing", 1, 3, { "<C-Up>" }, { mode = "n", cursor = { 1, 3 }, lines = FIXTURE })
+case("insert, ctrl+down moves the line", 6, 4, { "i", "<C-Down>" }, { mode = "i", cursor = { 7, 4 }, lines = DOWN })
+case("visual, ctrl+up moves the lines", 6, 3, { "v", "<C-Up>" }, { mode = "v", anchor = { 5, 3 }, cursor = { 5, 3 }, lines = UP })
+case("visual, ctrl+up keeps the selection's width", 6, 3, { "<S-Right>", "<S-Right>", "<C-Up>" }, { mode = "v", anchor = { 5, 3 }, cursor = { 5, 5 }, lines = UP })
+case("visual, ctrl+up twice keeps it too", 7, 1, { "<S-Right>", "<C-Up>", "<C-Up>" }, {
+  mode = "v",
+  anchor = { 5, 1 },
+  cursor = { 5, 2 },
+  lines = { FIXTURE[1], FIXTURE[2], FIXTURE[3], FIXTURE[4], FIXTURE[7], FIXTURE[5], FIXTURE[6] },
+})
+case("select, ctrl+up moves the lines", 6, 3, { "i", "<S-Right>", "<C-Up>" }, { mode = "s", anchor = { 5, 3 }, cursor = { 5, 4 }, lines = UP })
+case("select, ctrl+down moves the lines", 6, 4, { "i", "<S-Right>", "<C-Down>" }, { mode = "s", anchor = { 7, 4 }, cursor = { 7, 5 }, lines = DOWN })
+case("select, ctrl+down at the bottom does nothing", 7, 2, { "i", "<S-Right>", "<C-Down>" }, { mode = "s", anchor = { 7, 2 }, cursor = { 7, 3 }, lines = FIXTURE })
+case("select, ctrl+up then typing replaces", 6, 3, { "i", "<S-Right>", "<C-Up>", "X" }, { mode = "i", line = "parXeHTTPUrl foo_bar baz2Qux", cursor = { 5, 4 } })
+
+--- The driver's half -------------------------------------------------------
+
+local fixture = vim.env.MIVN_FIXTURE
+
+function M.setup(i)
+  local c = M.cases[i]
+
+  -- Esc first, for a case that left a key half typed: a register prefix
+  -- still waiting for its name would take the next key as that name.
+  vim.api.nvim_feedkeys(vim.keycode("<Esc><C-\\><C-n>"), "nx", false)
+  vim.cmd("stopinsert")
+
+  if vim.api.nvim_buf_get_name(0) ~= fixture then
+    vim.cmd("edit! " .. vim.fn.fnameescape(fixture))
+    vim.bo.swapfile = false
+  end
+
+  vim.api.nvim_buf_set_lines(0, 0, -1, false, c.lines or FIXTURE)
+  vim.api.nvim_win_set_cursor(0, { c.row, c.col })
+  vim.cmd("nohlsearch")
+
+  return #c.keys
+end
+
+function M.press(i, j)
+  vim.api.nvim_input(M.cases[i].keys[j])
+end
+
+function M.verdict(i)
+  local c = M.cases[i]
+  local anchor = vim.fn.getpos("v")
+  local got = {
+    mode = vim.fn.mode(1):sub(1, 1),
+    cursor = vim.api.nvim_win_get_cursor(0),
+    anchor = { anchor[2], anchor[3] - 1 },
+    line = vim.api.nvim_get_current_line(),
+    lines = vim.api.nvim_buf_get_lines(0, 0, -1, false),
+  }
+
+  local wrong = {}
+  for what, want in pairs(c.expect) do
+    if not vim.deep_equal(got[what], want) then
+      wrong[#wrong + 1] = ("%s: expected %s, got %s"):format(what, vim.inspect(want), vim.inspect(got[what]))
+    end
+  end
+
+  table.sort(wrong)
+
+  if #wrong == 0 then
+    return ("  ok    %s"):format(c.name)
+  end
+
+  return ("  FAIL  %s\n        %s"):format(c.name, table.concat(wrong, "\n        "))
+end
+
+function M.matching(pattern)
+  local found = {}
+  for i, c in ipairs(M.cases) do
+    if pattern == "" or c.name:find(pattern) then
+      found[#found + 1] = i
+    end
+  end
+
+  return found
+end
+
+_G.M = M
+return "loaded"
+LUA
+
+# `script` is what hands the editor a pty, and setsid keeps it off this
+# shell's terminal. The screen goes nowhere; every answer comes back over
+# the socket.
+setsid script -qec \
+  "env TERM=xterm-256color MIVN_FIXTURE='$fixture' nvim --listen '$sock' '$fixture'" \
+  /dev/null > /dev/null 2>&1 &
+
+for _ in $(seq 1 100); do
+  [ -S "$sock" ] && break
+  sleep 0.1
+done
+[ -S "$sock" ] || die "the editor never listened on $sock"
+sleep 1
+
+# Bounded, so an editor that stops answering fails the run rather than
+# holding it.
+nv() {
+  timeout 15 nvim --server "$sock" --remote-expr "$1"
+}
+
+nv "luaeval('dofile(\"$cases\")')" > /dev/null
+
+status=0
+for i in $(nv "luaeval('table.concat(M.matching(_A), \" \")', '$only')"); do
+  keys=$(nv "luaeval('M.setup(_A)', $i)")
+  sleep 0.1
+
+  # One call per key, with a gap, which is a hand typing. The burst case is
+  # one key holding several, which is a paste or a key held down.
+  for j in $(seq 1 "$keys"); do
+    nv "luaeval('M.press(_A[1], _A[2])', [$i, $j])" > /dev/null
+    sleep 0.12
+  done
+  sleep 0.1
+
+  verdict=$(nv "luaeval('M.verdict(_A)', $i)")
+  echo "$verdict"
+  case $verdict in *FAIL*) status=1 ;; esac
+done
+
+nv 'execute("qa!")' > /dev/null 2>&1 || true
+
+exit $status

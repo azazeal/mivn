@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+#
+# Lists every key lua/mivn/keymaps.lua binds and the modes it binds it in, so
+# a key that means one thing in Normal and nothing in Select shows as a hole
+# in its row.
+#
+#   keys            the table
+#   keys --check    exits non-zero when a key breaks one of the two rules
+#
+# Wants nvim on $PATH. Headless: the mappings are made at startup, which is
+# all this reads. The editor is the working copy, through NVIM_APPNAME=mivn,
+# unless the environment already names one.
+#
+# The two rules. An unshifted special key bound in Normal or Insert is bound
+# in all four of Normal, Insert, Visual and Select, or is listed in this file
+# with the reason it is not: 'keymodel' runs Vim's own key over a selection
+# and never a mapping of mine, so a key left out of Visual or Select lands
+# somewhere else there (lua/mivn/keymaps.lua says why). And every leader key
+# is named in README.md and in DEFAULTS.md, spelled <Space>x or <leader>x.
+
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+export NVIM_APPNAME="${NVIM_APPNAME:-mivn}"
+
+check=""
+if [ "${1:-}" = --check ]; then
+  check=yes
+fi
+
+probe=$(mktemp --suffix=.lua) || {
+  echo "keys: could not make a scratch file" >&2
+  exit 1
+}
+trap 'rm -f "$probe"' EXIT
+
+cat > "$probe" <<'LUA'
+-- Loaded before init.lua, so that every vim.keymap.set and vim.keymap.del
+-- keymaps.lua makes is seen. Only that file's calls are kept: a mapping made
+-- while some buffer exists belongs to its module, and this is about the keys
+-- that are on for the whole session.
+
+local set, del = vim.keymap.set, vim.keymap.del
+local MODES = { "n", "i", "x", "s", "o", "c", "t" }
+
+local keys = {} ---@type table<string, { modes: table<string, boolean>, desc: table<string, string> }>
+local removed = {}
+
+local function from_keymaps()
+  local source = debug.getinfo(3, "S").source
+  return source:find("lua/mivn/keymaps%.lua$") ~= nil
+end
+
+vim.keymap.set = function(mode, lhs, rhs, opts)
+  if from_keymaps() then
+    local entry = keys[lhs] or { modes = {}, desc = {} }
+    for _, m in ipairs(type(mode) == "table" and mode or { mode }) do
+      entry.modes[m] = true
+      entry.desc[m] = opts and opts.desc or entry.desc[m]
+    end
+    keys[lhs] = entry
+  end
+
+  return set(mode, lhs, rhs, opts)
+end
+
+vim.keymap.del = function(mode, lhs, opts)
+  if from_keymaps() then
+    for _, m in ipairs(type(mode) == "table" and mode or { mode }) do
+      removed[#removed + 1] = lhs .. " (" .. m .. ")"
+    end
+  end
+
+  return del(mode, lhs, opts)
+end
+
+--- The keys allowed to skip one of the four modes, and why. A key listed
+--- here that no longer needs to be is reported too, so the list cannot rot.
+local ALLOWED = {
+  ["<A-c>"] = "an operator, which typing and Select have no use for",
+  ["<A-d>"] = "an operator, which typing and Select have no use for",
+  ["<C-@>"] = "the completion menu is typing's alone",
+  ["<C-Del>"] = "over a selection Vim's own Del already deletes it",
+  ["<C-End>"] = "Vim's own already goes past the end of the file while typing",
+  ["<C-Home>"] = "Vim's own already goes to the start of the file while typing",
+  ["<C-Space>"] = "the completion menu is typing's alone",
+  ["<CR>"] = "the completion menu and a newline are typing's alone",
+  ["<End>"] = "Vim's own already goes past the end of the line while typing",
+  ["<Esc>"] = "Vim's own already ends a selection",
+  ["<Insert>"] = "Vim's own already opens Insert from Normal",
+  ["<S-Tab>"] = "nothing in Normal, where << already dedents",
+  ["<Tab>"] = "the jumplist in Normal, which DEFAULTS.md keeps",
+}
+
+local function is_special(lhs)
+  return lhs:sub(1, 1) == "<" and not lhs:find("^<leader>") and not lhs:find("^<Plug>")
+end
+
+local function is_shifted(lhs)
+  return lhs:find("^<S%-") ~= nil or lhs:find("^<[CA]%-S%-") ~= nil
+end
+
+local function sorted(t)
+  local names = vim.tbl_keys(t)
+  table.sort(names, function(a, b)
+    return a:lower() < b:lower()
+  end)
+  return names
+end
+
+local function table_out()
+  io.write(("%-16s %s  %s\n"):format("key", table.concat(MODES, " "), "desc"))
+
+  for _, lhs in ipairs(sorted(keys)) do
+    local entry = keys[lhs]
+    local marks = {}
+    for i, m in ipairs(MODES) do
+      marks[i] = entry.modes[m] and m or "."
+    end
+
+    local desc = entry.desc.n or entry.desc.i or entry.desc.x or entry.desc.s or entry.desc.c or ""
+    io.write(("%-16s %s  %s\n"):format(lhs, table.concat(marks, " "), desc))
+  end
+
+  if #removed > 0 then
+    table.sort(removed)
+    io.write("\ntaken off: " .. table.concat(removed, ", ") .. "\n")
+  end
+end
+
+local function read(path)
+  local file = assert(io.open(path, "r"))
+  local text = file:read("*a")
+  file:close()
+  return text
+end
+
+local function check_out()
+  local wrong = {}
+
+  for _, lhs in ipairs(sorted(keys)) do
+    local modes = keys[lhs].modes
+
+    if is_special(lhs) and not is_shifted(lhs) and (modes.n or modes.i) then
+      local everywhere = modes.n and modes.i and modes.x and modes.s
+      if not everywhere and not ALLOWED[lhs] then
+        local bound, missing = {}, {}
+        for _, m in ipairs({ "n", "i", "x", "s" }) do
+          table.insert(modes[m] and bound or missing, m)
+        end
+        wrong[#wrong + 1] = ("%s is bound in %s but not %s: bind it there, or list it in .github/scripts/keys with the reason"):format(
+          lhs,
+          table.concat(bound, ", "),
+          table.concat(missing, ", ")
+        )
+      elseif everywhere and ALLOWED[lhs] then
+        wrong[#wrong + 1] = ("%s is bound in every mode, so its entry in .github/scripts/keys says nothing"):format(lhs)
+      end
+    end
+  end
+
+  for lhs in pairs(ALLOWED) do
+    if not keys[lhs] then
+      wrong[#wrong + 1] = ("%s is listed in .github/scripts/keys and bound nowhere"):format(lhs)
+    end
+  end
+
+  local docs = { ["README.md"] = read("README.md"), ["DEFAULTS.md"] = read("DEFAULTS.md") }
+  for _, lhs in ipairs(sorted(keys)) do
+    local suffix = lhs:match("^<leader>(.+)$")
+    if suffix then
+      for _, name in ipairs({ "README.md", "DEFAULTS.md" }) do
+        local text = docs[name]
+        if not (text:find("<Space>" .. suffix, 1, true) or text:find("<leader>" .. suffix, 1, true)) then
+          wrong[#wrong + 1] = ("<Space>%s is not in %s"):format(suffix, name)
+        end
+      end
+    end
+  end
+
+  table.sort(wrong)
+  for _, line in ipairs(wrong) do
+    io.write("keys: " .. line .. "\n")
+  end
+
+  if #wrong == 0 then
+    io.write(("keys: %d keys, every rule holds\n"):format(vim.tbl_count(keys)))
+  end
+
+  vim.cmd(#wrong == 0 and "qa!" or "cq!")
+end
+
+_G.MivnKeys = { table = table_out, check = check_out }
+LUA
+
+if [ -n "$check" ]; then
+  nvim --headless --cmd "luafile $probe" "+lua MivnKeys.check()" +qa!
+else
+  nvim --headless --cmd "luafile $probe" "+lua MivnKeys.table()" +qa!
+fi

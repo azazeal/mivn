@@ -66,7 +66,8 @@ pick.setup({
     page_down_arrow = alias("<PageDown>", "<C-f>"),
   },
   options = {
-    -- Match on the whole path, so "lua/lsp" narrows the way I expect.
+    -- The list grows down from the top, the way every other list here reads,
+    -- and a query already answered is not run again.
     content_from_bottom = false,
     use_cache = true,
   },

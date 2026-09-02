@@ -60,11 +60,16 @@ follows() {
 # The pin description for a plugin at the revision it is locked to: the
 # nearest tag plus how far past it, and the commit date. Falls back to the
 # short revision when the clone (or any tag) is missing.
+#
+# Versions only, the same rule pick applies. Left to itself describe names
+# the nearest tag of any kind, and the moving aliases some repos carry beside
+# the real one (which-key's stable, nvim-tree's v1 and v1.18) read as the
+# version when they are nothing of the sort.
 describe() {
   local name="$1" rev="$2" dir="$DATA/$1" tag date
 
   if [[ -d $dir ]]; then
-    tag=$(git -C "$dir" describe --tags "$rev" 2>/dev/null || true)
+    tag=$(git -C "$dir" describe --tags --match 'v[0-9]*.[0-9]*.[0-9]*' "$rev" 2>/dev/null || true)
     date=$(git -C "$dir" show -s --format=%cs "$rev" 2>/dev/null || true)
   fi
 

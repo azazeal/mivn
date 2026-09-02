@@ -1,7 +1,14 @@
 -- My plugins, managed by vim.pack (built into Neovim 0.12, no bootstrap
 -- needed). Every plugin is pinned to a commit right here, with the nearest
--- tag and the commit date beside it, so this file says exactly what is
--- installed; nvim-pack-lock.json is a cache of the same and never disagrees.
+-- release tag and the commit date beside it, so this file says exactly what
+-- should be installed; nvim-pack-lock.json is a cache of the same and never
+-- disagrees.
+--
+-- What is on disk can, since vim.pack installs a plugin at its pin and never
+-- looks at the clone again: a pin moved by a pull leaves the old checkout
+-- running until `:lua vim.pack.update(nil, { target = "lockfile" })` checks
+-- the new one out, and a plugin dropped from this list stays on disk until
+-- `:lua vim.pack.del({ "name" })`. `:checkhealth mivn` names both.
 --
 -- Moving a pin forward is .github/scripts/repin's job. The weekly workflow
 -- runs `repin pick 14`, which takes every plugin to the newest release that
@@ -16,9 +23,9 @@ vim.pack.add({
   { src = "https://github.com/nvim-treesitter/nvim-treesitter", version = "074aa4422bf029908338e855d0c0f71470a971bb" },
   -- per-server configs, not a client (v2.11.0, 2026-07-21)
   { src = "https://github.com/neovim/nvim-lspconfig", version = "b89138d9af0a96e6048e202a15765fc6b6416bd4" },
-  -- the file tree (v1, 2026-07-01)
+  -- the file tree (v1.18.0, 2026-07-01)
   { src = "https://github.com/nvim-tree/nvim-tree.lua", version = "531b807b8f0d6f75016a0ee1e0cd5ce2086e9d95" },
-  -- what can follow the key I just pressed (stable, 2025-02-22)
+  -- what can follow the key I just pressed (v3.17.0, 2025-02-22)
   { src = "https://github.com/folke/which-key.nvim", version = "fcbf4eea17cb299c02557d576f0d568878e354a4" },
 
   -- The mini family: single-purpose plugins with no dependencies of their own
@@ -37,7 +44,7 @@ vim.pack.add({
   { src = "https://github.com/echasnovski/mini.statusline", version = "b5547f44560dae3ccd81f914256fa6f705837022" },
   -- git changes in the gutter (v0.18.0, 2026-06-19)
   { src = "https://github.com/echasnovski/mini.diff", version = "0743d26bd858ebe32efcf5c86a91a422a000f273" },
-  -- auto-closing pairs, on trial (v0.18.0, 2026-06-19)
+  -- auto-closing pairs, and the table the wrapping keys read (v0.18.0, 2026-06-19)
   { src = "https://github.com/echasnovski/mini.pairs", version = "4a014143fcb4e9df26198ccb3ecff3b9e77a048c" },
 })
 

@@ -8,8 +8,3 @@ indent_style = space
 insert_final_newline = true
 tab_width = unset
 trim_trailing_whitespace = true
-
-[mivn]
-indent_size = unset
-indent_style = tab
-tab_width = unset
