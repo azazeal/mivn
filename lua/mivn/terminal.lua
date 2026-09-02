@@ -25,6 +25,12 @@ local function terminal_window()
   end
 end
 
+--- Whether the panel is on screen. Asked by lua/mivn/restart.lua, which has
+--- to know what to put back.
+function M.is_open()
+  return terminal_window() ~= nil
+end
+
 function M.toggle()
   local win = terminal_window()
   if win then
@@ -109,5 +115,5 @@ vim.api.nvim_create_autocmd("TermClose", {
   end,
 })
 
--- toggle is <leader>t`'s, in lua/mivn/keymaps.lua.
+-- toggle is <leader>t`'s, in lua/mivn/keymaps.lua; is_open is restart.lua's.
 return M

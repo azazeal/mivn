@@ -63,6 +63,7 @@ list from inside the editor.
 | `:MivnDashboard` | Opens the landing buffer again |
 | `:MivnBdAll` | Closes every file buffer and leaves the panels standing |
 | `:MivnBdOthers` | Closes every file buffer except this one |
+| `:MivnRestart` | What `:restart` becomes, so the panels step aside while the session is written |
 | `:MivnRestartRemote` | What `:restart` becomes when the window is on another machine |
 | `:MivnTreeBd` | What `:bd` typed inside the tree becomes. It closes nothing and says how to leave the tree instead |
 
@@ -222,7 +223,7 @@ Keys that already meant something in stock Vim and mean something else here:
 | `Alt+D` / `Alt+C` | Delete or change onto the clipboard |
 | `{count}` and `\|` | That column, counted in characters rather than screen cells |
 | `Esc` in Normal mode | Also clears leftover search highlighting |
-| `ZR` | `:restart`, unless the window is on another machine |
+| `ZR` | `:restart`, which comes back to the same layout, unless the window is on another machine |
 
 `y` and `p` are the system clipboard; `d` and `c` are not. A selection opened
 while typing lands in Select mode, where what you type next replaces it; one
