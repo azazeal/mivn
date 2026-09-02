@@ -1281,11 +1281,23 @@ in the way rather than in help.
 `git commit` or `git rebase -i`, it is the difference between "run this" and
 "abort", and it works the same on every machine.
 
-`:restart` (and `ZR`, its Normal-mode spelling) restarts the editor in
-place. One exception _(mivn)_: when the window runs on another machine (see
-the README on remote windows), both refuse with an explanation instead,
-because the restarted editor would come up on the wrong machine, the window
-would die, and a headless editor would be left behind.
+`:restart` (and `ZR`, its Normal-mode spelling) restarts the editor in place
+and brings the session with it: the windows, the open files, the folds and the
+cursor all come back where they were. `:restart!` is the same restart without
+any of that, and so is `:restart` with a `[command]` of its own, since there is
+only one slot for one and mivn is already using it.
+
+One deviation _(mivn)_: the tree and the terminal are closed before the session
+is written and opened again after, rather than being saved in it. A session
+names a window's buffer by file name and a panel has no file, so a saved tree
+comes back as an ordinary empty buffer that can be typed in and written to
+disk. The terminal is a fresh shell either way, since a shell does not outlive
+the editor running it.
+
+One exception _(mivn)_: when the window runs on another machine (see the README
+on remote windows), every spelling refuses with an explanation instead, because
+the restarted editor would come up on the wrong machine, the window would die,
+and a headless editor would be left behind.
 
 Two deviations _(mivn)_, one rule: `:bd` closes a buffer, the `:q` family
 closes the session. Closing the last file with `:bd` normally leaves a blank
