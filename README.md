@@ -33,8 +33,8 @@ git clone https://github.com/azazeal/mivn.git ~/.config/mivn
 NVIM_APPNAME=mivn nvim
 ```
 
-The configuration should work with any Neovim from v0.12 onwards. Other than
-that, it relies on the following (the first three on `PATH`):
+The configuration wants Neovim v0.12.5 or newer. Other than that, it relies on
+the following (the first three on `PATH`):
 
 1. `git`, which `vim.pack` uses to fetch the pinned plugins on first start.
 2. A C _compiler_ like `cc`, `gcc`, or `clang`, which
