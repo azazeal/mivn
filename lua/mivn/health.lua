@@ -198,7 +198,8 @@ local function check_binary(label, binary, probe, started)
   if result.code ~= 0 then
     health.warn(
       ("%s: %s exited %d: %s"):format(label, binary, result.code, first_line(result.stderr, result.stdout)),
-      "A wrapper can be broken while the file itself is executable; rustup shims do this."
+      "A wrapper can be broken while the file itself is executable: a rustup shim without its component, "
+        .. "or a mise shim outside a project that pins the tool. The answer is about this directory."
     )
     return
   end
