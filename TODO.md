@@ -5,20 +5,6 @@ checked off; git remembers them.
 
 ## UI
 
-- [ ] A key that arrives while a shifted arrow is still running goes first.
-    `arrow()` in keymaps.lua clears 'keymodel', feeds the plain key with
-    nvim_feedkeys' "x" and puts the option back. "x" runs everything already
-    waiting, and what it feeds joins the end of that queue rather than the
-    front, so the key I typed after the arrow is the one that runs first.
-    Typed `abc`, Shift+`←`, Shift+`←`, `x` arriving together leaves `abcx`
-    and not `ax`: the `x` replaced a selection that had not been opened yet.
-    Measured 2026-08-31 through a socket, the same input path as typing, and
-    it takes keys arriving in one piece: a paste, a key held down, or a
-    terminal handing over a burst. Typed apart they are correct. Wrapping in
-    pairs.lua steers around the same "x" by using :normal, which is the shape
-    of the fix, except that 'keymodel' has to stay cleared for exactly the
-    fed keys and no others, and every arrow mapping goes through here.
-
 - [ ] `%S` leaves a stray space to its right in the status line's right-hand
     group. mini.statusline joins a group's non-empty strings with a space and
     cannot tell that `%S` renders as nothing while no command is pending, so
@@ -86,49 +72,6 @@ checked off; git remembers them.
     the browser with mermaid support, and both cost a runtime. In-buffer
     polish: render-markdown.nvim prettifies headings and tables in place but
     renders no diagrams. A monthly-batch decision, not a today one.
-
-## Health
-
-- [ ] `:checkhealth mivn` takes about 4.7 seconds now, up from the 3.4 it was
-    at last time and the 1.4 it started from. The servers with no version flag
-    are started for real and given half a second to prove they did not die on
-    the spot, which is what caught jsonls and cssls shipping without the code
-    behind their launchers. Four healthy ones hold that half second each, one
-    after another. Starting them all before waiting on any would put the time
-    back. Measured 2026-08-31 with every server on PATH; a machine missing
-    them pays none of it, since only a server that is there is waited on.
-
-- [ ] `:checkhealth mivn` should list plugin clones on disk that plugins.lua
-    no longer mentions. vim.pack deletes nothing on its own, so a dropped
-    plugin lingers under site/pack on every other machine, and each boot there
-    "repairs" the lock to account for the orphan, which keeps
-    nvim-pack-lock.json forever dirty in git. Measured 2026-08-04: a leftover
-    SchemaStore.nvim did exactly that on another machine, and
-    `:lua vim.pack.del({ "<name>" })` was the cleanup; the check should name
-    the orphans and point at it.
-
-## Testing
-
-- [ ] Nothing watches the word keys. `.github/scripts/panels` exists because
-    two bugs of one shape reached the banner; the motions are the next shape
-    and they reached me the same way. The parser read bytes, so `café` broke
-    at the `é` and `abcαβγ` broke at the Greek, and the fix for that then
-    swallowed a whole line of Japanese in one press because every script was
-    being called one kind. Both were found by hand, twice, after shipping.
-
-    What would have caught them is a `.github/scripts/motions` asserting
-    where the caret lands for `w`, `e`, `b`, `ge` and their capitals, plus
-    the arrows, over a fixture with an ASCII line, a Greek one, an accented
-    one, a Japanese one and an emoji cluster. The assertions already exist as
-    a throwaway: 76 of them were written while fixing this and thrown away
-    afterwards, which is the part worth not repeating.
-
-    The gap is two keys wide now. The wrapping keys of 2026-08-31 could only
-    be checked by driving a real editor over a socket: headless feedkeys
-    queues keys in a different order than a terminal does, so it said yes to a
-    broken version and no to a working one. Twelve assertions, thrown away the
-    same way. Whatever `motions` turns out to be wants room for a Select-mode
-    buffer beside the caret ones, and it has to drive a real one.
 
 ## Dashboard
 

@@ -161,16 +161,29 @@ local told = {}
 --- worth a word: opening a text file where nothing was going to run either
 --- way is not news, and should read as an ordinary editor opening an
 --- ordinary file.
+---
+--- Asked once and kept: reading `vim.lsp.config[name]` resolves the config,
+--- which is a runtime-path search for its `lsp/<name>.lua` and a merge, and
+--- Neovim only keeps the answer for a config that is enabled. In a workspace
+--- that is not trusted none of them is, so this ran the whole search for
+--- every server on every FileType event. The set cannot change: `servers`
+--- is fixed once gate() has run.
+local filetypes_covered
+
 local function covered()
-  local filetypes = {}
+  if filetypes_covered then
+    return filetypes_covered
+  end
+
+  filetypes_covered = {}
 
   for _, name in ipairs(servers) do
     for _, filetype in ipairs(vim.lsp.config[name].filetypes or {}) do
-      filetypes[filetype] = true
+      filetypes_covered[filetype] = true
     end
   end
 
-  return filetypes
+  return filetypes_covered
 end
 
 --- Say once per workspace that nothing runs here, and only once a buffer

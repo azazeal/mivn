@@ -136,17 +136,25 @@ vim.api.nvim_set_decoration_provider(ns, {
     return vim.bo[bufnr].buftype == ""
   end,
 
-  on_line = function(_, _, bufnr, row)
+  -- A range rather than a line, which is the shape Neovim asks in since 0.12
+  -- (`on_line` is deprecated). The end is exclusive, and an end of `(row, 0)`
+  -- means the row before it is in whole; a range that starts partway into a
+  -- line still gets that whole line measured, since the mark is about the
+  -- line and an ephemeral mark outside what is being drawn costs nothing.
+  on_range = function(_, _, bufnr, first, _, last, last_col)
+    if last_col == 0 then
+      last = last - 1
+    end
+
     -- Not strict: a row can vanish mid-redraw, and an error here is not
     -- raised once. Nothing turns the provider off, so the line repeats it on
     -- every redraw and the message area fills up.
-    local line = vim.api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1]
+    local lines = vim.api.nvim_buf_get_lines(bufnr, first, last + 1, false)
+    local tabstop = vim.bo[bufnr].tabstop
 
-    if not line then
-      return
-    end
+    for offset, line in ipairs(lines) do
+      local row = first + offset - 1
 
-    if #line < MARKS[1].column then
       -- Printable ASCII draws one column per byte, so a short line of it
       -- cannot reach the first limit; this is what most lines cost. The
       -- escapes: a tab or a control character can draw wider than a column
@@ -154,16 +162,13 @@ vim.api.nvim_set_decoration_provider(ns, {
       -- and draw as <xx>, four columns, so those lines get one whole-line
       -- measurement instead. Safe, because a line without a %c match
       -- carries no NUL.
-      if not line:find("[%c\128-\255]") then
-        return
-      end
+      local short = #line < MARKS[1].column
+        and (not line:find("[%c\128-\255]") or (not line:find("%c") and vim.fn.strdisplaywidth(line) < MARKS[1].column))
 
-      if not line:find("%c") and vim.fn.strdisplaywidth(line) < MARKS[1].column then
-        return
+      if not short then
+        mark(bufnr, row, line, tabstop)
       end
     end
-
-    mark(bufnr, row, line, vim.bo[bufnr].tabstop)
   end,
 })
 

@@ -62,7 +62,7 @@ vim.opt.listchars = { tab = "» ", trail = "·", nbsp = "␣" }
 
 -- Long lines run off the right edge instead of wrapping, so a line is one
 -- screen row and the width markers (lua/mivn/margins.lua) tell me when it is
--- too long; <Space>w brings wrapping back per window. 'linebreak' only
+-- too long; <Space>tw brings wrapping back per window. 'linebreak' only
 -- matters while wrapping is on: break between words, not mid-word.
 vim.opt.wrap = false
 vim.opt.linebreak = true
@@ -117,6 +117,14 @@ vim.opt.shortmess:append("c")
 ---
 --- Both kinds measured rather than taken from the docs; `verbose` looked like
 --- a third candidate and turned out not to route at all.
+---
+--- WARN: `target` is not in ui2's documented table, which offers `targets`
+--- alone, a string for the default or a table for the kinds, and cannot say
+--- "msg by default, these two to the pager". The module reads `target` as
+--- the default under a `targets` table, and enable() merges whatever it is
+--- handed, so this is the one way to ask for both; an upgrade that stops
+--- honouring it would put every message back on the command line rather
+--- than break anything.
 local MESSAGES = {
   msg = {
     target = "msg",
@@ -322,12 +330,18 @@ vim.opt.whichwrap:append("<,>,[,]")
 -- extending it, so hjkl is how I adjust one. And exclusive takes one
 -- character off a character-wise Visual yank: on "amm", `vlly` yanks "am".
 -- Text objects and operators are unaffected.
+--
 -- "stopsel" only. "startsel" is what used to open a selection when a shifted
 -- special key was pressed, and it is gone because that path does not repaint:
 -- the selection started, the screen kept the old mode, the old highlight and
 -- the old cursor until the next key arrived. Every shifted key that behaved
 -- turned out to be one lua/mivn/keymaps.lua binds by hand, so now they all
 -- are, and nothing is left for "startsel" to do.
+--
+-- "stopsel" has a limit of its own, and lua/mivn/keymaps.lua works around
+-- it: the key it runs after ending the selection is Vim's own, never a
+-- mapping, so every unshifted key that file binds is bound over a selection
+-- too, as "drop it, then the same key again".
 vim.opt.keymodel = "stopsel"
 vim.opt.selection = "exclusive"
 
@@ -358,8 +372,10 @@ vim.opt.virtualedit = "onemore"
 -- leftwards is undone. At the start of a line there is nothing to step over
 -- and nothing to put back, and CTRL-O, which raises both of these without
 -- moving anything, comes out the same on both sides and is left alone.
+-- Not lua/mivn/caret.lua's business: that module owns the caret's colour and
+-- shape ('guicursor'), and this is where it stands.
 local caret = nil
-local caret_group = vim.api.nvim_create_augroup("mivn.caret", { clear = true })
+local caret_group = vim.api.nvim_create_augroup("mivn.insertleave", { clear = true })
 
 vim.api.nvim_create_autocmd("InsertLeavePre", {
   group = caret_group,

@@ -65,6 +65,5 @@ wk.setup({
     { '"', group = "registers" },
     { "'", group = "marks (line)" },
     { "`", group = "marks (exact)" },
-    { "gr", group = "language server" },
   },
 })

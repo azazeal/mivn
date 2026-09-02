@@ -214,6 +214,20 @@ hl({
   PmenuExtraSel = { fg = c.body, bg = c.guide },
   PmenuSbar = { bg = c.raised },
   PmenuThumb = { bg = c.guide },
+  PmenuBorder = { link = "FloatBorder" },
+  PmenuShadow = { bg = c.sunk },
+  PmenuShadowThrough = { bg = c.sunk },
+
+  -- The letters of a match that the query hit, in the picker's own yellow
+  -- so the two menus read the same way; `fuzzy` in 'completeopt' is what
+  -- makes them worth marking, since they are then rarely a prefix.
+  PmenuMatch = { fg = c.yellow.text, bg = c.raised, bold = true },
+  PmenuMatchSel = { fg = c.yellow.text, bg = c.guide, bold = true },
+
+  -- What a match would insert, drawn in the line as the menu is walked.
+  -- The same ground the inlay hints and the diff overlay take: in the
+  -- window but not in the file.
+  ComplMatchIns = { fg = c.dim, bg = c.inlay },
   WildMenu = { link = "PmenuSel" },
 
   StatusLine = { fg = c.body, bg = c.raised },
@@ -240,6 +254,19 @@ hl({
   Question = { fg = c.blue.text },
   ModeMsg = { fg = c.body, bold = true },
   MsgArea = { fg = c.body, bg = c.page },
+
+  -- The three kinds ui2 tells apart in what a shell command prints and in a
+  -- message that says something went right: stock links them to the message
+  -- groups above, said outright so this file stays the whole list.
+  OkMsg = { link = "MoreMsg" },
+  StderrMsg = { link = "ErrorMsg" },
+  StdoutMsg = { fg = c.body },
+
+  -- The placeholder a snippet is on, while Tab steps through them. The
+  -- selection is Select's orange already; this is the faint ring the other
+  -- placeholders get, so the next stop can be seen before it is reached.
+  SnippetTabstop = { bg = c.inlay },
+  SnippetTabstopActive = { bg = c.orange.wash },
 })
 
 --- Syntax, the classic groups ------------------------------------------------
@@ -451,6 +478,10 @@ hl({
   DiffDelete = { fg = c.red.text, bg = c.red.container },
   DiffChange = { bg = c.raised },
   DiffText = { bg = c.green.container },
+  -- The words added within a changed line, since 'diffopt' draws inline
+  -- changes by default now; the same ground as a changed word, one step
+  -- brighter is not a step this palette has.
+  DiffTextAdd = { bg = c.green.container },
 
   -- The file-status colors the tree and the gutter share.
   Added = { fg = c.green.text },

@@ -9,16 +9,17 @@ Two things to know before reading:
   useful to read. `:h default-mappings` covers what Neovim adds on top of Vim.
 - Neovim changed a few Vim defaults. Those are marked _(nvim)_.
 
-A few keys in here are this configuration's own rather than Vim's, marked
-_(mivn)_ where they appear, and they are the whole list. `Ctrl+Tab` and
-`Ctrl+Shift+Tab` step along the tab bar, which Vim leaves unbound;
-[Buffers](#buffers) has the one way they can fail to arrive. `Up` and `Down`
-move through the command line's completion menu while it is open, and
-[The command line](#the-command-line) has what that costs and how to get it
-back. `Enter`, `Tab` and `Ctrl+Space` take and open the Insert-mode completion
-menu, which [Completion](#completion) covers. `PageUp` and `PageDown` reach the
-first and last line when there is no screenful left to scroll, which
-[Motions](#motions) covers.
+Some keys in here are this configuration's own rather than Vim's, marked
+_(mivn)_ where they appear. `.github/scripts/keys` prints the whole list with
+the modes each one is bound in, and the README's "Changed keys" table is the
+short form. Most of them are one habit: Shift and the arrows select, Ctrl and
+Alt with them move by a word and by a piece of one, and every key that goes to
+the end of something lands past its last character, because the caret here is
+a boundary between two characters and not a character. The rest are the tab
+bar's two chords, which [Buffers](#buffers) covers along with the one way they
+can fail to arrive, the completion menu's keys in [Completion](#completion)
+and [The command line](#the-command-line), and the page keys reaching the
+first and last line when there is no screenful left, in [Motions](#motions).
 
 Nearly everything here works in a bare `nvim -u NONE`. The three sections that
 need this config say so where they start: the file tree, the picker, and
@@ -241,6 +242,16 @@ Insert alike. Vim stops at the boundary instead, and says which keys may cross
 in `'whichwrap'`. `h` and `l` are not among the ones let through here, so they
 still stop where Vim stops them.
 
+A third, which is the rule the other two follow: an unshifted key pressed with
+a selection up drops the selection and then does what it does without one
+_(mivn)_, in Visual and in Select alike. Ctrl+`→` out of a selection lands
+past the end of the word, `Home` on the indent, `Ctrl+End` past the last
+character of the file, and a page key at the edge of the file, exactly where
+each lands with nothing selected. Vim's `'keymodel'` drops the selection too,
+but runs its own key after it rather than this configuration's, so each of
+these keys is said again for the two selection modes; `.github/scripts/keys`
+refuses a new one that is not.
+
 `hjkl` exists so the hand never leaves the home row, which matters less than it
 is made out to. Single-character movement is the least Vim-like way to get
 around whatever key drives it. The habit worth building is reaching for `w`,
@@ -302,8 +313,18 @@ and that is where most selections start. The tint is its own color, cyan, so
 the copies never read as a second selection.
 
 The cost is that a stray letter is a command and not text. `X` deletes the whole
-line, `p` pastes over the selection, `u` lowercases it. Each of those is one `u`
-away from being undone, and none of them is quiet enough to miss.
+line, `p` pastes over the selection, `U` uppercases it. Each of those is one `u`
+away from being undone, and none of them is quiet enough to miss. `u` itself
+is undo here even with a selection up _(mivn)_, dropping the selection first:
+Vim spends it on lowercasing the selection, and after `Tab` had indented one
+and left it picked out, the `u` meant to take that back lowercased it instead.
+The case keys sit on the backtick _(mivn)_: alone it toggles the case of the
+selection, with Ctrl it uppercases, with Alt it lowercases; Vim's own `~` and
+`U` still do the first two. The backtick costs Vim's jump to a mark from
+inside a selection, and `'` still jumps to the mark's line. Ctrl+backtick
+needs a terminal that speaks the kitty keyboard protocol, as foot does, or
+Neovide; an older terminal sends it as the same byte as Ctrl+Space, and there
+`U` is the spelling.
 
 Pressed **while typing**, the same keys open **Select** instead _(mivn)_. You
 are in the middle of a word, and what you do next to something picked out there
@@ -532,7 +553,7 @@ count the status line shows. `g|` keeps the screen-cell meaning.
 
 One deviation to know before the table: long lines do not wrap here _(mivn)_.
 Vim wraps by default; with the width markers saying when a line is too long,
-a line is one screen row and runs off the right edge instead. `Space w` turns
+a line is one screen row and runs off the right edge instead. `<Space>tw` turns
 wrapping back on for the window you are in, per window, so prose can wrap
 beside code that does not; while it is on, lines break between words
 (`'linebreak'`), and `gj` / `gk` walk the screen lines.
@@ -543,7 +564,7 @@ beside code that does not; while it is on, lines break between words
 |---|---|
 | `j` `k` or `↓` `↑` | Down / up |
 | `gj` `gk` | Down / up by screen line, when text is wrapped |
-| `Space t w` | Wrap long lines in this window, off by default _(mivn)_ |
+| `<Space>tw` | Wrap long lines in this window, off by default _(mivn)_ |
 | `{` / `}` | Previous / next blank line (paragraph) |
 | `(` / `)` | Previous / next sentence |
 | `gg` / `G` | First / last line |
@@ -684,6 +705,7 @@ is most of the daily payoff:
 | `u` / `Ctrl+R` | Undo / redo |
 | `.` | Repeat the last change |
 | `Ctrl+A` / `Ctrl+X` | Increment / decrement the number under the cursor |
+| `Ctrl+Del` | Delete the word after the cursor, here and while typing _(mivn)_ |
 
 `.` is the one to actually internalize. `ciw` a name, `Esc`, then `n.` `n.`
 `n.` through every other occurrence. Almost every editing habit in Vim is built
@@ -731,7 +753,8 @@ What is taken:
 | `Ctrl+X Ctrl+O` | Omni-completion (the language server) |
 
 One addition _(mivn)_: `Ctrl+Del` deletes the word after the cursor, the CUA
-twin of the `Ctrl+W` in the table above.
+twin of the `Ctrl+W` in the table above, and it does the same from Normal
+mode, where Vim would have read it as `Del` and taken one character.
 
 One divergence _(mivn)_: brackets and quotes close themselves. `(` inserts
 `()` with the cursor between them, typing the closing character walks over the
@@ -1027,10 +1050,10 @@ one-line float _(mivn)_ instead of on the bottom bar. Enter answers, `Esc` or
 Rename floats at the cursor with the stem preselected: typing replaces it,
 an arrow drops the selection to edit the extension too.
 
-Two of its defaults are removed _(mivn)_: `-` and `Ctrl+]` used to **re-root
-the tree**, one to the parent directory and one to the directory under the
-cursor. The tree is rooted at the working directory, so the two keys that
-could walk it out from under you are simply gone.
+Two of its defaults are taken away _(mivn)_: `-` and `Ctrl+]` used to
+**re-root the tree**, one to the parent directory and one to the directory
+under the cursor. The tree is rooted at the working directory, so `Ctrl+]` is
+simply gone and `-` collapses the directory instead, as the table above says.
 
 `:cd` is the one thing that moves it _(mivn)_. The tree follows the working
 directory, so telling the editor you are working somewhere else moves the tree
@@ -1083,6 +1106,12 @@ All of it is view state, not settings. A flip lasts as long as the session and
 belongs to that session alone, so a second window keeps the starting state and
 the next start begins there again. Going to look at something cannot leave a
 state you later have to explain to yourself.
+
+`<Space>t?` says where the flags stand _(mivn)_: these two, the blame, the
+inlay hints, the review overlay and wrap, six in one line keyed by the letter
+that flips each, as `(b: on, h: shown, i: hidden, n: off, r: off, w: off)`.
+The tree and the terminal are left out of it, since a panel is on screen or
+it is not.
 
 ## The picker
 
@@ -1155,14 +1184,22 @@ names. Worth learning as one shape rather than six bindings.
 | `]b` / `[b` | Buffers |
 | `]B` / `[B` | Last / first buffer |
 | `]d` / `[d` | Diagnostics in this file |
+| `]D` / `[D` | The last / first diagnostic in this file |
+| `Ctrl+W d` | The diagnostic under the cursor, in a float |
 | `]q` / `[q` | The quickfix list |
 | `]l` / `[l` | The location list |
 | `]t` / `[t` | The tag stack |
 | `]a` / `[a` | The argument list |
 | `]<Space>` / `[<Space>` | Add a blank line below / above the cursor |
 | `]h` / `[h` | Git hunks _(mivn: mini.diff's pair, same shape)_ |
-| `Space t r` | The old text, inline, for every changed line _(mivn)_ |
-| `Space t b` | Who wrote the line you are on, or stop showing it _(mivn)_ |
+| `<Space>tr` | The old text, inline, for every changed line _(mivn)_ |
+| `<Space>tb` | Who wrote the line you are on, or stop showing it _(mivn)_ |
+
+Four more of the family live in Visual mode, new in Neovim 0.12 and untouched
+here: `]n` and `[n` select the next and previous syntax node, `]N` and `[N`
+the next and previous sibling, and `an` and `in` are the node under the cursor
+as a text object, so `van` grows a selection by the tree rather than by the
+character.
 
 Who wrote the line under the cursor is **on from the start** _(mivn)_, and
 `<leader>tb` is there to turn it off for the times it needs to be quiet. It is
@@ -1333,16 +1370,17 @@ recognizable if it happens.
 
 ## Language server
 
-Neovim binds `grn` `gra` `grr` `gri` `grt` `grx` `gO` and `K` when a server
-attaches. mivn takes all eight off _(mivn)_ and puts the same requests on two
-leader chains instead: `<Space>a` is what to ask the server to do to this
-code, `<Space>g` is where to ask it to take you. One key per request, and a
-prefix panel that lists what a language server can do rather than five letters
-scattered through the g-commands.
+Neovim binds `grn` `gra` `grr` `gri` `grt` `grx` and `gO` at startup, `gra`
+over a selection as well, and `K` as a server attaches. mivn takes all eight
+off _(mivn)_ and puts the same requests on two leader chains instead:
+`<Space>a` is what to ask the server to do to this code, `<Space>g` is where
+to ask it to take you. One key per request, and a prefix panel that lists what
+a language server can do rather than five letters scattered through the
+g-commands.
 
 | Key | Does |
 |---|---|
-| `<Space>aa` | Code action |
+| `<Space>aa` | Code action, on the line or on the selection |
 | `<Space>ar` | Rename symbol |
 | `<Space>af` | Format this buffer |
 | `<Space>aF` | Organize imports |

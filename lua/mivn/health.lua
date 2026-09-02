@@ -1,4 +1,5 @@
--- :checkhealth mivn: does the language-server setup actually work?
+-- :checkhealth mivn: does the language-server setup actually work, and is
+-- what is on disk what plugins.lua says?
 --
 -- The trap this exists for: executable() answers "is there a file", not
 -- "does it run". A rustup shim with no component behind it is an executable
@@ -75,9 +76,38 @@ end
 ---
 --- The failure this catches is immediate. A launcher whose package shipped
 --- without the code behind it dies in about 50 milliseconds, measured, so half
---- a second is ten times the room it needs and still bounded enough that six
---- of these do not make :checkhealth feel slow.
+--- a second is ten times the room it needs.
 local LIVENESS = 500
+
+--- Start every server that has no version flag, all at once, so the half
+--- second each one has to prove itself is paid once and not once per server:
+--- six of them held one after the other made this check take 4.4 seconds,
+--- and together they take one (measured 2026-09-03). Each is looked at
+--- again in check_liveness, in its turn, with however much of its half
+--- second is left.
+---
+--- Returns the servers started, and the directory they were started in: the
+--- caller removes it once every one of them has been looked at.
+local function start_all(servers)
+  local started = {}
+
+  -- Somewhere of their own to start in, not the directory the editor is in:
+  -- expert writes an `.expert/` log directory wherever it starts, which is
+  -- how one turned up in this repository (measured 2026-09-03).
+  local scratch = vim.fn.tempname()
+  vim.fn.mkdir(scratch, "p")
+
+  for name, entry in pairs(servers) do
+    local path = entry.probe == false and vim.fn.exepath(entry.binary) or ""
+
+    if path ~= "" then
+      local ok, proc = pcall(vim.system, launch_argv(name, path), { text = true, stdin = true, cwd = scratch })
+      started[name] = { ok = ok, proc = proc, at = vim.uv.hrtime() }
+    end
+  end
+
+  return started, scratch
+end
 
 --- A server that answers no version flag, checked by starting it the way the
 --- editor would and seeing whether it is still there a moment later.
@@ -93,18 +123,21 @@ local LIVENESS = 500
 --- should sit and wait rather than return. stdin is a pipe held open for that
 --- reason: closed, a working server would see end-of-file and exit for a good
 --- reason, which is the same shape as the failure being looked for.
-local function check_liveness(label, binary, path)
+local function check_liveness(label, binary, path, started)
   local health = vim.health
 
-  local ok, result = pcall(function()
-    local argv = launch_argv(label, path)
-    return vim.system(argv, { text = true, stdin = true }):wait(LIVENESS)
-  end)
-
-  if not ok then
-    health.error(("%s: %s failed to start: %s"):format(label, binary, result))
+  if not started.ok then
+    health.error(("%s: %s failed to start: %s"):format(label, binary, started.proc))
     return
   end
+
+  -- What is left of its half second; at least a moment, so that a server
+  -- already past it is still asked rather than assumed. A server killed for
+  -- outliving the wait is reaped a moment after, and wait() hands back
+  -- nothing until it is, so the second wait is for that alone: it returns
+  -- at once when the answer is already in.
+  local elapsed = (vim.uv.hrtime() - started.at) / 1e6
+  local result = started.proc:wait(math.max(1, math.floor(LIVENESS - elapsed))) or started.proc:wait(1000)
 
   -- 124 is what wait() reports when it runs out of patience and kills, which
   -- is to say the server was still running.
@@ -131,7 +164,7 @@ end
 --- "OK name" when the section is a table scanned by name. Info rows keep
 --- the name first; the loud levels, prefix and all, are kept for rows
 --- that are actually trouble.
-local function check_binary(label, binary, probe)
+local function check_binary(label, binary, probe, started)
   local health = vim.health
 
   local path = vim.fn.exepath(binary)
@@ -141,7 +174,7 @@ local function check_binary(label, binary, probe)
   end
 
   if probe == false then
-    return check_liveness(label, binary, path)
+    return check_liveness(label, binary, path, started[label])
   end
 
   local cmd = { path, unpack(probe or { "--version" }) }
@@ -165,7 +198,8 @@ local function check_binary(label, binary, probe)
   if result.code ~= 0 then
     health.warn(
       ("%s: %s exited %d: %s"):format(label, binary, result.code, first_line(result.stderr, result.stdout)),
-      "A wrapper can be broken while the file itself is executable; rustup shims do this."
+      "A wrapper can be broken while the file itself is executable: a rustup shim without its component, "
+        .. "or a mise shim outside a project that pins the tool. The answer is about this directory."
     )
     return
   end
@@ -263,33 +297,69 @@ function M.check()
 
   health.start("language servers")
 
+  local started, scratch = start_all(lsp.servers)
   for name, entry in vim.spairs(lsp.servers) do
-    check_binary(name, entry.binary, entry.probe)
+    check_binary(name, entry.binary, entry.probe, started)
   end
+
+  -- Every server started above has been waited on by now, killed if it
+  -- outlived its half second, so nothing is writing there any more. Removed
+  -- here rather than left to Neovim's exit, since a session runs this more
+  -- than once and each run would otherwise leave a directory behind.
+  vim.fn.delete(scratch, "rf")
 
   check_gopls_toolchain()
 
-  -- What earlier versions of this config left on disk. Nothing here deletes
-  -- anything on its way out, and once the code that knew a path is gone, no
-  -- other code will ever look at it again. Two retirements so far: the server
-  -- store (2026-08-15), and the patched SchemaStore catalog that taplo needed
-  -- before it was built from master (2026-08-16).
-  local leftovers = {}
-  for _, path in ipairs({
-    vim.fs.joinpath(vim.fn.stdpath("data"), "servers"),
-    vim.fs.joinpath(vim.fn.stdpath("state"), "lsp-consent.json"),
-    vim.fs.joinpath(vim.fn.stdpath("cache"), "schemastore-taplo.json"),
-  }) do
-    if vim.uv.fs_stat(path) then
-      leftovers[#leftovers + 1] = path
+  health.start("plugins")
+
+  -- What is on disk against what plugins.lua pins. vim.pack installs a
+  -- plugin at its pin and then never looks at the clone again: a pin moved
+  -- by a pull leaves the old checkout running, and a plugin dropped from
+  -- plugins.lua stays on disk and in the lock. Neither says anything on its
+  -- own (measured 2026-09-03, a treesitter clone six commits behind its
+  -- pin), so this is where they are said. `info = false` keeps vim.pack from
+  -- asking every clone for its tags and branches, which nothing here reads.
+  local plugins = vim.pack.get(nil, { info = false })
+  local behind, orphans = {}, {}
+
+  for _, plugin in ipairs(plugins) do
+    if not plugin.active then
+      orphans[#orphans + 1] = plugin.spec.name
+    else
+      local head = vim.system({ "git", "-C", plugin.path, "rev-parse", "HEAD" }, { text = true }):wait(3000)
+      local rev = vim.trim(head.stdout or "")
+
+      if head.code ~= 0 or rev ~= plugin.rev then
+        behind[#behind + 1] = ("%s (%s, pinned at %s)"):format(
+          plugin.spec.name,
+          rev:sub(1, 7),
+          (plugin.rev or "?"):sub(1, 7)
+        )
+      end
     end
   end
 
-  if #leftovers > 0 then
+  if #behind > 0 then
     health.warn(
-      ("earlier versions of this config left these behind: %s"):format(table.concat(leftovers, ", ")),
-      ("Nothing reads them now; `rm -r %s` reclaims the space"):format(table.concat(leftovers, " "))
+      ("not at their pins: %s"):format(table.concat(behind, ", ")),
+      ":lua vim.pack.update(nil, { target = 'lockfile' }) checks the pins out"
     )
+  end
+
+  if #orphans > 0 then
+    health.warn(
+      ("on disk but not in plugins.lua: %s"):format(table.concat(orphans, ", ")),
+      (":lua vim.pack.del({ %s }) removes them"):format(table.concat(
+        vim.tbl_map(function(name)
+          return ("%q"):format(name)
+        end, orphans),
+        ", "
+      ))
+    )
+  end
+
+  if #behind == 0 and #orphans == 0 then
+    health.ok(("%d plugins, all at their pins"):format(#plugins))
   end
 
   health.start("tree-sitter")
@@ -375,7 +445,7 @@ function M.check()
     local binary = spec and spec[1]
     if binary and not seen[binary] then
       seen[binary] = true
-      check_binary(ft, binary, lsp.probes[binary])
+      check_binary(ft, binary, lsp.probes[binary], {})
     end
   end
   -- gci is additional, not essential: gopls already formats and organizes
@@ -388,7 +458,7 @@ function M.check()
   if require("mivn.languages.go").gci_off() then
     health.info("gci: off (turned off by $GOIMPORTNOGCI)")
   else
-    check_binary("gci", "gci", lsp.probes["gci"])
+    check_binary("gci", "gci", lsp.probes["gci"], {})
   end
 end
 

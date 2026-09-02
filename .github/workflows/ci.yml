@@ -29,13 +29,20 @@ jobs:
         with:
           args: -color
 
-      - name: Lint LUA
+      # The version my machine runs, not latest: a stylua release that
+      # changes its mind about a line would otherwise fail every push until
+      # the formatting caught up with a tool nothing here had chosen.
+      - name: Lint Lua
         uses: JohnnyMorganz/stylua-action@76fd70c03e6340ceaf673366712db9b20560b402 # v5.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          version: latest
+          version: v2.5.2
           args: --check .
 
+      # shellcheck ships on the runner image; each script's shebang says
+      # which shell it is checked as.
+      - name: Lint the scripts
+        run: shellcheck .github/scripts/*
 
   boot:
     name: Boot
@@ -64,3 +71,19 @@ jobs:
 
           grep -q 'boot clean' <<< "$out"
           if grep -Eqi 'error|E[0-9]{3}' <<< "$out"; then exit 1; fi
+
+      # The scripts run the working copy as `mivn`; here the checkout is the
+      # one config there is, under Neovim's own name, and the boot above has
+      # already cloned its plugins.
+      - name: Check the keys against the docs and each other
+        run: NVIM_APPNAME=nvim ./.github/scripts/keys --check
+
+      - name: Try a key, a command and a write on every panel
+        run: |
+          export NVIM_APPNAME=nvim
+          ./.github/scripts/panels --key '<Space>t?'
+          ./.github/scripts/panels --cmd MivnBdAll
+          ./.github/scripts/panels --write
+
+      - name: Press the movement keys on a real editor
+        run: NVIM_APPNAME=nvim ./.github/scripts/motions

@@ -87,9 +87,11 @@ gets is the launcher's business, not this config's.
 The set in use is Go (`gopls`, `golangci-lint-langserver`), Python (`ty`,
 `ruff`), TypeScript (`tsgo`), Rust, Lua, Elixir, Gleam, Shell, Markdown,
 TOML, YAML (`yaml-language-server`, `actions-languageserver`, `zizmor`), JSON,
-HTML, Terraform, Tilt, Protocol Buffers, templ and the Docker files. The external
-formatters (`stylua`, `shfmt`, `jq`, `taplo`, `yamlfmt`, `dockerfmt`,
-`xmllint`) and `gci` for Go imports are looked up the same way.
+HTML (`vscode-html-language-server`, `superhtml`), CSS, Terraform, Tilt,
+Protocol Buffers, templ and the Docker files; XML has a formatter and no
+server. The external formatters (`stylua`, `shfmt`, `jq`, `taplo`, `yamlfmt`,
+`dockerfmt`, `xmllint`, `rumdl`) and `gci` for Go imports are looked up the
+same way.
 
 What this config owns is everything around that: what each server is told once
 it starts, what runs after it (`gci` re-groups Go imports after the language
@@ -152,7 +154,7 @@ All six open the same floating window, so its own keys are learned once.
 
 | Key | What it does |
 |---|---|
-| `<Space>aa` | Code action |
+| `<Space>aa` | Code action, on the line or on the selection |
 | `<Space>ar` | Rename symbol |
 | `<Space>af` | Format this buffer |
 | `<Space>aF` | Organize imports |
@@ -177,8 +179,10 @@ One answer jumps straight there. Several open in the same floating window as
 the finders above, rather than in a quickfix split that rearranges the layout.
 
 Neovim's own LSP keys are taken off, `grn`, `gra`, `grr`, `gri`, `grt`, `grx`,
-`gO` and `K` included. Two keys for one request is two things to keep in step,
-and these chains are the ones with a panel behind them.
+`gO` and `K` included, `gra` over a selection too. Two keys for one request is
+two things to keep in step, and these chains are the ones with a panel behind
+them. `Ctrl+S` while typing, signature help, is the one Neovim key kept: it
+has no twin here.
 
 ### Toggle, the `<Space>t` chain
 
@@ -191,7 +195,8 @@ and these chains are the ones with a panel behind them.
 | `<Space>ti` | Files the SCM ignores, in the tree and the finders at once |
 | `<Space>tr` | The old text, inline, for every line I have changed |
 | `<Space>tb` | Who wrote the line I am on |
-| `<Space>t?` | Nothing; it says which of the five flags are on |
+| `<Space>tn` | The inlay hints, in this buffer |
+| `<Space>t?` | Nothing; it says which of the six flags are on |
 
 The dotfile and ignored keys answer for both views of a directory, so a file
 drawn in one and missing from the other cannot happen.
@@ -200,8 +205,8 @@ Every key here says which way it went, except the tree and the terminal: those
 two put a panel on screen, and being told what I am looking at is noise. The
 rest are flags with nowhere to show themselves, and review is the clearest
 case, since on a file I have not changed it looks the same on as off. `?` asks
-the five of them at once, keyed by the letter that flips each, and answers
-`(b: on, h: shown, i: hidden, r: off, w: off)`.
+the six of them at once, keyed by the letter that flips each, and answers
+`(b: on, h: shown, i: hidden, n: off, r: off, w: off)`.
 
 ## Changed keys
 
@@ -213,15 +218,24 @@ Keys that already meant something in stock Vim and mean something else here:
 | Ctrl+`→` / Ctrl+`←` | Past the end of the word / the start of the previous one, never the WORD |
 | Alt+`→` / Alt+`←` | The same, by subword |
 | Ctrl or Alt and Shift | The same two distances, selecting |
+| `e` `E` `ge` `gE` | Past the end of the word or WORD, rather than on its last character |
 | `Home` | Alternates between the indent and column zero |
 | `End` | Past the end of the line, the boundary after the last character |
+| `Ctrl+Home` / `Ctrl+End` | Column one of the first line / past the last character of the last |
 | `Insert` | Whichever of Insert and Normal you are not in |
+| PageUp / PageDown | A page, or the first and last line when there is no page left |
 | Shift+PageUp / PageDown | Select a page, stopping at the first and last line |
+| `Tab` / `Shift+Tab` over a selection | Indent / dedent it, and keep it selected |
+| `u` over a selection | Undo, rather than lowercase |
+| `` ` `` / `` Ctrl+` `` / `` Alt+` `` over a selection | Toggle its case / uppercase / lowercase |
+| `Enter`, `Tab`, `Ctrl+Space` while typing | Take a completion, take the top one, open the menu |
 | `Ctrl+Tab` / `Ctrl+Shift+Tab` | Along the tab bar of buffers |
 | `Ctrl+↑` / `Ctrl+↓` | Move the line, or the selected lines |
-| `Ctrl+Del` | Delete the word ahead |
+| `Ctrl+Del` | Delete the word ahead, typing or not |
 | `Alt+D` / `Alt+C` | Delete or change onto the clipboard |
+| `(` `[` `{` `"` `'` `` ` `` over a selection made while typing | Wrap it |
 | `{count}` and `\|` | That column, counted in characters rather than screen cells |
+| `Up` / `Down` on the command line | Walk the completion menu while it is open |
 | `Esc` in Normal mode | Also clears leftover search highlighting |
 | `ZR` | `:restart`, which comes back to the same layout, unless the window is on another machine |
 
@@ -229,6 +243,15 @@ Keys that already meant something in stock Vim and mean something else here:
 while typing lands in Select mode, where what you type next replaces it; one
 opened from Normal mode lands in Visual, where the whole grammar applies and a
 stray letter is a command.
+
+One rule holds every key in that table to the same meaning in every mode: a
+key means what it means whether I am typing or not, and pressed with a
+selection up it drops the selection and then does the same. The caret is a
+boundary between characters, so every key that goes to the end of something
+lands to the right of its last character, in Normal, Insert, Visual and
+Select alike. `.github/scripts/keys` prints the table of what is bound where,
+and `.github/scripts/motions` presses the keys on a real editor and checks
+where the caret lands.
 
 Everything else is stock Vim, or a stock option doing its documented job.
 [DEFAULTS.md](DEFAULTS.md) is the full account, marks every deviation, and
@@ -275,6 +298,7 @@ heard of.
 | `lua/mivn/keymaps.lua` | Every key that is on for the whole session       |
 | `lua/mivn/languages/` | One file per language: its servers, settings and formatting |
 | `colors/`     | The basalt theme                                          |
-| `queries/`    | Tree-sitter extras: SQL in Go strings, gotmpl files       |
+| `queries/`    | Tree-sitter extras: SQL in Go strings                     |
+| `.github/scripts/` | The checks CI runs, and the release and repin tools  |
 | `DEFAULTS.md` | The tour of stock Vim, and what mivn changes, marked so   |
 | `TODO.md`     | State and queue; friction lands here first                |

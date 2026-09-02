@@ -32,7 +32,9 @@ EOF
   exit 2
 }
 
-[ $# -ge 1 ] && [ $# -le 2 ] || usage
+if [ $# -lt 1 ] || [ $# -gt 2 ]; then
+  usage
+fi
 [ -r "$1" ] || die "cannot read $1"
 command -v magick >/dev/null || die "ImageMagick 7 is not installed (magick)"
 
@@ -55,9 +57,9 @@ CROP_W=${CROP_W:-1992}
 CROP_H=${CROP_H:-1417}
 
 BAR_H=${BAR_H:-56}              # macOS's 28pt title bar, doubled for a HiDPI shot
-BAR_BG=${BAR_BG:-'#1E242E'}     # bg3
+BAR_BG=${BAR_BG:-'#1E242F'}     # basalt's raised: the status line's own shade
 RADIUS=${RADIUS:-22}
-HAIRLINE=${HAIRLINE:-'#2C313A'} # bg4
+HAIRLINE=${HAIRLINE:-'#272E3C'} # basalt's lifted: one step over the bar
 
 DOT_D=${DOT_D:-24} # diameter
 DOT_X=${DOT_X:-40} # centre of the first light
