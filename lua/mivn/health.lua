@@ -85,13 +85,15 @@ local LIVENESS = 500
 --- and together they take one (measured 2026-09-03). Each is looked at
 --- again in check_liveness, in its turn, with however much of its half
 --- second is left.
+---
+--- Returns the servers started, and the directory they were started in: the
+--- caller removes it once every one of them has been looked at.
 local function start_all(servers)
   local started = {}
 
   -- Somewhere of their own to start in, not the directory the editor is in:
   -- expert writes an `.expert/` log directory wherever it starts, which is
-  -- how one turned up in this repository (measured 2026-09-03). Neovim
-  -- removes its temporary directory on the way out, and this with it.
+  -- how one turned up in this repository (measured 2026-09-03).
   local scratch = vim.fn.tempname()
   vim.fn.mkdir(scratch, "p")
 
@@ -104,7 +106,7 @@ local function start_all(servers)
     end
   end
 
-  return started
+  return started, scratch
 end
 
 --- A server that answers no version flag, checked by starting it the way the
@@ -294,10 +296,16 @@ function M.check()
 
   health.start("language servers")
 
-  local started = start_all(lsp.servers)
+  local started, scratch = start_all(lsp.servers)
   for name, entry in vim.spairs(lsp.servers) do
     check_binary(name, entry.binary, entry.probe, started)
   end
+
+  -- Every server started above has been waited on by now, killed if it
+  -- outlived its half second, so nothing is writing there any more. Removed
+  -- here rather than left to Neovim's exit, since a session runs this more
+  -- than once and each run would otherwise leave a directory behind.
+  vim.fn.delete(scratch, "rf")
 
   check_gopls_toolchain()
 
