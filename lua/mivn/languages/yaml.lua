@@ -45,7 +45,18 @@ return {
     yaml = {
       "yamlfmt",
       "-formatter",
-      "retain_line_breaks_single=true", -- what prettier does; the default strips them all
+      -- retain_line_breaks_single keeps a single blank line, which is what
+      -- prettier does; the default strips them all. yamlfmt keeps one by
+      -- writing a `#magic___^_^___line` comment in its place and taking that
+      -- line out again at the end, and a blank line under a folded (`>`)
+      -- block gets folded into the block, so the marker ends up inside the
+      -- value and nothing takes it out again. scan_folded_as_literal stops
+      -- the folding, so the marker stays a line of its own; it also leaves a
+      -- `>` block with the line breaks I wrote it with, instead of joining
+      -- them into one line. google/yamlfmt#86 is the open bug. The one case
+      -- it does not save is a block scalar with a trailing space on a line,
+      -- which comes back as a quoted string with the marker inside it.
+      "retain_line_breaks_single=true,scan_folded_as_literal=true",
       "-in",
     },
   },
