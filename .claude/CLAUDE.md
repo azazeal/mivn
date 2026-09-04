@@ -81,6 +81,13 @@ moves. Each has runtime state of its own under `~/.local/share` and
   feedkeys orders keys differently from a terminal and has said yes to broken
   keys before; a key gets a case here, not a headless check. `motions
   <pattern>` runs the cases whose name matches.
+- `.github/scripts/restart`, after any change to `lua/mivn/restart.lua` or to
+  a panel it puts back: it presses `:restart`, `ZR` and `1ZR` on a real editor
+  behind a socket, with and without unsaved work, and checks the pid, the
+  panels, the file the session was carrying and whether a refusal read as an
+  error or as a traceback. `nvim_exec2` never sees this code, since the
+  command line is rewritten from an autocmd that only fires on a typed one.
+  `restart <pattern>` runs the cases whose name matches.
 - A new key, command or save-time behavior has to be tried on the buffers
   that have no file behind them, not only on a file. `.github/scripts/panels
   --key '<Space>x'`, `--cmd 'MivnThing'` or `--write` runs it against the
