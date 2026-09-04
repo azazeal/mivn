@@ -139,7 +139,15 @@ local function restart(plain)
   end
 
   if plain then
-    vim.cmd("restart!")
+    -- :restart refuses on unsaved work and raises, and the raise arrives as a
+    -- Lua traceback with the frames of this file in it. The bang-less
+    -- spelling below prints the refusal on its own; this one prints nothing,
+    -- measured, so the Vim error is dug out of the Lua chain and said here.
+    local ok, err = pcall(vim.cmd, "restart!")
+    if not ok then
+      vim.notify(err:match("E%d+:[^\n]*") or err, vim.log.levels.ERROR)
+    end
+
     return
   end
 
@@ -163,7 +171,13 @@ local function restart(plain)
   end
 end
 
-vim.api.nvim_create_user_command("MivnRestart", restart, {
+-- WARN: the callback cannot be `restart` itself. A command hands its callback
+-- a table of what was typed, every table is true in Lua, and `plain` would be
+-- on for every :restart, which is the one spelling that came here for a
+-- session.
+vim.api.nvim_create_user_command("MivnRestart", function()
+  restart(false)
+end, {
   desc = "What :restart becomes: the panels step aside so the session can be written",
 })
 
