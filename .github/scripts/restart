@@ -1,0 +1,329 @@
+#!/usr/bin/env bash
+#
+# Restarts a real editor and says what came back.
+#
+#   restart            every case
+#   restart <pattern>  the cases whose name matches the Lua pattern
+#
+# Wants nvim on $PATH and a pty, which `script` (util-linux) provides. Prints
+# one row per case, ok or FAIL with what was expected and what happened, and
+# exits non-zero on any FAIL.
+#
+# :restart cannot be reached by running it. lua/mivn/restart.lua rewrites the
+# command line from a CmdlineLeavePre autocmd, which only fires on a line that
+# was typed, so nvim_exec2 walks straight past the whole module. Every key
+# here goes in through nvim_input over a socket instead, and that same socket
+# is what answers afterwards: a restarted server listens on the address it was
+# handed, so the connection reaches the editor that came back.
+#
+# Why this exists. :restart shipped taking its `plain` argument from the table
+# a user command hands its callback, which is true for every table, so the
+# session and the panels were dropped by the one spelling that came for them
+# and unsaved work raised a Lua traceback. Nothing in the tree pressed the
+# key: `keys` reads which modes a mapping is bound in, `motions` reads where
+# the caret landed, and `panels` runs one thing against the buffers with no
+# file behind them. None of them asks what a restart put back.
+#
+# The three spellings are each tried on a buffer with nothing to save and on
+# one with unsaved work. What comes back is the pid, so a restart that never
+# happened is not read as one, the terminal and the second file, which say
+# whether the session was carried, and the messages, which say whether a
+# refusal arrived as an error a reader can act on or as a traceback.
+#
+# The editor is the working copy, through NVIM_APPNAME=mivn, unless the
+# environment already names one; CI has only ~/.config/nvim and says so.
+
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+export NVIM_APPNAME="${NVIM_APPNAME:-mivn}"
+
+die() {
+  echo "restart: $1" >&2
+  exit 1
+}
+
+only="${1:-}"
+
+sock="${XDG_RUNTIME_DIR:-/tmp}/mivn-restart.$$.sock"
+work=$(mktemp -d) || die "could not make a scratch directory"
+trap 'rm -rf "$work" "$sock"' EXIT
+
+# The anchor is what the editor is started on, so it is in the argument list
+# and comes back from a restart that carried no session. The second file is
+# only ever opened by hand, which is what makes it the witness: it is back
+# because a session put it back, or it is not back at all.
+anchor=$work/anchor.txt
+witness=$work/witness.txt
+printf 'anchor\n' > "$anchor"
+printf 'witness\n' > "$witness"
+
+cases=$work/cases.lua
+
+cat > "$cases" <<LUA
+local M = { cases = {} }
+
+local ANCHOR = "$anchor"
+local WITNESS = "$witness"
+LUA
+
+cat >> "$cases" <<'LUA'
+
+--- A case: what is pressed, whether there is unsaved work when it is, and
+--- what has to be true once the dust settles. `restarted` is whether the pid
+--- changed, `session` whether the second file came back, `terminal` whether
+--- the panel did, and `refusal` the error a reader should have been given, or
+--- false for a case that is not refused.
+local function case(name, keys, dirty, expect)
+  M.cases[#M.cases + 1] = { name = name, keys = keys, dirty = dirty, expect = expect }
+end
+
+--- The three spellings, with nothing to save ---------------------------------
+--
+-- :restart and ZR are the same key: both carry the session and put the panels
+-- back. A counted ZR is Vim's own meaning, a restart without a session, so
+-- neither the witness nor the terminal is expected back.
+
+case(":restart carries the session", { ":restart<CR>" }, false, {
+  restarted = true,
+  session = true,
+  terminal = true,
+  refusal = false,
+})
+case("ZR carries the session", { "ZR" }, false, {
+  restarted = true,
+  session = true,
+  terminal = true,
+  refusal = false,
+})
+case("a counted ZR leaves the session behind", { "1ZR" }, false, {
+  restarted = true,
+  session = false,
+  terminal = false,
+  refusal = false,
+})
+
+--- The same three, with unsaved work ----------------------------------------
+--
+-- :restart quits, and quitting refuses while a buffer has unsaved work. What
+-- matters is that the refusal reads as an error and not as a traceback
+-- through this module, and that the panels are where they were left, since
+-- the session spellings step them out of the way before they ask.
+
+case(":restart refuses on unsaved work", { ":restart<CR>" }, true, {
+  restarted = false,
+  session = true,
+  terminal = true,
+  refusal = "E37",
+})
+case("ZR refuses on unsaved work", { "ZR" }, true, {
+  restarted = false,
+  session = true,
+  terminal = true,
+  refusal = "E37",
+})
+case("a counted ZR refuses on unsaved work", { "1ZR" }, true, {
+  restarted = false,
+  session = true,
+  terminal = true,
+  refusal = "E37",
+})
+
+--- The driver's half ---------------------------------------------------------
+
+--- Windows holding a terminal, and whether the witness file is on screen.
+local function screen()
+  local terminals, witness = 0, false
+
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    local buf = vim.api.nvim_win_get_buf(win)
+
+    if vim.bo[buf].buftype == "terminal" then
+      terminals = terminals + 1
+    end
+    if vim.api.nvim_buf_get_name(buf) == WITNESS then
+      witness = true
+    end
+  end
+
+  return terminals, witness
+end
+
+--- Put the editor back the way every case starts, and answer with the pid it
+--- is about to be restarted from.
+---
+--- WARN: the tree is left alone. It opens on its own at startup, so it comes
+--- back either way and says nothing about the session; the terminal does not,
+--- which is why it is the panel this reads.
+function M.setup(i)
+  vim.api.nvim_feedkeys(vim.keycode("<Esc><C-\\><C-n>"), "nx", false)
+  vim.cmd("stopinsert")
+
+  local terminal = require("mivn.terminal")
+  if terminal.is_open() then
+    terminal.toggle()
+  end
+
+  vim.cmd("silent! only")
+  vim.cmd("edit! " .. vim.fn.fnameescape(ANCHOR))
+  vim.bo.swapfile = false
+
+  vim.cmd("split " .. vim.fn.fnameescape(WITNESS))
+  vim.bo.swapfile = false
+  vim.cmd("wincmd b")
+
+  terminal.toggle()
+  vim.api.nvim_feedkeys(vim.keycode("<C-\\><C-n>"), "nx", false)
+  vim.cmd("wincmd t")
+
+  if M.cases[i].dirty then
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { "unsaved" })
+  end
+
+  vim.cmd("messages clear")
+
+  return vim.fn.getpid()
+end
+
+function M.press(i, j)
+  vim.api.nvim_input(M.cases[i].keys[j])
+end
+
+function M.keys(i)
+  return #M.cases[i].keys
+end
+
+--- What the editor looks like now, against what the case asked for. `was` is
+--- the pid M.setup answered with, which bash carries across the restart
+--- because nothing in this state survives one.
+function M.verdict(i, was)
+  local c = M.cases[i]
+  local terminals, witness = screen()
+
+  -- E1568 is the terminal declining to say what its background colour is,
+  -- which is the pty and not this config.
+  local said = vim.fn.execute("messages"):gsub("E1568:[^\n]*", "")
+
+  local got = {
+    restarted = vim.fn.getpid() ~= was,
+    session = witness,
+    terminal = terminals == 1,
+    refusal = said:match("E%d+") or false,
+    traceback = said:find("stack traceback", 1, true) ~= nil,
+  }
+
+  local want = vim.tbl_extend("error", { traceback = false }, c.expect)
+
+  local wrong = {}
+  for what, value in pairs(want) do
+    if got[what] ~= value then
+      wrong[#wrong + 1] = ("%s: expected %s, got %s"):format(what, vim.inspect(value), vim.inspect(got[what]))
+    end
+  end
+
+  -- Two terminals is a panel that was put back on top of one that never left,
+  -- which the count above reads as a plain miss.
+  if terminals > 1 then
+    wrong[#wrong + 1] = ("terminal: %d of them, so one was opened over another"):format(terminals)
+  end
+
+  table.sort(wrong)
+
+  if #wrong == 0 then
+    return ("  ok    %s"):format(c.name)
+  end
+
+  return ("  FAIL  %s\n        %s"):format(c.name, table.concat(wrong, "\n        "))
+end
+
+function M.matching(pattern)
+  local found = {}
+  for i, c in ipairs(M.cases) do
+    if pattern == "" or c.name:find(pattern) then
+      found[#found + 1] = i
+    end
+  end
+
+  return found
+end
+
+_G.M = M
+return "loaded"
+LUA
+
+# `script` is what hands the editor a pty, and setsid keeps it off this
+# shell's terminal. The screen goes nowhere; every answer comes back over
+# the socket.
+setsid script -qec \
+  "env TERM=xterm-256color nvim --listen '$sock' '$anchor'" \
+  /dev/null > /dev/null 2>&1 &
+
+for _ in $(seq 1 100); do
+  [ -S "$sock" ] && break
+  sleep 0.1
+done
+[ -S "$sock" ] || die "the editor never listened on $sock"
+sleep 1
+
+# Bounded, so an editor that stops answering fails the run rather than
+# holding it.
+nv() {
+  timeout 15 nvim --server "$sock" --remote-expr "$1"
+}
+
+# Loaded once per editor, and again after every restart, since a restart is a
+# new process and takes the whole Lua state with it.
+load() {
+  nv "luaeval('dofile(\"$cases\")')" > /dev/null
+}
+
+# A restart drops the connection for as long as the new server takes to come
+# up and source the session. Waiting on the pid rather than on a clock keeps
+# the run as quick as the machine is, and a case that expects no restart still
+# has to settle, so it is given the same first breath.
+settle() {
+  sleep 1
+
+  for _ in $(seq 1 120); do
+    now=$(timeout 5 nvim --server "$sock" --remote-expr 'getpid()' 2>/dev/null) || now=""
+
+    if [ -n "$now" ] && { [ "$1" = any ] || [ "$now" != "$1" ]; }; then
+      return 0
+    fi
+
+    sleep 0.25
+  done
+
+  return 1
+}
+
+load
+
+status=0
+for i in $(nv "luaeval('table.concat(M.matching(_A), \" \")', '$only')"); do
+  was=$(nv "luaeval('M.setup(_A)', $i)")
+  sleep 0.3
+
+  for j in $(seq 1 "$(nv "luaeval('M.keys(_A)', $i)")"); do
+    nv "luaeval('M.press(_A[1], _A[2])', [$i, $j])" > /dev/null
+    sleep 0.12
+  done
+
+  # An editor that never answers again is a restart that took the session
+  # down with it, which is a failure and not a reason to hang.
+  if ! settle any; then
+    echo "  FAIL  case $i: the editor stopped answering after the keys"
+    status=1
+    continue
+  fi
+
+  load
+
+  verdict=$(nv "luaeval('M.verdict(_A[1], _A[2])', [$i, $was])")
+  echo "$verdict"
+  case $verdict in *FAIL*) status=1 ;; esac
+done
+
+nv 'execute("qa!")' > /dev/null 2>&1 || true
+
+exit $status

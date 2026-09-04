@@ -87,3 +87,6 @@ jobs:
 
       - name: Press the movement keys on a real editor
         run: NVIM_APPNAME=nvim ./.github/scripts/motions
+
+      - name: Restart a real editor and see what came back
+        run: NVIM_APPNAME=nvim ./.github/scripts/restart
