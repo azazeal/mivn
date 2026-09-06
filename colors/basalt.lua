@@ -322,7 +322,13 @@ hl({
 
 hl({
   ["@variable"] = { fg = c.body },
-  ["@variable.builtin"] = { fg = c.yellow.text },
+
+  -- `self` and `this`: a value the language bound for me rather than one I
+  -- named, which is what orange already says with `nil` and `true`. It was
+  -- yellow, and yellow is types, so `fn go(&self) -> u32` drew the receiver
+  -- and the return type in one colour.
+  ["@variable.builtin"] = { fg = c.orange.text },
+
   ["@variable.parameter"] = { fg = c.body },
   ["@variable.member"] = { fg = c.red.text },
 
@@ -330,7 +336,19 @@ hl({
   ["@constant.builtin"] = { fg = c.orange.text },
   ["@constant.macro"] = { fg = c.magenta.text },
 
-  ["@module"] = { fg = c.yellow.text },
+  -- Where a name lives, not the name: `context` in `context.Context`. Reading
+  -- a signature I am after what it takes and what it gives back, and those are
+  -- the type names; the package answers a second question I ask later and only
+  -- sometimes. In one colour the two ran together into a single word parted by
+  -- a dot. Dim also tells `time.Now()` from `t.Now()` at a glance, which is a
+  -- package against a value, and body would have buried the qualifier in the
+  -- variables instead.
+  --
+  -- In Elixir this is the name in `defmodule` and `alias` as well, and those
+  -- go quiet with it. The keyword beside them still says what the line is, and
+  -- it is a line or two a file against every qualified call.
+  ["@module"] = { fg = c.dim },
+
   ["@label"] = { fg = c.magenta.text },
 
   ["@string"] = { fg = c.green.text },
