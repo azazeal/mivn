@@ -85,7 +85,15 @@ function M.render()
     return mini_string()
   end
 
-  return "%#MivnTablineTreeFill#" .. string.rep(" ", columns) .. mini_string()
+  -- WARN: `%<` and not the default, which is the start of the line. mini fits
+  -- its own string to the whole screen rather than to what is left of it, so
+  -- once enough buffers are open the two together are wider than the screen,
+  -- and the first thing a tabline with no `%<` gives up is its start: the pad
+  -- went first and the tabs slid over the tree, close enough to right that
+  -- clicking one of those columns switched buffers. This is where the cut
+  -- lands instead. It costs the `<` Neovim draws at the point, in the colour
+  -- of the tab that follows it.
+  return "%#MivnTablineTreeFill#" .. string.rep(" ", columns) .. "%<" .. mini_string()
 end
 
 -- The result of a `%!` expression is itself scanned for `%` items, which is
