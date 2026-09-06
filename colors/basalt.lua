@@ -322,7 +322,13 @@ hl({
 
 hl({
   ["@variable"] = { fg = c.body },
-  ["@variable.builtin"] = { fg = c.yellow.text },
+
+  -- `self` and `this`: a value the language bound for me rather than one I
+  -- named, which is what orange already says with `nil` and `true`. It was
+  -- yellow, and yellow is types, so `fn go(&self) -> u32` drew the receiver
+  -- and the return type in one colour.
+  ["@variable.builtin"] = { fg = c.orange.text },
+
   ["@variable.parameter"] = { fg = c.body },
   ["@variable.member"] = { fg = c.red.text },
 
