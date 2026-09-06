@@ -601,6 +601,14 @@ hl({
   -- The strip that stands in for the tree above it, so the gap reads as the
   -- panel continuing upward rather than as an empty tab.
   MivnTablineTreeFill = { link = "NvimTreeNormal" },
+
+  -- The project's name, in that strip. Only the foreground can say "this is
+  -- not a tab": the strip and every tab that is not the current one are all
+  -- on `sunk` already. Blue is the one colour the bar does not use, and it is
+  -- what the tree draws its folder names in, so the name reads as the folder
+  -- the rows below it are inside. Not bold, which is how the current tab says
+  -- it is current; a nameplate should be quieter than every tab, not louder.
+  MivnTablineProject = { fg = c.blue.text, bg = c.sunk },
 })
 
 --- The file tree -------------------------------------------------------------

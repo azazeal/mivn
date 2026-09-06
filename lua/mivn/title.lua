@@ -19,24 +19,15 @@
 -- gating would mean foot and tmux keep getting nothing.
 --
 -- What it says follows the status line's rules (lua/mivn/statusline.lua):
--- the file when there is one, the project when there is not.
+-- the file when there is one, the project when there is not. The project is
+-- what tells two windows apart when both hold a `main.go`, and it is spelled
+-- the way lua/mivn/project.lua spells it everywhere else.
+
+local project = require("mivn.project")
 
 local M = {}
 
 local SEPARATOR = " · "
-
---- The project: the name of the working directory, and nothing above it.
----
---- What tells two windows apart when both hold a `main.go`. The directory
---- alone, rather than the status line's `parent/dir`: the parent is a name
---- only where projects are filed under one, and the title has less room to
---- spend on a word that may say nothing.
-local function project()
-  local name = vim.fs.basename(vim.fn.getcwd())
-
-  -- The root has no name of its own to show.
-  return name ~= "" and name or "/"
-end
 
 --- What the current buffer is, or nil for the ones that are only ever a
 --- window onto the project: the banner, the tree, an empty buffer.
@@ -76,10 +67,10 @@ end
 function M.render()
   local what = subject()
   if not what then
-    return project()
+    return project.name()
   end
 
-  return what .. SEPARATOR .. project()
+  return what .. SEPARATOR .. project.name()
 end
 
 vim.o.title = true

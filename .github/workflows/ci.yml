@@ -90,3 +90,6 @@ jobs:
 
       - name: Restart a real editor and see what came back
         run: NVIM_APPNAME=nvim ./.github/scripts/restart
+
+      - name: Draw the tab bar and see where it put things
+        run: NVIM_APPNAME=nvim ./.github/scripts/tabline

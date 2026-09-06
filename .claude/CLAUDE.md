@@ -94,10 +94,19 @@ moves. Each has runtime state of its own under `~/.local/share` and
   banner, the tree and the terminal, with a real file as the control, and
   exits non-zero on the ones it raises in. Two keys have shipped broken on
   the banner already.
+- `.github/scripts/tabline`, after any change to `lua/mivn/tabline.lua` or to
+  `lua/mivn/project.lua`: it draws the tab bar on a real editor behind a
+  socket, with more buffers open than it has room for, and checks that the
+  project's name is still at the left end, that the buffers start on the far
+  side of the tree, and that a click up there lands where it looks like it
+  lands. The clicks go in over the socket because injected mouse input is
+  only read once the editor is back in its own loop; sent from inside a
+  callback it is swallowed. `tabline <pattern>` runs the cases whose name
+  matches.
 - When a bug gets through, say what would have caught it and offer to add
-  that, whether or not it is about the panels. Each of the three scripts
-  exists because a bug of its shape got through; the next shape will need its
-  own check, and the useful moment to notice is while the bug is fresh.
+  that, whether or not it is about the panels. Each of these scripts exists
+  because a bug of its shape got through; the next shape will need its own
+  check, and the useful moment to notice is while the bug is fresh.
 - CI runs all of the above on every push and pull request, with the checkout
   as `~/.config/nvim` and `NVIM_APPNAME=nvim`.
 
