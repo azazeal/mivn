@@ -1524,9 +1524,10 @@ module's own packages. `$GOIMPORTNOGCI` turns that pass off and leaves the
 imports as the language server grouped them, which is what to do when the `gci`
 on `PATH` is an older release than the standard library in use and reads one of
 its packages as third party. It is read as a yes or a no, so `0`, `no`, `off`
-and `false` leave the pass on and the variable can be flipped rather than unset. A formatter that is not installed
-is skipped and the file is written as typed; one that refuses says so and
-changes nothing.
+and `false` leave the pass on and the variable can be flipped rather than unset.
+A formatter that is not installed is skipped and the file is written as typed;
+one that refuses says so and changes nothing. `:noa w` writes the buffer as it
+stands, since every bit of this hangs off one autocmd on the write.
 
 ## Folding
 
