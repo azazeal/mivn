@@ -924,6 +924,15 @@ Stock Neovim writes no title at all, and Neovide, left to itself, writes the
 file's full path, whose useful end is the end a taskbar cuts off. In a terminal
 the same line names the tab.
 
+The left end of the tab bar is not a tab _(mivn)_. Those columns sit over the
+file tree, so that the strip of tabs starts where the buffers start, and what
+stands in them is the name of the directory the tree is rooted at. It is blue
+and never bold, so it does not read as a tab you could click or step onto with
+`Ctrl+Tab`, and clicking it does nothing. Hiding the tree takes it away with
+the columns. The name is the one the title uses and the one the status line
+shows while you are on the banner or in the tree: the last part of the working
+directory, with `~` for your home directory and `/` for the root.
+
 ### Windows (`Ctrl+W` prefix)
 
 | Key | Does |

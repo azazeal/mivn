@@ -8,6 +8,7 @@
 -- block the same width in every mode, so nothing beside it ever shifts.
 
 local blame = require("mivn.blame")
+local project = require("mivn.project")
 local statusline = require("mini.statusline")
 
 --- Git ------------------------------------------------------------------------
@@ -231,19 +232,16 @@ local function section_filename()
   return "%m%r"
 end
 
---- The project: the parent directory and the directory, joined.
+--- The project, in place of the file name when there is no file, so the line
+--- still says where I am while I am on the banner or in the tree.
 ---
---- Shown in place of the file name when there is no file, so the line still
---- says where I am while I am on the banner or in the tree.
+--- The name lua/mivn/project.lua decides, which is the one the tab strip's
+--- nameplate and the window title show. The three are read together and a
+--- different spelling in each is a puzzle rather than three answers.
 local function section_project()
-  local cwd = vim.fn.getcwd()
-  local parent = vim.fs.basename(vim.fs.dirname(cwd))
-
-  if parent == "" or parent == "/" then
-    return vim.fs.basename(cwd)
-  end
-
-  return parent .. "/" .. vim.fs.basename(cwd)
+  -- WARN: mini.statusline puts what a section returns into the line itself,
+  -- so a directory called `50%` would be read as an item.
+  return (project.name():gsub("%%", "%%%%"))
 end
 
 --- The filetype, with the glyph the rest of the editor draws for it.

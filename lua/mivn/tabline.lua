@@ -9,6 +9,7 @@
 
 local M = {}
 
+local project = require("mivn.project")
 local tabline = require("mini.tabline")
 
 tabline.setup({
@@ -38,7 +39,12 @@ tabline.setup({
 -- Tabs are chrome for the buffers, so the strip starts where the buffers do
 -- rather than running across the top of the file tree. Neovim's tabline is a
 -- single global line with no notion of a window, so the only way to get that
--- is to pad it: a blank segment as wide as the tree, colored like it.
+-- is to pad it: a segment as wide as the tree, colored like it.
+--
+-- Those columns then carry the name of the directory the tree is rooted at,
+-- since they are forfeited either way and nothing else on screen keeps saying
+-- which project this window is once a file is open. lua/mivn/project.lua
+-- decides the name; the strip only fits it.
 --
 -- Measured at render time rather than cached, so a resized tree keeps the tabs
 -- lined up. This runs on every redraw, so it stays one pass over the windows.
@@ -76,11 +82,30 @@ local function tree_columns()
   return 0
 end
 
+--- The tree's columns, with the name of the directory it is rooted at in them.
+---
+--- Exactly `columns` cells wide whatever the name is, since a nameplate that
+--- decided its own width would move the tabs every time I changed directory.
+--- One cell of lead-in, the way every tab has one, and the last cell left
+--- blank because the window separator is drawn underneath it.
+local function nameplate(columns)
+  local name = project.name(columns - 2)
+  local blank = columns - 1 - vim.fn.strdisplaywidth(name)
+
+  -- WARN: what this returns is scanned for `%` items, so a directory called
+  -- `50%` would be read as one.
+  name = name:gsub("%%", "%%%%")
+
+  return "%#MivnTablineProject# " .. name .. "%#MivnTablineTreeFill#" .. string.rep(" ", blank)
+end
+
 --- The tabline, as 'tabline' evaluates it on every redraw.
 function M.render()
   local columns = tree_columns()
 
-  -- Byte for byte mini's own line when there is no tree.
+  -- Byte for byte mini's own line when there is no tree. The nameplate goes
+  -- with it: these are the tree's columns, and hiding the tree is asking for
+  -- the width back.
   if columns == 0 then
     return mini_string()
   end
@@ -88,12 +113,12 @@ function M.render()
   -- WARN: `%<` and not the default, which is the start of the line. mini fits
   -- its own string to the whole screen rather than to what is left of it, so
   -- once enough buffers are open the two together are wider than the screen,
-  -- and the first thing a tabline with no `%<` gives up is its start: the pad
-  -- went first and the tabs slid over the tree, close enough to right that
-  -- clicking one of those columns switched buffers. This is where the cut
-  -- lands instead. It costs the `<` Neovim draws at the point, in the colour
-  -- of the tab that follows it.
-  return "%#MivnTablineTreeFill#" .. string.rep(" ", columns) .. "%<" .. mini_string()
+  -- and the first thing a tabline with no `%<` gives up is its start: the
+  -- nameplate went first and the tabs slid over the tree, close enough to
+  -- right that clicking one of those columns switched buffers. This is where
+  -- the cut lands instead. It costs the `<` Neovim draws at the point, in the
+  -- colour of the tab that follows it.
+  return nameplate(columns) .. "%<" .. mini_string()
 end
 
 -- The result of a `%!` expression is itself scanned for `%` items, which is
