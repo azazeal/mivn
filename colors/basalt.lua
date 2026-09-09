@@ -479,6 +479,14 @@ hl({
   DiagnosticVirtualTextInfo = { fg = c.blue.text, bg = c.inlay },
   DiagnosticVirtualTextHint = { fg = c.muted, bg = c.inlay },
 
+  -- The block drawn under the line, which wraps, so its right edge is ragged
+  -- by several columns. A background would paint that shape instead of the
+  -- words, which is why these carry the colour and nothing behind it.
+  DiagnosticVirtualLinesError = { fg = c.red.text },
+  DiagnosticVirtualLinesWarn = { fg = c.yellow.text },
+  DiagnosticVirtualLinesInfo = { fg = c.blue.text },
+  DiagnosticVirtualLinesHint = { fg = c.muted },
+
   DiagnosticUnderlineError = { undercurl = true, sp = c.red.text },
   DiagnosticUnderlineWarn = { undercurl = true, sp = c.yellow.text },
   DiagnosticUnderlineInfo = { undercurl = true, sp = c.blue.text },
