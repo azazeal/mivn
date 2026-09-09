@@ -99,6 +99,11 @@ server has formatted, unless `$GOIMPORTNOGCI` says otherwise), and which JSON Sc
 file gets. One file per language under `lua/mivn/languages/` holds all of it for
 that language. `:checkhealth mivn` reports the lot.
 
+What a server says about the line the cursor is on is drawn under that line
+and wrapped to the width of the window, so a long message is read where it is
+rather than scrolled sideways to. One too long for that ends with a `…` and
+`Ctrl+W d` opens all of it in a float. DEFAULTS.md has the rest.
+
 ### Trust
 
 Servers run with the permissions you do, and several of them run the

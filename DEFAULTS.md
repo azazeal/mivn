@@ -1210,6 +1210,18 @@ the next and previous sibling, and `an` and `in` are the node under the cursor
 as a text object, so `van` grows a selection by the tree rather than by the
 character.
 
+The message for the diagnostic on the cursor's line is drawn **under the
+line** _(mivn)_ rather than at the end of it. Stock draws nothing under the
+line and puts the message after the code instead, where it gets whatever space
+that line has left over and a long one is cut where it starts to say
+something. Under the line it gets the window's width from the column it starts
+on, and it is wrapped to that width: the block breaks on the spaces the
+message already has and never inside a word, so a word wider than the window
+runs off the right edge rather than losing half of itself. A message long
+enough to take over the window stops at a third of the window's height and
+ends with a `…`, and `Ctrl+W d` has the whole of it in a float. Every
+diagnostic other than the cursor's stays a letter in the sign column.
+
 Who wrote the line under the cursor is **on from the start** _(mivn)_, and
 `<leader>tb` is there to turn it off for the times it needs to be quiet. It is
 a session state rather than a buffer one, so the key takes it off everywhere

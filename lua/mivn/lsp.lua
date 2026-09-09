@@ -239,9 +239,171 @@ end
 -- diagnostic is open and springs back as I leave the line. `current_line`
 -- keeps that to one place at a time; every other diagnostic stays a letter in
 -- the sign column.
+--
+-- Under the line is not enough on its own, though, because the block does not
+-- wrap either. Neovim's handler draws it with `virt_lines_overflow = 'scroll'`
+-- and that field only takes 'trunc' or 'scroll', so with 'wrap' off
+-- (init.lua) a long gopls message is cut at the right edge with nothing
+-- saying there is more, and the tail is only reachable with `zL`, which drags
+-- the code sideways to read a message about it.
+--
+-- What the handler does give is one virtual line per line of the message it
+-- is handed, elbow on the first and an indent on the rest. So the wrapping is
+-- a `format` that puts the breaks in, and there is no custom handler here.
+
+-- The elbow the handler draws in front of the first line, `└──── `, and the
+-- six spaces it indents every line after it with.
+local ELBOW = 6
+
+-- Narrower than this and the wrapping does more harm than the truncation did:
+-- a diagnostic deep in an indented block, in a split, would get two words to
+-- the line. It overflows the edge instead, and `Ctrl+W d` has the whole
+-- message either way.
+local NARROWEST = 40
+
+-- The floor under that third, for a window short enough that a third of it is
+-- one row. Three rows of a message is worth reading; one is the truncation
+-- back again with an ellipsis on it.
+local SHORTEST = 3
+
+--- The window `bufnr` is showing in: the one I am in when it is one of them,
+--- and otherwise the first of them. A buffer in no window at all has
+--- diagnostics that arrived before I opened it, and then the screen's width
+--- is the best guess there is.
+local function window_showing(bufnr)
+  local wins = vim.fn.win_findbuf(bufnr)
+  if #wins == 0 then
+    return nil
+  end
+
+  local current = vim.api.nvim_get_current_win()
+  for _, win in ipairs(wins) do
+    if win == current then
+      return win
+    end
+  end
+
+  return wins[1]
+end
+
+--- How wide one diagnostic's message may be drawn, in screen cells, and how
+--- many lines of it are worth drawing there.
+---
+--- Both are per diagnostic, because the handler indents the block to the
+--- column the diagnostic starts on: the same message on a deeply indented
+--- line has that much less room.
+local function room_for(diagnostic)
+  local win = window_showing(diagnostic.bufnr)
+
+  if not win then
+    local guess = math.max(vim.o.columns - ELBOW, NARROWEST)
+
+    return guess, math.max(math.floor(vim.o.lines / 3), SHORTEST)
+  end
+
+  local info = vim.fn.getwininfo(win)[1]
+
+  -- virtcol() counts the cells up to and including the character the
+  -- diagnostic sits on, which is one more than the indent the handler draws.
+  -- That extra one is kept on purpose: the longest line then stops one column
+  -- short of the right edge, and a row that ends on the last column reads as
+  -- cut off whether or not anything was lost. Buffer-local, since what a tab
+  -- is worth is 'tabstop' over there and not here.
+  local indent = vim.api.nvim_buf_call(diagnostic.bufnr, function()
+    return vim.fn.virtcol({ diagnostic.lnum + 1, diagnostic.col + 1 })
+  end)
+
+  local width = info.width - info.textoff - indent - ELBOW
+
+  return math.max(width, NARROWEST), math.max(math.floor(info.height / 3), SHORTEST)
+end
+
+--- `message` broken into at most `rows` lines of at most `width` cells, as
+--- one string with newlines in it, which is what the handler draws a virtual
+--- line each of.
+---
+--- Breaks on the spaces the message already has and never inside a token, so
+--- a token wider than `width` gets a line of its own and runs off the edge:
+--- half a path or half an identifier is worse than one that overflows. Each
+--- of the message's own lines is wrapped on its own and keeps the whitespace
+--- it opens with, since a server that sent me an indented snippet meant it.
+---
+--- Every width in here is `strdisplaywidth` and never `#s`. A byte count
+--- wraps a Greek message about a third too early and lets a Japanese one run
+--- off the edge, because neither of them has one byte to the cell.
+local function wrap(message, width, rows)
+  local lines = {}
+  local pieces = {}
+
+  for source in vim.gsplit(message, "\n", { plain = true }) do
+    local held, used = 0, 0
+
+    for gap, token in source:gmatch("(%s*)(%S+)") do
+      local room = vim.fn.strdisplaywidth(token)
+      local between = vim.fn.strdisplaywidth(gap)
+
+      if held > 0 and used + between + room > width then
+        lines[#lines + 1] = table.concat(pieces, "", 1, held)
+        held, used = 0, 0
+        gap, between = "", 0
+      end
+
+      -- The gap goes in as it stands rather than as one space, so a run of
+      -- them inside a line survives; the one a break lands on is the break.
+      if gap ~= "" then
+        held = held + 1
+        pieces[held] = gap
+      end
+
+      held = held + 1
+      pieces[held] = token
+      used = used + between + room
+    end
+
+    lines[#lines + 1] = table.concat(pieces, "", 1, held)
+  end
+
+  if #lines <= rows then
+    return table.concat(lines, "\n")
+  end
+
+  -- Cut, with the marker that says so on the last line kept. Trimmed by
+  -- characters rather than by tokens, since the sentence is being cut in the
+  -- middle whatever I do, and the ellipsis is the thing that points at
+  -- `Ctrl+W d` for the rest.
+  local last = lines[rows]
+  while vim.fn.strdisplaywidth(last) >= width do
+    last = vim.fn.strcharpart(last, 0, vim.fn.strchars(last) - 1)
+  end
+
+  lines[rows] = last .. "…"
+
+  return table.concat(lines, "\n", 1, rows)
+end
+
+--- The message the virtual lines handler draws for one diagnostic.
+---
+--- WARN: this runs for every diagnostic in the buffer on every publish, not
+--- only the one the cursor is on, because the handler formats the whole list
+--- before `current_line` picks out of it. Keep the work in here to the string
+--- and the two tables it takes.
+local function drawn(diagnostic)
+  local message = diagnostic.message
+
+  -- The code in front, which is what Neovim's own formatter does and worth
+  -- keeping: "unusedparams" names which of gopls' checks is talking.
+  if diagnostic.code then
+    message = ("%s: %s"):format(diagnostic.code, message)
+  end
+
+  local width, rows = room_for(diagnostic)
+
+  return wrap(message, width, rows)
+end
+
 vim.diagnostic.config({
   severity_sort = true,
-  virtual_lines = { current_line = true },
+  virtual_lines = { current_line = true, format = drawn },
   underline = true,
   signs = {
     text = {
@@ -252,6 +414,34 @@ vim.diagnostic.config({
     },
   },
   float = { border = "rounded", source = true },
+})
+
+-- The breaks above go in when the diagnostics are published and not when they
+-- are drawn, so they are the widths the windows had at the time. Opening the
+-- tree, splitting, or resizing the terminal leaves every message wrapped for
+-- a width that is gone, and the truncation is back until the server says
+-- something new. Publishing them again is what re-measures them.
+--
+-- WinResized carries the windows that changed, so this touches those buffers
+-- and no others: a session with twenty files open re-publishes the two that
+-- are on screen, and only if they have anything to say. It covers the whole
+-- screen changing too, since resizing the terminal resizes the windows in it.
+vim.api.nvim_create_autocmd("WinResized", {
+  group = vim.api.nvim_create_augroup("mivn.lsp.diagnostics", { clear = true }),
+  callback = function()
+    local seen = {}
+
+    for _, win in ipairs(vim.v.event.windows or {}) do
+      if vim.api.nvim_win_is_valid(win) then
+        local buf = vim.api.nvim_win_get_buf(win)
+
+        if not seen[buf] and next(vim.diagnostic.count(buf)) then
+          seen[buf] = true
+          vim.diagnostic.show(nil, buf)
+        end
+      end
+    end
+  end,
 })
 
 -- For lua/mivn/health.lua, which probes binaries instead of trusting

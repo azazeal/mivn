@@ -24,6 +24,17 @@ checked off; git remembers them.
     a rendered line looks the same either way. Catching it needs something
     sitting hard against that edge, which is the state the glyph put it in.
 
+- [ ] The same file open in two windows of different widths gets its
+    diagnostics wrapped for one of them. lsp.lua wraps the message when it is
+    published, and it has to pick a window to measure: the one I am in when it
+    is showing the buffer, otherwise the first. Moving to the other window
+    changes no window's size, so nothing re-publishes and the block stays
+    wrapped for the width it left. It corrects itself the next time the server
+    says anything or anything is resized. A split of a file against itself is
+    rare enough here that this was left; what would fix it is re-publishing on
+    WinEnter when the window under the cursor is not the one that was
+    measured, which needs remembering which one that was.
+
 - [ ] A fact written twice, waiting to drift; found by the 2026-08-04 review,
     parked for a monthly batch. find.lua's BUILTINS table hand-describes 21 Ex
     commands, and its prose-vs-code regex hides any real description that

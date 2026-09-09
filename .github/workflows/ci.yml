@@ -93,3 +93,6 @@ jobs:
 
       - name: Draw the tab bar and see where it put things
         run: NVIM_APPNAME=nvim ./.github/scripts/tabline
+
+      - name: Draw diagnostics under the line and read the rows back
+        run: NVIM_APPNAME=nvim ./.github/scripts/diagnostics

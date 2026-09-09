@@ -103,6 +103,13 @@ moves. Each has runtime state of its own under `~/.local/share` and
   only read once the editor is back in its own loop; sent from inside a
   callback it is swallowed. `tabline <pattern>` runs the cases whose name
   matches.
+- `.github/scripts/diagnostics`, after any change to how a diagnostic is
+  drawn: it puts messages into a real editor behind a socket with
+  `vim.diagnostic.set`, so no language server is needed, and reads the drawn
+  cells back. It checks that a long message wraps instead of being cut, that
+  what is drawn rejoins to what it was handed, and that Greek and Japanese
+  break where the cells are rather than where the bytes are. `diagnostics
+  <pattern>` runs the cases whose name matches.
 - When a bug gets through, say what would have caught it and offer to add
   that, whether or not it is about the panels. Each of these scripts exists
   because a bug of its shape got through; the next shape will need its own
