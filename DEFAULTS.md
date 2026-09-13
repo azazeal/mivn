@@ -871,6 +871,13 @@ clipboard to `"+`, so a copy meant for another window has to be typed as
 editor and `p` pastes whatever any other window last copied, with no prefix
 either way.
 
+A yank also flashes what it took _(mivn)_: the copied characters go green for
+a moment and then the window is as it was. Stock Vim shows nothing for a copy,
+which is fair enough when the text lands in a register you can read back with
+`:reg`, and less fair when it leaves the editor, as it does here. Only a yank
+flashes. A delete or a change shows itself by the text going away, and a macro
+replaying a yank stays quiet rather than strobing.
+
 `d`, `c` and `x` are left alone, which is the point of doing it this way.
 Vim's `'clipboard'` option can only make `""` *be* the clipboard, and then
 every delete lands on it too, so a `d` throws away something copied an hour ago

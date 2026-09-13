@@ -196,6 +196,21 @@ hl({
   -- which answers a different question.
   MivnOccurrence = { bg = c.cyan.wash },
 
+  -- The flash over a fresh yank (lua/mivn/yank.lua). Green because the yank
+  -- went somewhere and nothing is wrong, and because it is the only wash with
+  -- nothing else already on it: magenta is the selection, orange is Select,
+  -- cyan is the other copies. Not Search's yellow, which answers a question I
+  -- did not ask here.
+  --
+  -- It sits at the common wash lightness, so a yank says as much as a
+  -- selection does and no more. Against the row the caret is on that is
+  -- 1.14:1, under the 1.25:1 the occurrence mark above had to buy, and the
+  -- difference is that this one moves: a mark that appears and goes is found
+  -- by the change rather than by the contrast. If it ever reads too faint on
+  -- the caret's row, the step up is the container rendition and not another
+  -- hue.
+  MivnYank = { bg = c.green.wash },
+
   Search = { fg = c.page, bg = c.yellow.text },
   IncSearch = { fg = c.page, bg = c.orange.text },
   CurSearch = { fg = c.page, bg = c.orange.text },
