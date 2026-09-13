@@ -477,6 +477,7 @@ require("mivn.restart") -- :restart, refused when the window is remote
 require("mivn.terminal") -- the terminal panel and its toggle
 require("mivn.margins") -- the 80/100/120 width markers
 require("mivn.occurrences") -- the other copies of what is selected
+require("mivn.yank") -- a flash over what a yank took
 require("mivn.zoom") -- Ctrl and =, - or 0, under Neovide alone
 require("mivn.find") -- fuzzy finding, and the few keys Vim has no default for
 require("mivn.external") -- PDFs and their kin offered to the system opener
