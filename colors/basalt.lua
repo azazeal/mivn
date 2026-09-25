@@ -286,48 +286,35 @@ hl({
 
 --- Syntax, the classic groups ------------------------------------------------
 
--- These still drive any language without a tree-sitter grammar, and the
--- @-captures below link into them where the meaning is the same.
+-- These still drive any language without a tree-sitter grammar. Only the ones
+-- that differ from what Neovim links them to are listed: `Keyword` links to
+-- `Statement` by default and says the same thing here, so it is not.
 hl({
   Comment = { fg = c.muted, italic = true },
 
   Constant = { fg = c.orange.text },
   String = { fg = c.green.text },
   Character = { fg = c.green.text },
-  Number = { fg = c.orange.text },
-  Boolean = { fg = c.orange.text },
-  Float = { fg = c.orange.text },
 
   Identifier = { fg = c.body },
   Function = { fg = c.blue.text },
 
   Statement = { fg = c.magenta.text, bold = true },
-  Conditional = { fg = c.magenta.text, bold = true },
-  Repeat = { fg = c.magenta.text, bold = true },
   Label = { fg = c.magenta.text },
   Operator = { fg = c.body },
-  Keyword = { fg = c.magenta.text, bold = true },
-  Exception = { fg = c.magenta.text, bold = true },
 
   PreProc = { fg = c.magenta.text },
   Include = { fg = c.magenta.text, bold = true },
-  Define = { fg = c.magenta.text },
-  Macro = { fg = c.magenta.text },
-  PreCondit = { fg = c.magenta.text },
 
   Type = { fg = c.yellow.text },
   StorageClass = { fg = c.magenta.text, bold = true },
-  Structure = { fg = c.yellow.text },
-  Typedef = { fg = c.yellow.text },
 
   Special = { fg = c.cyan.text },
-  SpecialChar = { fg = c.cyan.text },
   Tag = { fg = c.red.text },
   Delimiter = { fg = c.body },
   SpecialComment = { fg = c.muted, italic = true, bold = true },
   Debug = { fg = c.red.text },
 
-  Underlined = { underline = true },
   Ignore = { fg = c.guide },
   Error = { fg = c.red.text },
   Todo = { fg = c.page, bg = c.yellow.text, bold = true },
@@ -335,6 +322,10 @@ hl({
 
 --- Tree-sitter captures -----------------------------------------------------
 
+-- Only the captures that read differently from where they would land anyway.
+-- A capture with no group of its own falls back to its parent
+-- (`@keyword.return` to `@keyword`), and Neovim links the parents to the
+-- classic groups above (`@keyword` to `Keyword`), so most need no line here.
 hl({
   ["@variable"] = { fg = c.body },
 
@@ -344,10 +335,8 @@ hl({
   -- and the return type in one colour.
   ["@variable.builtin"] = { fg = c.orange.text },
 
-  ["@variable.parameter"] = { fg = c.body },
   ["@variable.member"] = { fg = c.red.text },
 
-  ["@constant"] = { fg = c.orange.text },
   ["@constant.builtin"] = { fg = c.orange.text },
   ["@constant.macro"] = { fg = c.magenta.text },
 
@@ -364,73 +353,29 @@ hl({
   -- it is a line or two a file against every qualified call.
   ["@module"] = { fg = c.dim },
 
-  ["@label"] = { fg = c.magenta.text },
-
-  ["@string"] = { fg = c.green.text },
-  ["@string.documentation"] = { fg = c.green.text },
-  ["@string.regexp"] = { fg = c.cyan.text },
   ["@string.escape"] = { fg = c.cyan.text, bold = true },
-  ["@string.special"] = { fg = c.cyan.text },
   ["@string.special.url"] = { fg = c.cyan.text, underline = true },
-  ["@character"] = { fg = c.green.text },
-  ["@character.special"] = { fg = c.cyan.text },
 
-  ["@boolean"] = { fg = c.orange.text },
-  ["@number"] = { fg = c.orange.text },
-  ["@number.float"] = { fg = c.orange.text },
-
-  ["@type"] = { fg = c.yellow.text },
   ["@type.builtin"] = { fg = c.yellow.text },
-  ["@type.definition"] = { fg = c.yellow.text },
-  ["@attribute"] = { fg = c.magenta.text },
   ["@property"] = { fg = c.red.text },
 
-  ["@function"] = { fg = c.blue.text },
   ["@function.builtin"] = { fg = c.blue.text },
-  ["@function.call"] = { fg = c.blue.text },
   ["@function.macro"] = { fg = c.magenta.text },
-  ["@function.method"] = { fg = c.blue.text },
-  ["@function.method.call"] = { fg = c.blue.text },
   ["@constructor"] = { fg = c.yellow.text },
 
-  ["@operator"] = { fg = c.body },
-
-  ["@keyword"] = { fg = c.magenta.text, bold = true },
-  ["@keyword.function"] = { fg = c.magenta.text, bold = true },
-  ["@keyword.operator"] = { fg = c.magenta.text, bold = true },
-  ["@keyword.import"] = { fg = c.magenta.text, bold = true },
-  ["@keyword.type"] = { fg = c.magenta.text, bold = true },
-  ["@keyword.modifier"] = { fg = c.magenta.text, bold = true },
-  ["@keyword.repeat"] = { fg = c.magenta.text, bold = true },
-  ["@keyword.return"] = { fg = c.magenta.text, bold = true },
   ["@keyword.debug"] = { fg = c.red.text },
-  ["@keyword.exception"] = { fg = c.magenta.text, bold = true },
-  ["@keyword.conditional"] = { fg = c.magenta.text, bold = true },
   ["@keyword.directive"] = { fg = c.magenta.text },
 
-  ["@punctuation.delimiter"] = { fg = c.body },
-  ["@punctuation.bracket"] = { fg = c.body },
-  ["@punctuation.special"] = { fg = c.cyan.text },
-
-  ["@comment"] = { fg = c.muted, italic = true },
-  ["@comment.documentation"] = { fg = c.muted, italic = true },
   ["@comment.error"] = { fg = c.page, bg = c.red.text, bold = true },
   ["@comment.warning"] = { fg = c.page, bg = c.yellow.text, bold = true },
   ["@comment.todo"] = { fg = c.page, bg = c.blue.text, bold = true },
   ["@comment.note"] = { fg = c.page, bg = c.cyan.text, bold = true },
 
-  ["@tag"] = { fg = c.red.text },
   ["@tag.builtin"] = { fg = c.red.text },
   ["@tag.attribute"] = { fg = c.orange.text },
   ["@tag.delimiter"] = { fg = c.body },
 
-  ["@markup.strong"] = { bold = true },
-  ["@markup.italic"] = { italic = true },
-  ["@markup.strikethrough"] = { strikethrough = true },
-  ["@markup.underline"] = { underline = true },
-  ["@markup.heading"] = { fg = c.blue.text, bold = true },
   ["@markup.quote"] = { fg = c.muted, italic = true },
-  ["@markup.math"] = { fg = c.cyan.text },
   ["@markup.link"] = { fg = c.cyan.text },
   ["@markup.link.label"] = { fg = c.blue.text },
   ["@markup.link.url"] = { fg = c.cyan.text, underline = true },
@@ -438,10 +383,6 @@ hl({
   ["@markup.list"] = { fg = c.magenta.text },
   ["@markup.list.checked"] = { fg = c.green.text },
   ["@markup.list.unchecked"] = { fg = c.muted },
-
-  ["@diff.plus"] = { fg = c.green.text },
-  ["@diff.minus"] = { fg = c.red.text },
-  ["@diff.delta"] = { fg = c.yellow.text },
 })
 
 --- Language server ----------------------------------------------------------
