@@ -28,25 +28,9 @@
 -- which is the rule Zed writes out as "a selection ending at column 0 does
 -- not indent that line".
 
+local selection = require("mivn.selection")
+
 local M = {}
-
---- The Visual command that re-opens a selection of the same shape, keyed by
---- the mode it was made in. Select's three shapes come back through Visual,
---- which is where the operator has to run anyway.
-local SHAPE = {
-  v = "v",
-  V = "V",
-  ["\22"] = "\22",
-  s = "v",
-  S = "V",
-  ["\19"] = "\22",
-}
-
---- Whether the mode is one of Select's three, where a printable key replaces
---- what is picked out and an operator therefore cannot be typed at it.
-local function selecting(mode)
-  return mode == "s" or mode == "S" or mode == "\19"
-end
 
 --- The leading whitespace of `row`, in bytes, which is what an indent moves.
 --- Measured rather than assumed: 'shiftround' and a dedent that runs out of
@@ -65,37 +49,27 @@ local function shift(step)
     end
 
     local mode = vim.fn.mode()
-    local shape = SHAPE[mode]
 
     -- Nothing picked out, or a buffer that takes no edits: the tree, the
     -- terminal and the banner can all hold a selection, and `>` on one of
     -- them is E21 rather than a no-op.
-    if not shape or not vim.bo.modifiable then
+    if not selection.holds(mode) or not vim.bo.modifiable then
       return
     end
 
     local anchor, caret = vim.fn.getpos("v"), vim.fn.getpos(".")
     local before = { [anchor[2]] = indent_of(anchor[2]), [caret[2]] = indent_of(caret[2]) }
 
-    local over = selecting(mode) and vim.keycode("<C-g>") or ""
+    local over = selection.selecting(mode) and vim.keycode("<C-g>") or ""
     vim.cmd("normal! " .. over .. vim.v.count1 .. (step > 0 and ">" or "<"))
 
-    -- WARN: `gv` is not enough. It restores the columns the selection had,
-    -- and the shift has moved the text out from under them, so after one
-    -- press the highlight sits on the wrong characters. Each end moves by
-    -- what its own line's indent actually changed by.
+    -- Each end moves by what its own line's indent changed by.
     local function moved(pos)
       local delta = indent_of(pos[2]) - before[pos[2]]
       return { pos[2], math.max(pos[3] - 1 + delta, 0) }
     end
 
-    vim.api.nvim_win_set_cursor(0, moved(anchor))
-    vim.cmd("normal! " .. shape)
-    vim.api.nvim_win_set_cursor(0, moved(caret))
-
-    if selecting(mode) then
-      vim.cmd("normal! " .. vim.keycode("<C-g>"))
-    end
+    selection.restore(mode, moved(anchor), moved(caret))
   end
 end
 

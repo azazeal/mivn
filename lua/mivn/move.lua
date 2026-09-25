@@ -16,22 +16,9 @@
 -- keep it, so holding the key walks the block through the file. The keys
 -- are lua/mivn/keymaps.lua's.
 
+local selection = require("mivn.selection")
+
 local M = {}
-
---- The Visual command that opens a selection of the same shape as `mode`.
---- Select's three come back through Visual and are switched over at the end.
-local SHAPE = {
-  v = "v",
-  V = "V",
-  ["\22"] = "\22",
-  s = "v",
-  S = "V",
-  ["\19"] = "\22",
-}
-
-local function selecting(mode)
-  return mode == "s" or mode == "S" or mode == "\19"
-end
 
 --- Move lines `first` through `last` by `by`, which is -1 or 1, unless that
 --- would push them past either end of the buffer. Says whether they moved.
@@ -51,9 +38,8 @@ end
 local function step(by)
   return function()
     local mode = vim.fn.mode()
-    local shape = SHAPE[mode]
 
-    if not shape then
+    if not selection.holds(mode) then
       -- In Insert the completion menu is the land mine: while it is open the
       -- text is locked (:move dies with E565), and the menu is open a lot as
       -- I type. Closed through the API rather than a fed Ctrl+E, which
@@ -72,20 +58,8 @@ local function step(by)
       return
     end
 
-    -- The same selection over the moved lines, each end placed by hand.
-    --
-    -- WARN: `gv` is not enough. It restores the marks the selection left,
-    -- and with 'selection' exclusive the end mark sits one column short of
-    -- the caret, so every press pulled the caret one column left. Measured
-    -- 2026-09-03: a `v` on column 3 came back on column 2.
     vim.cmd("normal! " .. vim.keycode("<Esc>"))
-    vim.api.nvim_win_set_cursor(0, { anchor[2] + by, anchor[3] - 1 })
-    vim.cmd("normal! " .. shape)
-    vim.api.nvim_win_set_cursor(0, { caret[2] + by, caret[3] - 1 })
-
-    if selecting(mode) then
-      vim.cmd("normal! " .. vim.keycode("<C-g>"))
-    end
+    selection.restore(mode, { anchor[2] + by, anchor[3] - 1 }, { caret[2] + by, caret[3] - 1 })
   end
 end
 

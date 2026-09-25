@@ -19,6 +19,7 @@
 -- want it, so neither of them touches it directly.
 
 local caret = require("mivn.caret")
+local selection = require("mivn.selection")
 
 local group = vim.api.nvim_create_augroup("mivn.select", { clear = true })
 
@@ -30,16 +31,11 @@ local restore = nil
 --- which has no Select mode to hang it off; colors/basalt.lua defines it.
 local CURSOR = "MivnCursorSelect"
 
---- Whether `mode`, the second half of a ModeChanged match, is a Select one.
---- Charwise, linewise and blockwise, the last being a raw CTRL-S byte.
-local function selecting(mode)
-  return mode:find("^[sS\19]") ~= nil
-end
-
 vim.api.nvim_create_autocmd("ModeChanged", {
   group = group,
   callback = function(ev)
-    if selecting(ev.match:match(":(.*)$") or "") then
+    -- The first letter of the mode ModeChanged arrived in.
+    if selection.selecting((ev.match:match(":(.)") or "")) then
       if restore then
         return
       end
