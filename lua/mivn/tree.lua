@@ -27,20 +27,23 @@ local function toggle()
   require("nvim-tree.api").tree.toggle({ focus = false })
 end
 
---- Whether the tree has a window in this tab.
+--- The tree's window in this tab, or nil when it is not on screen.
 ---
---- Asked by lua/mivn/restart.lua, which has to know what to put back. Read
---- off the filetype the way lua/mivn/session.lua does, rather than through
---- nvim-tree: the answer it has lives in nvim-tree.view, which is not part of
---- the api module and not mine to reach into.
-local function is_open()
+--- Read off the filetype rather than asked of nvim-tree: its own answer lives
+--- in nvim-tree.view, which is not part of the api module.
+local function window()
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
     if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "NvimTree" then
-      return true
+      return win
     end
   end
 
-  return false
+  return nil
+end
+
+--- Whether the tree is on screen, for lua/mivn/restart.lua.
+local function is_open()
+  return window() ~= nil
 end
 
 --- The keys inside the tree ---------------------------------------------------
@@ -462,4 +465,4 @@ vim.api.nvim_create_autocmd("VimEnter", {
 -- toggle is <leader>tt's, in lua/mivn/keymaps.lua; rename is only for the
 -- menu's Rename entry, which reaches it by module name; is_open is
 -- restart.lua's; WIDTH is for session.lua's heal.
-return { toggle = toggle, is_open = is_open, rename = rename, WIDTH = TREE_WIDTH }
+return { toggle = toggle, window = window, is_open = is_open, rename = rename, WIDTH = TREE_WIDTH }

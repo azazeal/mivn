@@ -139,12 +139,8 @@ local function heal(quit_asked)
     return vim.api.nvim_win_get_config(win).relative == ""
   end, vim.api.nvim_list_wins())
 
-  if #windows ~= 1 then
-    return
-  end
-
-  local tree = windows[1]
-  if vim.bo[vim.api.nvim_win_get_buf(tree)].filetype ~= "NvimTree" then
+  local tree = require("mivn.tree")
+  if #windows ~= 1 or tree.window() ~= windows[1] then
     return
   end
 
@@ -163,8 +159,8 @@ local function heal(quit_asked)
   end
 
   -- The split halved it. Panels keep their width.
-  if vim.api.nvim_win_is_valid(tree) then
-    vim.api.nvim_win_set_width(tree, require("mivn.tree").WIDTH)
+  if vim.api.nvim_win_is_valid(windows[1]) then
+    vim.api.nvim_win_set_width(windows[1], tree.WIDTH)
   end
 end
 

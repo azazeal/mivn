@@ -11,6 +11,7 @@ local M = {}
 
 local project = require("mivn.project")
 local tabline = require("mini.tabline")
+local tree = require("mivn.tree")
 
 tabline.setup({
   show_icons = true,
@@ -68,18 +69,16 @@ end
 --- How many columns the file tree holds on the left of the current tab, or 0
 --- when there is no tree beside the buffers.
 local function tree_columns()
-  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
-    local buf = vim.api.nvim_win_get_buf(win)
+  local win = tree.window()
 
-    -- Leftmost only: padding the left edge cannot clear a tree elsewhere.
-    if vim.bo[buf].filetype == "NvimTree" and vim.fn.win_screenpos(win)[2] == 1 then
-      -- The vertical separator sits between the two windows and belongs to
-      -- neither, so the buffers start one column past the tree's own width.
-      return vim.api.nvim_win_get_width(win) + 1
-    end
+  -- Leftmost only: padding the left edge cannot clear a tree elsewhere.
+  if not win or vim.fn.win_screenpos(win)[2] ~= 1 then
+    return 0
   end
 
-  return 0
+  -- The vertical separator sits between the two windows and belongs to
+  -- neither, so the buffers start one column past the tree's own width.
+  return vim.api.nvim_win_get_width(win) + 1
 end
 
 --- The tree's columns, with the name of the directory it is rooted at in them.
