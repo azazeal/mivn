@@ -36,8 +36,6 @@
 --   cmd      the command, replacing nvim-lspconfig's, in either shape
 --            vim.lsp.config() takes. Omitted keeps lspconfig's.
 --   config   what vim.lsp.config() takes, merged over lspconfig's defaults.
---            A function returning that table when building it costs enough
---            to be worth skipping on a machine without the server.
 --   format   false when the server must never be asked to format, whatever
 --            it answers about supporting it.
 --   probe    the arguments `:checkhealth mivn` asks the version with; false
@@ -100,17 +98,8 @@ table.sort(enabled)
 --- Starting them --------------------------------------------------------------
 
 --- Hand `name`'s settings and command to Neovim.
----
---- `config` is allowed to be a function because building it can cost more
---- than a machine without the server should pay: jsonls' settings carry the
---- whole SchemaStore catalog.
 local function configure(name, entry)
-  local settings = entry.config
-  if type(settings) == "function" then
-    settings = settings()
-  end
-
-  local config = vim.deepcopy(settings or {})
+  local config = vim.deepcopy(entry.config or {})
   config.cmd = entry.cmd or config.cmd
 
   vim.lsp.config(name, config)
@@ -151,8 +140,7 @@ vim.lsp.config("*", {
 })
 
 -- Installed ones only. Configuring a server this machine does not have costs
--- a runtime file lookup and, for jsonls, reading the whole SchemaStore
--- catalog off disk.
+-- a runtime file lookup.
 for _, name in ipairs(enabled) do
   configure(name, servers[name])
 end

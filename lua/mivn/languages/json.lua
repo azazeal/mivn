@@ -14,13 +14,6 @@ local EXTRA = {
   },
 }
 
---- The catalog and the extras above, as `json.schemas` wants them. Asked for
---- only when the server is installed, since reading the catalog is 470KB of
---- JSON on the startup path.
-local function all()
-  return vim.list_extend(schemas.json(), EXTRA)
-end
-
 return {
   servers = {
     jsonls = {
@@ -34,23 +27,25 @@ return {
       -- exits 1 on anything that does not name a transport.
       probe = false,
 
-      config = function()
-        return {
-          settings = {
-            json = {
-              schemas = all(),
-
-              -- Not optional even though it reads like a default. The server
-              -- computes `validateEnabled = !!settings.json.validate.enable`
-              -- when configuration arrives, so sending any settings at all
-              -- without it turns validation off entirely, schemas and
-              -- `$schema` lines included. Measured 2026-08-15: adding the
-              -- catalog alone made package.json stop reporting anything.
-              validate = { enable = true },
-            },
+      config = {
+        settings = {
+          json = {
+            -- Not optional even though it reads like a default. The server
+            -- computes `validateEnabled = !!settings.json.validate.enable`
+            -- when configuration arrives, so sending any settings at all
+            -- without it turns validation off entirely, schemas and
+            -- `$schema` lines included.
+            validate = { enable = true },
           },
-        }
-      end,
+        },
+
+        -- The catalog is 470KB of JSON, so it is read when the server starts
+        -- rather than when the editor does. The settings table filled in here
+        -- is the one the client sends once the server is up.
+        before_init = function(_, config)
+          config.settings.json.schemas = vim.list_extend(schemas.json(), EXTRA)
+        end,
+      },
     },
   },
 
