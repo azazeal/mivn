@@ -1,36 +1,24 @@
--- The file tree.
---
--- Kept for orientation rather than navigation: it answers "how is this laid
--- out" at a glance, which a fuzzy finder cannot. Files are opened with
--- <leader>f, not from here.
---
--- It gets one key of its own, <leader>tt, which toggles whether it is on
--- screen. Focus stays where I am, since the toggle is about the width and not
--- about going there. Moving in and out is <C-w>h and <C-w>l, and the keys
--- inside are nvim-tree's own (`g?` lists them), minus what `on_attach`
--- removes and the two it re-points at lua/mivn/filters.lua.
---
--- What it lists is not its own business: dotfiles and ignored files are one
--- answer shared with the finders, and that module holds it.
+-- The file tree, kept for orientation rather than navigation: it answers "how
+-- is this laid out" at a glance, which a fuzzy finder cannot. Toggling it
+-- leaves focus where I am, and the keys inside are nvim-tree's own (`g?` lists
+-- them) minus what on_attach changes. What it lists is lua/mivn/filters.lua's
+-- answer, shared with the finders.
 
--- A list of rows to point at, not text with columns, so no cursor is drawn in
--- it. See lua/mivn/panel.lua, which owns this because 'guicursor' is global.
+-- A list of rows to point at, not text, so no cursor is drawn in it.
 require("mivn.panel").hide_cursor_in("NvimTree")
 
--- One width, used by the setup below and by the heal that restores it after
--- a layout collapse; the two drifting apart makes the heal resize the tree.
+-- One width, for the setup below and for the heal that puts it back after a
+-- layout collapse.
 local TREE_WIDTH = 32
 
---- Show or hide the tree, leaving focus where it is; <leader>tt in
---- lua/mivn/keymaps.lua.
+--- Show or hide the tree, leaving focus where it is.
 local function toggle()
   require("nvim-tree.api").tree.toggle({ focus = false })
 end
 
---- The tree's window in this tab, or nil when it is not on screen.
----
---- Read off the filetype rather than asked of nvim-tree: its own answer lives
---- in nvim-tree.view, which is not part of the api module.
+--- The tree's window in this tab, or nil when it is not on screen. Read off the
+--- filetype, since nvim-tree's own answer lives in nvim-tree.view, which is not
+--- part of its api.
 local function window()
   for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
     if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == "NvimTree" then
@@ -41,23 +29,22 @@ local function window()
   return nil
 end
 
---- Whether the tree is on screen, for lua/mivn/restart.lua.
+--- Whether the tree is on screen.
 local function is_open()
   return window() ~= nil
 end
 
 --- The keys inside the tree ---------------------------------------------------
 --
--- nvim-tree's defaults, minus two keys: `-` (re-root to the parent) and
--- `Ctrl+]` (re-root into the directory under the cursor). The project is the
--- root and stays the root.
+-- nvim-tree's defaults, minus the two that re-root it (`-` to the parent,
+-- `Ctrl+]` into the directory under the cursor): the project is the root and
+-- stays the root.
 local function on_attach(bufnr)
   local api = require("nvim-tree.api")
 
   api.config.mappings.default_on_attach(bufnr)
 
-  -- pcall so an nvim-tree release that stops binding these cannot break
-  -- attach.
+  -- pcall, so an nvim-tree that stops binding these cannot break attach
   pcall(vim.keymap.del, "n", "-", { buffer = bufnr })
   pcall(vim.keymap.del, "n", "<C-]>", { buffer = bufnr })
 
@@ -65,17 +52,14 @@ local function on_attach(bufnr)
     vim.keymap.set("n", lhs, rhs, { buffer = bufnr, desc = desc, nowait = true })
   end
 
-  -- `e` was already Rename: Basename; this re-points it at the same dialog
-  -- the right-click menu opens, full name shown, stem preselected.
+  -- `e` was nvim-tree's basename rename; now it opens the menu's dialog
   map("e", function()
     require("mivn.tree").rename()
   end, "Rename, with the stem preselected")
 
-  -- Expand and collapse on the keys a CUA tree teaches. Node-level only: the
-  -- root never moves. Not api.node.open.edit alone, because that toggles,
-  -- and a toggle would make an "expand" key close an open directory; both
-  -- halves check the node's state first. Left on a row that cannot collapse
-  -- closes the directory the cursor is in, the Backspace behavior.
+  -- NOTE: not api.node.open.edit alone. It toggles, which would make an expand
+  -- key close an open directory, so both halves check the node first. Left on a
+  -- row that cannot collapse closes the directory the cursor is in.
   local function expand()
     local node = api.tree.get_node_under_cursor()
     if node and node.nodes and not node.open then
@@ -97,24 +81,17 @@ local function on_attach(bufnr)
   map("-", collapse, "Collapse the directory")
   map("<Left>", collapse, "Collapse the directory")
 
-  -- nvim-tree's own two, re-pointed at the shared answer so that flipping
-  -- one here flips it for the finders as well. Same keys, same meaning, one
-  -- more place they reach.
+  -- nvim-tree's own two, pointed at the shared answer so the finders follow
   local filters = require("mivn.filters")
 
   map("H", filters.toggle_dotfiles, "Show or hide dotfiles, here and in the finders")
   map("I", filters.toggle_ignored, "Show or hide ignored files, here and in the finders")
 
-  -- The keys that change text, on a buffer that is 'nomodifiable'. Most of
-  -- them are nvim-tree's own here and do real work (`a` creates, `r` renames,
-  -- `d` deletes), so only what it leaves alone is taken, and only to say why
-  -- nothing happens. Reading its mappings first rather than naming the
-  -- leftovers keeps a key it starts binding later as its own.
-  --
-  -- `<Insert>` is spelled out because it is a name and not a character, and it
-  -- is the one taken in Visual as well, since lua/mivn/keymaps.lua opens
-  -- Insert with it from a selection too. The letters are not: there `i` picks
-  -- out a text object and `A` appends to a block.
+  -- NOTE: the keys that would change text only say why nothing happens, and
+  -- only where nvim-tree binds nothing: its mappings are read first, so a key
+  -- it starts binding later stays its own. <Insert> is taken in Visual too,
+  -- since it opens Insert from a selection; the letters are not, since there
+  -- `i` picks out a text object and `A` appends to a block.
   local bound = {}
   for _, mapping in ipairs(vim.api.nvim_buf_get_keymap(bufnr, "n")) do
     bound[mapping.lhs] = true
@@ -137,22 +114,17 @@ local function on_attach(bufnr)
   })
 end
 
---- The right-click menu --------------------------------------------------------
+--- The right-click menu -------------------------------------------------------
 --
--- 'mousemodel' is popup_setpos (the default), so a right click first moves the
--- cursor to the clicked row and then opens the PopUp menu; these entries act
--- on the row I clicked. Menus are global with no buffer-local form, so the
--- MenuPopup event decides per click which half is usable: the file actions
--- inside the tree, Neovim's own text items everywhere else. Disabled entries
--- stay visible, grayed.
+-- 'mousemodel' is popup_setpos (the default), so a right click moves the cursor
+-- to the clicked row first, and these entries act on it. Menus are global with
+-- no buffer-local form, so MenuPopup decides per click which half is usable:
+-- the file actions inside the tree, Neovim's own text items everywhere else.
 
---- The rename on `e`: the floating prompt (lua/mivn/prompt.lua) holding the
---- full name, with the stem (the name minus its last extension) preselected in
---- Select mode. Typing replaces the stem, an arrow drops the selection and
---- edits anything, extension included. nvim-tree's own rename does the
---- actual work (buffer renames and tree refresh included), fed the new name
---- through a one-shot vim.ui.input override; the save/restore keeps the
---- prompt module's global intact.
+--- The rename on `e`: the floating prompt holding the full name, with the stem
+--- (the name minus its last extension) preselected, so typing replaces it and
+--- an arrow edits anything. nvim-tree's own rename does the work, fed the new
+--- name through a one-shot vim.ui.input override.
 local function rename()
   local api = require("nvim-tree.api")
   local node = api.tree.get_node_under_cursor()
@@ -174,10 +146,9 @@ local function rename()
       return
     end
 
-    -- Restored after the call, not inside the override: if the rename bails
-    -- before prompting (node gone, an error inside nvim-tree), a self-restore
-    -- never runs and the override would sit there feeding this name to the
-    -- next vim.ui.input caller anywhere in the session.
+    -- NOTE: restored after the call, not by the override itself. If the rename
+    -- returns before asking (node gone, an error inside nvim-tree), a
+    -- self-restore never runs and every later vim.ui.input gets this name.
     local saved = vim.ui.input
     ---@diagnostic disable-next-line: duplicate-set-field it is the point
     vim.ui.input = function(_, on_confirm)
@@ -193,12 +164,11 @@ local function rename()
   end)
 end
 
--- Distinct names on purpose: the stock menu already has Cut, Copy, Paste and
--- Delete, and a shared name would replace the stock entry instead of
--- coexisting with it. Low priorities put these above the stock block. The
--- key in parentheses is nvim-tree's own default for the same action, written
--- into the name because Neovim's builtin popup does not render a menu's
--- <Tab> accelerator text (measured; gvim would).
+-- NOTE: the names differ from the stock Cut, Copy, Paste and Delete on purpose,
+-- since a shared name would replace the stock entry. Low priorities put these
+-- above the stock block. The key in parentheses is nvim-tree's own for the same
+-- action, written into the name because Neovim's popup does not draw a menu's
+-- <Tab> text.
 local TREE_MENU = {
   { name = "New\\ file\\ (a)", rhs = "require('nvim-tree.api').fs.create()" },
   { name = "Rename\\ (e)", rhs = "require('mivn.tree').rename()" },
@@ -207,10 +177,8 @@ local TREE_MENU = {
   { name = "Copy\\ file\\ (c)", rhs = "require('nvim-tree.api').fs.copy.node()" },
   { name = "Paste\\ here\\ (p)", rhs = "require('nvim-tree.api').fs.paste()" },
 
-  -- The one entry that talks to the system clipboard. Cut/Copy/Paste above
-  -- are nvim-tree's own file operations (move or duplicate on paste) and
-  -- never leave the editor; this one puts the absolute path on the clipboard
-  -- for any other program.
+  -- The one entry that reaches the system clipboard. Cut, Copy and Paste above
+  -- move files around and never leave the editor.
   { name = "Copy\\ path\\ (gy)", rhs = "require('nvim-tree.api').fs.copy.absolute_path()" },
 }
 
@@ -221,8 +189,7 @@ for i, item in ipairs(TREE_MENU) do
 end
 
 local function set_popup(in_tree)
-  -- nvim_command, not vim.cmd: pcall wants a function, and vim.cmd is a
-  -- callable table the language server rightly flags as one.
+  -- nvim_command: vim.cmd is a callable table, which the language server flags
   for _, item in ipairs(TREE_MENU) do
     pcall(vim.api.nvim_command, ("nmenu %s PopUp.%s"):format(in_tree and "enable" or "disable", item.name))
   end
@@ -241,28 +208,23 @@ vim.api.nvim_create_autocmd("MenuPopup", {
   end,
 })
 
---- The count under a filtered directory -----------------------------------------
+--- The count under a filtered directory ---------------------------------------
 --
--- A directory whose contents are all filtered out reads as empty otherwise,
--- which is the lie lua/mivn/filters.lua exists to avoid, told inside the tree
--- instead of between the tree and the finders.
+-- A directory whose contents are all filtered out would read as empty.
+-- nvim-tree's "simple" count does not say which key brings the rows back, and
+-- "all" uses its internal names and runs to about 30 columns, which wraps in a
+-- panel this wide. So the reasons get the words the keys use, in the order
+-- nvim-tree checks them.
 --
--- nvim-tree's own two answers are both wrong here: "simple" says "(3 hidden)"
--- without saying which key brings the rows back, and "all" spells the reason
--- out with nvim-tree's internal names and runs to about 30 columns, which
--- wraps in a panel this wide. So the reasons get the words the keys use, in
--- the order nvim-tree checks them.
---
--- Two of them at once is the ceiling in normal use, which fits: `.git/` is
--- the only thing the custom filter hides and it counts as a dotfile whenever
--- dotfiles are hidden, so `custom` and `dotfile` are never both above zero.
--- Only the live filter can make it three, and there the line is cut off at
--- the panel's edge.
+-- Two at once is the most in normal use: `.git/` is all the custom filter hides
+-- and it is a dotfile, so `custom` and `dotfile` are never both above zero.
+-- Only the live filter makes three, and then the line is cut at the panel's
+-- edge.
 
---- The filters that hide a row: nvim-tree's name for it, then the word to
---- count in, singular and plural. `buf` and `no_bookmark` are off here, so
---- they are not named; they and anything nvim-tree adds later fall into the
---- plain "hidden" below rather than going missing from the total.
+--- The filters that hide a row: nvim-tree's name for it, then the word to count
+--- in, singular and plural. `buf` and `no_bookmark` are off here; they and
+--- anything nvim-tree adds later count as plain "hidden" below, so the total
+--- stays right.
 local HIDDEN_REASONS = {
   { "git", "ignored", "ignored" },
   { "dotfile", "dotfile", "dotfiles" },
@@ -300,13 +262,12 @@ end
 require("nvim-tree").setup({
   on_attach = on_attach,
 
-  -- The dashboard already handles being started on a directory, and hijacking
-  -- would have the tree fight it for the window.
+  -- The dashboard handles being started on a directory, and hijacking would
+  -- have the tree fight it for the window.
   hijack_directories = { enable = false },
   hijack_netrw = false,
 
-  -- The cursor snaps to the start of the file name on every move. With nothing
-  -- drawn there, this is what keeps the invisible cursor somewhere the tree's
+  -- Keeps the undrawn cursor at the start of the file name, where the tree's
   -- own keys expect to find it.
   hijack_cursor = true,
 
@@ -315,23 +276,21 @@ require("nvim-tree").setup({
     signcolumn = "no",
   },
 
-  -- Four states share a file's row, on four planes that cannot collide: git
-  -- colours the name, an open buffer bolds it, a diagnostic underlines it,
-  -- and an unsaved edit puts a dot after it. The decorators are additive, so
-  -- each adds only its own attribute; colors/basalt.lua carries the WARN
-  -- about what happens if one of them sets a foreground.
+  -- Four states share a file's row without colliding: git colours the name, an
+  -- open buffer bolds it, a diagnostic underlines it, and an unsaved edit puts
+  -- a dot after it. Each adds only its own attribute (colors/basalt.lua).
   renderer = {
     group_empty = true, -- collapse a/b/c when each holds only the next
     root_folder_label = false,
-    highlight_git = "name", -- color the file name, as Zed does
+    highlight_git = "name", -- color the file name
     highlight_opened_files = "name", -- bold, so the buffer I am in is findable
     highlight_diagnostics = "name", -- the undercurl, not a colour
     highlight_modified = "none", -- the dot says it; a colour would hide git's
 
-    hidden_display = hidden_display, -- see above
+    hidden_display = hidden_display,
 
-    -- Nothing is special. The stock list draws README.md and Cargo.toml in
-    -- the colour an open directory uses.
+    -- Nothing is special. The stock list draws README.md and Cargo.toml in the
+    -- colour an open directory uses.
     special_files = {},
 
     indent_markers = { enable = true },
@@ -346,32 +305,23 @@ require("nvim-tree").setup({
     },
   },
 
-  -- Which files are broken, without opening them. Capped at warnings: a hint
-  -- is what a linter puts in a list, not what a layout panel says at a
-  -- glance, and its underline colour is the comment grey anyway.
-  --
-  -- No icon: there is no sign column here (`view.signcolumn` above), which is
-  -- where nvim-tree would put one, so asking for it would draw nothing.
-  -- `show_on_dirs` is the whole value, since a collapsed folder is the one
-  -- case the buffer's own gutter cannot cover.
+  -- Which files are broken, without opening them, warnings and up: a hint's
+  -- underline is the comment grey anyway. No icon, since there is no sign
+  -- column to put one in. `show_on_dirs` is the point, since a collapsed folder
+  -- is the one case the buffer's own gutter cannot cover.
   diagnostics = {
     enable = true,
     show_on_dirs = true,
     severity = { min = vim.diagnostic.severity.WARN },
   },
 
-  -- The tab bar already marks an unsaved buffer, so this is here for the
-  -- folder that is collapsed over one.
+  -- The tab bar already marks an unsaved buffer, so this is here for the folder
+  -- that is collapsed over one.
   modified = { enable = true },
 
-  -- The tree follows `:cd` and nothing else.
-  --
-  -- Two settings that sound alike and are not. `sync_root_with_cwd` re-roots
-  -- on DirChanged, which is me saying where I am working now, and the tree
-  -- being left behind on the old project after that was the one place a `:cd`
-  -- did not land. `update_root` would re-root on whatever file I jumped to,
-  -- which is not me saying anything: a jump to a definition in the module
-  -- cache would climb the tree straight out of the project.
+  -- The tree follows `:cd` and nothing else. `update_root` sounds alike and is
+  -- not: it re-roots on whatever file I jump to, so a jump to a definition in
+  -- the module cache would take the tree out of the project.
   sync_root_with_cwd = true,
 
   update_focused_file = {
@@ -381,13 +331,9 @@ require("nvim-tree").setup({
 
   git = { enable = true },
 
-  -- The starting point is lua/mivn/filters.lua's, which the finders read too,
-  -- and these two flags are its opposite: nvim-tree names what it filters out
-  -- where that module names what is shown.
-  --
-  -- .git/ is the exception both rules miss, since it is a dotfile and git does
-  -- not ignore its own directory, so it is named here. `U` toggles it back on,
-  -- and it is the one filter that is the tree's alone.
+  -- The starting point is lua/mivn/filters.lua's, inverted: nvim-tree names
+  -- what it hides, that module what it shows. `.git/` is named here, since it
+  -- is a dotfile git does not ignore; `U` shows it, and only in the tree.
   filters = {
     dotfiles = not require("mivn.filters").dotfiles(),
     git_ignored = not require("mivn.filters").ignored(),
@@ -398,11 +344,9 @@ require("nvim-tree").setup({
     open_file = {
       resize_window = false,
 
-      -- The default picker refuses nofile windows, and the banner is one:
-      -- opening from the tree (Enter or double click) with only the banner up
-      -- used to split a new window beside it instead of replacing it. With
-      -- nofile allowed, the banner window is an ordinary target, the file
-      -- lands in it, and the banner buffer wipes itself.
+      -- NOTE: the stock list also excludes nofile windows, and the banner is
+      -- one, so opening a file with only the banner up would split beside it.
+      -- With nofile left out, the file lands in the banner's window.
       window_picker = {
         exclude = {
           filetype = { "notify", "qf", "diff" },
@@ -416,8 +360,8 @@ require("nvim-tree").setup({
 --- The :bd guard --------------------------------------------------------------
 --
 -- `:bd` typed in the tree would delete the tree's own buffer and take the split
--- with it, so it is rewritten to a command that explains (lua/mivn/cmdline.lua).
--- Narrow on purpose: a count (`:2bd`) names a real buffer and runs untouched.
+-- with it, so it becomes a command that says so. Narrow on purpose: a count
+-- (`:2bd`) names a real buffer and runs untouched.
 
 vim.api.nvim_create_user_command("MivnTreeBd", function()
   vim.notify("The tree is not a file. <Space>tt hides it; Ctrl+W l goes back to the code.")
@@ -436,13 +380,8 @@ cmdline.rewrite(function(line)
   return cmdline.spells(line:match("^(%l+)!?$"), "bdelete", 2) and "MivnTreeBd" or nil
 end)
 
--- The layout invariant, "the tree is never the only window", lives in
--- lua/mivn/session.lua with the rest of the endgame rules; it reads the
--- width exported below when it heals a collapsed layout.
-
--- Open at startup beside the landing buffer, without taking focus, so I land
--- on the banner. Registered after the dashboard's own VimEnter so it goes into
--- the window the dashboard has already claimed.
+-- Open at startup beside the banner, leaving me on the banner. Registered after
+-- the dashboard's own VimEnter, so the dashboard has claimed its window first.
 vim.api.nvim_create_autocmd("VimEnter", {
   group = vim.api.nvim_create_augroup("mivn.tree", { clear = true }),
   callback = function()
@@ -451,8 +390,7 @@ vim.api.nvim_create_autocmd("VimEnter", {
     end
 
     vim.schedule(function()
-      -- `focus = false` is not reliably honoured here, so the window is put
-      -- back by hand.
+      -- `focus = false` is not reliably honoured here, so it is done by hand
       local win = vim.api.nvim_get_current_win()
       require("nvim-tree.api").tree.open({ focus = false })
       if vim.api.nvim_win_is_valid(win) then
@@ -462,7 +400,4 @@ vim.api.nvim_create_autocmd("VimEnter", {
   end,
 })
 
--- toggle is <leader>tt's, in lua/mivn/keymaps.lua; rename is only for the
--- menu's Rename entry, which reaches it by module name; is_open is
--- restart.lua's; WIDTH is for session.lua's heal.
 return { toggle = toggle, window = window, is_open = is_open, rename = rename, WIDTH = TREE_WIDTH }

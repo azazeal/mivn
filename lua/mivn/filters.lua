@@ -1,23 +1,15 @@
--- What the file lists show: dotfiles, and the files the SCM ignores.
+-- What the file lists show: dotfiles, and the files the SCM ignores. One answer
+-- for the tree and for the finders, since a file drawn in one and missing from
+-- the other is a worse lie than either rule on its own.
 --
--- One answer for the tree and for the finders. They are two views of the same
--- directory, and a file drawn in one and missing from the other is a worse
--- lie about the project than either rule is on its own.
---
--- Where it starts is what a checkout usually wants: dotfiles shown, since
--- they are configuration somebody wrote, and ignored files hidden, since they
--- are build output. `.git/` is out of both and is not a toggle. It is a
--- dotfile git does not ignore, and there is nothing in it to read.
---
--- <Space>th and <Space>ti flip them, in lua/mivn/keymaps.lua. The tree's own
--- `H` and `I` are bound to the same two functions, so a flip from inside it
--- moves the finders with it.
+-- It starts with dotfiles shown, since they are configuration somebody wrote,
+-- and ignored files hidden, since they are build output. `.git/` is out of both
+-- and not a toggle: git does not ignore it, and there is nothing in it to read.
 
 local M = {}
 
---- Shown, rather than filtered: the reading that needs no inversion in the
---- one place it is asked out loud. nvim-tree's own flags mean the opposite
---- and lua/mivn/tree.lua inverts them where it hands them over.
+--- What is shown, not what is filtered. nvim-tree's own flags mean the
+--- opposite, and lua/mivn/tree.lua inverts them where it hands them over.
 local shown = {
   dotfiles = true,
   ignored = false,
@@ -36,27 +28,19 @@ end
 --- ripgrep's side of it -------------------------------------------------------
 --
 -- mini.pick runs `rg` for the live grep with a command line of its own that
--- takes no arguments from here, so the only way to reach it is ripgrep's own
--- configuration file, which is what mini.pick's documentation says to use.
--- The file is written on every flip and pointed at through the environment,
--- which the picker's `rg` inherits along with everything else this editor
--- starts.
+-- takes no arguments from here, so the only way in is ripgrep's own config
+-- file, as mini.pick's documentation says. The file is written on every flip
+-- and named in the environment, which the picker's `rg` inherits.
 --
--- WARN: it has to be this editor's own file and not one path under the cache.
--- What it describes is the state of one session, so a shared name would have
--- two windows overwriting each other's answer, and a grep in one showing what
--- was toggled in the other. tempname() is per process, and Neovim removes the
--- directory it sits in on the way out, so nothing is left behind either.
---
--- The file finder does not need this, since that command is built here (see
--- lua/mivn/find.lua) and has to carry its flags anyway for `fd`, which has no
--- configuration file at all. Both end up saying the same thing.
+-- NOTE: it has to be this editor's own file, not one path under the cache. It
+-- holds the state of one session, so a shared name would have two windows
+-- overwriting each other's answer. tempname() is per process, and Neovim
+-- removes the directory it sits in on the way out.
 
 local RG = vim.fn.tempname()
 
---- Whatever ripgrep was already configured with when this editor started.
---- ripgrep reads one file and has no way to include another, so carrying it
---- is the only way not to quietly drop it.
+--- Whatever ripgrep was configured with when this editor started, carried over,
+--- since ripgrep reads one file and cannot include another.
 local inherited = (function()
   local path = vim.env.RIPGREP_CONFIG_PATH
   if not path or path == "" or path == RG then
@@ -85,7 +69,7 @@ local function write_rg()
     lines[#lines + 1] = "--no-ignore"
   end
 
-  -- Last, so it is the answer whatever the two above said.
+  -- last, so it wins whatever the two above said
   lines[#lines + 1] = "--glob=!.git/"
 
   local file = io.open(RG, "w")
@@ -104,12 +88,12 @@ write_rg()
 
 --- Flipping them --------------------------------------------------------------
 
---- Flip one, move the tree to match, and say what the lists show now.
+--- Flip one, move the tree to match, and say what the lists show now. The tree
+--- is toggled through its own api, which redraws it; it started from `shown`,
+--- so the two only ever move together.
 ---
---- The tree is toggled through its own API rather than reconfigured, which is
---- what redraws it; it starts from the same table below, so the two only ever
---- move together. `nvim-tree` is required here rather than at the top so this
---- module stays loadable before the tree is set up.
+--- NOTE: `nvim-tree` is required here rather than at the top, so this module
+--- stays loadable before the tree is set up.
 local function flip(key, toggle, noun)
   shown[key] = not shown[key]
   write_rg()
