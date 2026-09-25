@@ -29,8 +29,11 @@
       (raw_string_literal_content) @injection.content)
     (interpreted_string_literal
       (interpreted_string_literal_content) @injection.content)
-    ; q := /* sql */ `...`, and const, var and = the same way
+    ; q := /* sql */ `...`, and const, var and = the same way. Only the
+    ; first value: a later one needs a tag of its own, which the bare shape
+    ; above finds, before its comma or after it where gofmt moves it.
     (expression_list
+      .
       [
         (raw_string_literal
           (raw_string_literal_content) @injection.content)
