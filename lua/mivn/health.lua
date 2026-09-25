@@ -364,26 +364,11 @@ function M.check()
 
   health.start("tree-sitter")
 
-  -- The failure this exists for is silent by construction. Queries are not
-  -- copied into the install directory, they are symlinked into the plugin's
-  -- own, so a plugin that moves leaves the parser working and every capture
-  -- resolving to nothing: highlighting turns on, colours nothing, and reads
-  -- as "the colorscheme forgot this language". That is what the move off
-  -- lazy.nvim left behind, 30 languages deep.
-  --
-  -- The same comparison nvim-treesitter makes for itself (`needs_update` in
-  -- its install.lua): where the link goes, against where it should go.
-  -- :MivnUpdateGrammars is the repair, since update reinstalls what fails
-  -- this test while install skips anything whose parser is already there.
+  -- Silent by construction: a grammar without its queries highlights nothing
+  -- and reads as the colorscheme having forgotten the language.
   local grammars = require("mivn.treesitter")
   local installed = grammars.installed()
-  local broken = {}
-
-  for _, lang in ipairs(installed) do
-    if not vim.uv.fs_realpath(grammars.queries_of(lang)) then
-      broken[#broken + 1] = lang
-    end
-  end
+  local broken = grammars.broken()
 
   if #broken > 0 then
     local one = #broken == 1
@@ -394,7 +379,7 @@ function M.check()
         one and "has" or "have",
         table.concat(broken, ", ")
       ),
-      ":MivnUpdateGrammars relinks them"
+      ":MivnInstallGrammars reinstalls them"
     )
   else
     health.ok(("%d grammars, all with their queries"):format(#installed))

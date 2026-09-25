@@ -23,12 +23,16 @@ function M.installed()
   return ts.get_installed()
 end
 
---- Where a language's query files are looked for.
+--- The installed grammars whose queries are gone: the parser loads and every
+--- capture comes back empty, so the language turns on and colours nothing.
 ---
---- They are not copied here: each one is a symlink into the plugin's own
---- runtime directory, which is why a link can outlive what it points at.
-function M.queries_of(lang)
-  return vim.fs.joinpath(INSTALL_DIR, "queries", lang)
+--- The queries are a symlink into the plugin's own runtime directory, so a
+--- plugin that moves leaves the link pointing at nothing. nvim-treesitter's
+--- update does not notice, since it only compares parser revisions.
+function M.broken()
+  return vim.tbl_filter(function(lang)
+    return vim.uv.fs_realpath(vim.fs.joinpath(INSTALL_DIR, "queries", lang)) == nil
+  end, ts.get_installed())
 end
 
 -- The languages I use, plus what the grammars pull in on their own. `sql` is
@@ -91,9 +95,25 @@ local grammars = {
   "zig",
 }
 
+-- The missing grammars and the broken ones, both forced. A plain install
+-- skips any language whose parser is on disk, which is the broken one.
 vim.api.nvim_create_user_command("MivnInstallGrammars", function()
-  ts.install(grammars)
-end, { desc = "Compile the tree-sitter grammars mivn knows about" })
+  local installed = ts.get_installed()
+  local wanted = M.broken()
+
+  for _, lang in ipairs(grammars) do
+    if not vim.list_contains(installed, lang) then
+      wanted[#wanted + 1] = lang
+    end
+  end
+
+  if #wanted == 0 then
+    vim.notify("Every grammar is installed, with its queries.")
+    return
+  end
+
+  ts.install(wanted, { force = true })
+end, { desc = "Compile the tree-sitter grammars mivn knows about, and repair broken ones" })
 
 vim.api.nvim_create_user_command("MivnUpdateGrammars", function()
   ts.update()

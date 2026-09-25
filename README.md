@@ -57,7 +57,7 @@ list from inside the editor.
 |---|---|
 | `:checkhealth mivn` | Runs every configured server and formatter once and reports which ones actually answer |
 | `:MivnTrust [action] [dir]` | Decides whether this workspace may have code run for it. See [Trust](#trust) |
-| `:MivnInstallGrammars` | Compiles the tree-sitter grammars mivn knows about. Run once after cloning |
+| `:MivnInstallGrammars` | Compiles the tree-sitter grammars mivn knows about, and repairs any that lost their queries. Run once after cloning |
 | `:MivnUpdateGrammars` | Updates every installed grammar |
 | `:MivnUpdate` | Pulls the newest mivn, if this checkout has no changes of its own |
 | `:MivnDashboard` | Opens the landing buffer again |
