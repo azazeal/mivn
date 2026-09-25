@@ -112,6 +112,7 @@ case("subword start, back", 6, 28, { "<A-Left>" }, { cursor = { 6, 25 } })
 case("subword start, back over the underscore", 6, 20, { "<A-Left>", "<A-Left>" }, { cursor = { 6, 13 } })
 case("subword start, back to the head", 6, 12, { "<A-Left>", "<A-Left>", "<A-Left>" }, { cursor = { 6, 0 } })
 case("subword end, greek humps", 2, 0, { "<A-Right>" }, { cursor = { 2, 16 } })
+case("subword end, capitals end the line", 1, 0, { "<A-Right>", "<A-Right>" }, { cursor = { 1, 7 } }, { "fooHTTP" })
 
 --- The WORD, E and gE ------------------------------------------------------
 

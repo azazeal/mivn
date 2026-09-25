@@ -135,11 +135,18 @@ local function spans_of(line, size)
   end
   column[n + 1] = byte
 
+  -- Each grapheme's kind, asked once. Past the last one it is nil, which
+  -- every comparison below reads as "not that kind".
+  local kinds = {}
+  for i = 1, n do
+    kinds[i] = kind(units[i])
+  end
+
   local spans = {}
   local i = 1
 
   while i <= n do
-    local here = kind(units[i])
+    local here = kinds[i]
 
     if here == "space" or (size == "subword" and here == "under") then
       i = i + 1
@@ -147,7 +154,7 @@ local function spans_of(line, size)
       -- Nothing but whitespace ends a WORD, so punctuation joins whatever it
       -- touches and `foo::bar(baz)` is one piece.
       local first = i
-      while i <= n and kind(units[i]) ~= "space" do
+      while i <= n and kinds[i] ~= "space" do
         i = i + 1
       end
 
@@ -156,7 +163,7 @@ local function spans_of(line, size)
       -- One piece per run of punctuation, so `::` is a stop and `(` after it
       -- is another.
       local first = i
-      while i <= n and kind(units[i]) == "punct" do
+      while i <= n and kinds[i] == "punct" do
         i = i + 1
       end
 
@@ -166,7 +173,7 @@ local function spans_of(line, size)
       -- no case in any of them and so no hump to split on, which is why
       -- neither size cuts one of these further.
       local first = i
-      while i <= n and kind(units[i]) == here do
+      while i <= n and kinds[i] == here do
         i = i + 1
       end
 
@@ -175,7 +182,7 @@ local function spans_of(line, size)
       -- Everything a keyword is made of, in one run.
       local first = i
       while i <= n do
-        local what = kind(units[i])
+        local what = kinds[i]
         if what ~= "upper" and what ~= "lower" and what ~= "under" then
           break
         end
@@ -189,17 +196,17 @@ local function spans_of(line, size)
       -- A single capital may open a piece; a run of them is a piece of its
       -- own unless the last one heads the next.
       if here == "upper" then
-        while i <= n and kind(units[i]) == "upper" do
+        while i <= n and kinds[i] == "upper" do
           i = i + 1
         end
 
-        if i - first > 1 and i <= n and kind(units[i]) == "lower" then
+        if i - first > 1 and i <= n and kinds[i] == "lower" then
           i = i - 1
         end
       end
 
-      if i == first or kind(units[i]) == "lower" then
-        while i <= n and kind(units[i]) == "lower" do
+      if i == first or kinds[i] == "lower" then
+        while i <= n and kinds[i] == "lower" do
           i = i + 1
         end
       end
