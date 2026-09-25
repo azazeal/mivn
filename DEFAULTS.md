@@ -515,7 +515,9 @@ gone. One rule in both modes is the point.
 
 Alt and an arrow does the same by **subword**, the piece of an identifier a
 camel hump or an underscore marks off _(mivn)_. `parseHTTPUrl` is `parse`,
-`HTTP` and `Url`; `foo_bar` is two; `::` is a piece of its own.
+`HTTP` and `Url`; `foo_bar` is two; `::` is a piece of its own. Punctuation
+the file type's `'iskeyword'` counts as part of a word goes with `_`, so in CSS
+`margin-top` is one word, the same one `w` sees, and two subwords.
 
 All three sizes are parsed in `lua/mivn/words.lua` rather than borrowed from
 Vim's keys, because borrowing leaves a hole: `e` moves to the end of the

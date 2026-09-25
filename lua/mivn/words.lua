@@ -65,7 +65,8 @@ end
 
 --- Which kind a grapheme is, for deciding where one piece stops and the next
 --- begins. Everything not named here is punctuation, which is its own kind:
---- `foo::bar` is three pieces, not one.
+--- `foo::bar` is three pieces, not one. `joined` is the punctuation the
+--- buffer's 'iskeyword' counts as part of a word, which goes with `_`.
 ---
 --- ASCII is matched here and everything else is Vim's answer, because Vim
 --- knows 'iskeyword' and the Unicode classes and I do not: `καλημέρα` is one
@@ -76,10 +77,10 @@ end
 --- work on a language that writes without spaces: `私は日本語を` is five
 --- pieces because kanji and hiragana keep changing over, and Vim has no
 --- better answer than that either without a dictionary.
-local function kind(char)
+local function kind(char, joined)
   if char == "" then
     return nil
-  elseif char == "_" then
+  elseif char == "_" or joined[char] then
     return "under"
   elseif #char == 1 then
     if char:match("%s") then
@@ -106,6 +107,33 @@ local function kind(char)
   end
 
   return class
+end
+
+--- The ASCII punctuation this buffer's 'iskeyword' makes part of a word, as a
+--- set: `-` in CSS and Lisp, `$` in PHP. These join a word the way `_` does,
+--- so `e` agrees with Vim's own `w` about where one ends, and they split
+--- subwords the way `_` does too.
+---
+--- Kept per value of the option, since it is read on every press.
+local joining = {}
+
+local function joins()
+  local option = vim.bo.iskeyword
+  local set = joining[option]
+
+  if not set then
+    set = {}
+    for byte = 33, 126 do
+      local char = string.char(byte)
+      if not char:match("[%w_]") and vim.fn.charclass(char) == 2 then
+        set[char] = true
+      end
+    end
+
+    joining[option] = set
+  end
+
+  return set
 end
 
 --- Where the pieces of `line` are, as {first, last} byte columns, 1-based and
@@ -137,9 +165,10 @@ local function spans_of(line, size)
 
   -- Each grapheme's kind, asked once. Past the last one it is nil, which
   -- every comparison below reads as "not that kind".
+  local joined = joins()
   local kinds = {}
   for i = 1, n do
-    kinds[i] = kind(units[i])
+    kinds[i] = kind(units[i], joined)
   end
 
   local spans = {}

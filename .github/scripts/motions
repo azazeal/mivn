@@ -63,9 +63,13 @@ local FIXTURE = {
 --- are {row, col} with the column in bytes, `line` the text of the caret's
 --- line, and `lines` the whole buffer. A case that wants a buffer other than
 --- the fixture names its `lines`.
-local function case(name, row, col, keys, expect, lines)
-  M.cases[#M.cases + 1] = { name = name, row = row, col = col, keys = keys, expect = expect, lines = lines }
+local function case(name, row, col, keys, expect, lines, iskeyword)
+  M.cases[#M.cases + 1] =
+    { name = name, row = row, col = col, keys = keys, expect = expect, lines = lines, iskeyword = iskeyword }
 end
+
+--- 'iskeyword' with `-` in it, the way CSS and Lisp have it.
+local DASHED = "@,48-57,_,192-255,-"
 
 --- The fixture with line 6 carried up, and with it carried down.
 local UP = { FIXTURE[1], FIXTURE[2], FIXTURE[3], FIXTURE[4], FIXTURE[6], FIXTURE[5], FIXTURE[7] }
@@ -113,6 +117,8 @@ case("subword start, back over the underscore", 6, 20, { "<A-Left>", "<A-Left>" 
 case("subword start, back to the head", 6, 12, { "<A-Left>", "<A-Left>", "<A-Left>" }, { cursor = { 6, 0 } })
 case("subword end, greek humps", 2, 0, { "<A-Right>" }, { cursor = { 2, 16 } })
 case("subword end, capitals end the line", 1, 0, { "<A-Right>", "<A-Right>" }, { cursor = { 1, 7 } }, { "fooHTTP" })
+case("word end, a keyword dash joins", 1, 0, { "<C-Right>" }, { cursor = { 1, 7 } }, { "foo-bar baz" }, DASHED)
+case("subword end, a keyword dash splits", 1, 0, { "<A-Right>", "<A-Right>" }, { cursor = { 1, 7 } }, { "foo-bar baz" }, DASHED)
 
 --- The WORD, E and gE ------------------------------------------------------
 
@@ -251,6 +257,7 @@ case("select, ctrl+up then typing replaces", 6, 3, { "i", "<S-Right>", "<C-Up>",
 --- The driver's half -------------------------------------------------------
 
 local fixture = vim.env.MIVN_FIXTURE
+local ISKEYWORD = vim.bo.iskeyword
 
 function M.setup(i)
   local c = M.cases[i]
@@ -266,6 +273,7 @@ function M.setup(i)
   end
 
   vim.api.nvim_buf_set_lines(0, 0, -1, false, c.lines or FIXTURE)
+  vim.bo.iskeyword = c.iskeyword or ISKEYWORD
   vim.api.nvim_win_set_cursor(0, { c.row, c.col })
   vim.cmd("nohlsearch")
 
