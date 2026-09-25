@@ -119,6 +119,11 @@ moves. Each has runtime state of its own under `~/.local/share` and
   what is drawn rejoins to what it was handed, and that Greek and Japanese
   break where the cells are rather than where the bytes are. `diagnostics
   <pattern>` runs the cases whose name matches.
+- `.github/scripts/injections`, after any change to `queries/`: it parses Go
+  with the injection query and checks which strings come out as SQL, tagged
+  ones and no others, as written and after gofmt has moved a tag. It needs
+  the go and sql grammars. `injections <pattern>` runs the cases whose name
+  matches.
 - The four checks that drive an editor behind a socket keep their cases in
   `.github/checks/<name>.lua` and share `.github/checks/harness.sh` and
   `harness.lua`; a new one of that shape starts from those.

@@ -1,6 +1,5 @@
--- The editor's half of the checks that drive a real editor behind a socket
--- (.github/scripts/motions, restart, tabline and diagnostics): picking cases
--- by name, reading what went wrong, and the row each case prints.
+-- What the checks under .github/scripts share on the editor's side: picking
+-- cases by name, reading what went wrong, and the row each case prints.
 
 local H = {}
 

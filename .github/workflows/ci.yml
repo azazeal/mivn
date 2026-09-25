@@ -99,3 +99,23 @@ jobs:
 
       - name: Draw diagnostics under the line and read the rows back
         run: NVIM_APPNAME=nvim ./.github/scripts/diagnostics
+
+      # The version I run. nvim-treesitter builds grammars with it, and wants
+      # a release build rather than npm's.
+      - name: Install tree-sitter
+        env:
+          VERSION: v0.27.0
+          SHA256: 20a1f39ec1c45f2211492dcb8881c802b643b554bb196869a29ac3778277fa77
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/tree-sitter.gz" \
+            "https://github.com/tree-sitter/tree-sitter/releases/download/$VERSION/tree-sitter-linux-x64.gz"
+          echo "$SHA256  $RUNNER_TEMP/tree-sitter.gz" | sha256sum --check --strict -
+          gunzip "$RUNNER_TEMP/tree-sitter.gz"
+          install -D -m 0755 "$RUNNER_TEMP/tree-sitter" "$HOME/.local/bin/tree-sitter"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Parse Go and see which strings are SQL
+        run: |
+          export NVIM_APPNAME=nvim
+          nvim --headless "+lua require('nvim-treesitter').install({ 'go', 'sql' }):wait(300000)" +qa
+          ./.github/scripts/injections
