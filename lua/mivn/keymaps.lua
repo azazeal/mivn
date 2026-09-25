@@ -427,8 +427,12 @@ local function arrow(keys)
   return function()
     local saved = vim.o.keymodel
     vim.o.keymodel = ""
-    vim.cmd.normal({ vim.keycode(keys), bang = true })
+    local ok, err = pcall(vim.cmd.normal, { vim.keycode(keys), bang = true })
     vim.o.keymodel = saved
+
+    if not ok then
+      error(err, 0)
+    end
   end
 end
 
