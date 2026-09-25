@@ -33,10 +33,11 @@ moves. Each has runtime state of its own under `~/.local/share` and
 
 ## Conventions
 
-- One module per concern under `lua/mivn/`; the header comment carries the
-  module's purpose and its trade-offs.
+- One module per concern under `lua/mivn/`, opening with a short comment on
+  what it owns.
 - `lua/mivn/languages/` is data, not concerns: one file per language, holding
-  its servers, their settings, what confines them, and how it is formatted.
+  its servers, their settings, what confines them, how it is formatted, and
+  what `:checkhealth mivn` asks about it.
   Nothing else goes in there. `lua/mivn/lsp.lua` is what loads them.
 - Every mapping that is on for the whole session lives in
   `lua/mivn/keymaps.lua`, whatever module owns the behavior: that module
@@ -56,7 +57,15 @@ moves. Each has runtime state of its own under `~/.local/share` and
 - Every highlight group lives in `colors/basalt.lua`, the plugins' and mivn's
   own included, written through that file's palette names. Never a hex, and
   never a highlight group or a `ColorScheme` autocmd under `lua/mivn/`.
-- Comments are first person ("as I type"), plain common English, hard-wrapped
+- Comments say what the code cannot: the contract of what a module exports,
+  a subtle invariant, behavior that would surprise. A trap, i.e. code that
+  invites an obvious fix that would break it, is a `NOTE:` that says why;
+  there is no `WARN:`. No history (dates, "measured", what used to be) and no
+  pointers to who calls what: git, DEFAULTS.md and grep keep those, and they
+  do not rot in the code.
+- Doc comments and `NOTE`s are full sentences; a comment inside a function
+  or trailing a line reads like the code around it, lowercase and without a
+  full stop. First person ("as I type"), plain common English, hard-wrapped
   at 80 columns, no em dashes. User-visible strings (`desc = ...`,
   `vim.notify`) address the user instead.
 - Plugins are pinned to a commit in `plugins.lua` itself, with a one-line
