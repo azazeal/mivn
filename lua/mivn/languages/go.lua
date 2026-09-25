@@ -263,7 +263,7 @@ local function gci_format(buf)
       end
 
       if not vim.deep_equal(new, vim.api.nvim_buf_get_lines(buf, 0, -1, false)) then
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, new)
+        require("mivn.format").replace(buf, new)
         vim.bo[buf].modified = false
       end
     end)

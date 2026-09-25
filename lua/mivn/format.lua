@@ -45,6 +45,31 @@ local function formatter_for(filetype)
   return spec
 end
 
+--- Make `buf` read `new`, touching only the lines that differ.
+---
+--- Replacing every line would leave marks, extmarks and the cursor on the
+--- same line numbers rather than on the same text, so one import added at
+--- the top put all of them a line off. Hunks go in from the bottom up, so
+--- each one's line numbers still hold when it lands.
+function M.replace(buf, new)
+  local old = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local hunks = vim.text.diff(table.concat(old, "\n") .. "\n", table.concat(new, "\n") .. "\n", {
+    result_type = "indices",
+  }) --[[@as integer[][] ]]
+
+  for i = #hunks, 1, -1 do
+    local old_start, old_count, new_start, new_count = unpack(hunks[i])
+
+    -- A pure insertion names the line it goes after.
+    if old_count == 0 then
+      old_start = old_start + 1
+    end
+
+    local lines = vim.list_slice(new, new_start, new_start + new_count - 1)
+    vim.api.nvim_buf_set_lines(buf, old_start - 1, old_start - 1 + old_count, false, lines)
+  end
+end
+
 --- Format `buf` with its external formatter. Returns whether one ran.
 ---
 --- Synchronous: these all read stdin, so there is no file on disk to wait
@@ -96,7 +121,7 @@ local function external(buf)
   end
 
   if not vim.deep_equal(new, lines) then
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, new)
+    M.replace(buf, new)
   end
 
   return true
