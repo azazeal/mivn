@@ -40,9 +40,13 @@
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
+# The working copy's clones, through NVIM_APPNAME=mivn, unless the environment
+# already names one; CI has only ~/.config/nvim and says so.
+export NVIM_APPNAME="${NVIM_APPNAME:-mivn}"
+
 PLUGINS=lua/mivn/plugins.lua
 LOCK=nvim-pack-lock.json
-DATA="${XDG_DATA_HOME:-$HOME/.local/share}/${NVIM_APPNAME:-nvim}/site/pack/core/opt"
+DATA="${XDG_DATA_HOME:-$HOME/.local/share}/$NVIM_APPNAME/site/pack/core/opt"
 
 # What a plugin follows between pins. The default is releases: a semver
 # range makes vim.pack.update() take the plugin to its newest tag, and the

@@ -76,7 +76,7 @@ jobs:
           ln -sfn "$PWD" ~/.config/nvim
 
           nvim --headless +qa
-          ./.github/scripts/repin pick 14
+          NVIM_APPNAME=nvim ./.github/scripts/repin pick 14
           nvim --headless "+lua vim.pack.update(nil, { force = true })" +qa
           git diff --stat
 
