@@ -1,11 +1,8 @@
--- The status line: one across the whole editor rather than one per window
--- ('laststatus' is 3), so it pairs with the tab bar at the top.
+-- The status line, one across the whole editor ('laststatus' is 3).
 --
--- It carries the mode, because 'showmode' is off, which makes the mode block
--- the most important thing on the line and why it gets the accent color. The
--- block is the color first and a letter second: the hue says the mode from
--- across the room, the letter confirms it up close, and one letter keeps the
--- block the same width in every mode, so nothing beside it ever shifts.
+-- 'showmode' is off, so the mode block is where the mode is said: the colour
+-- first and one letter second, which keeps the block the same width in every
+-- mode.
 
 local blame = require("mivn.blame")
 local project = require("mivn.project")
@@ -13,13 +10,10 @@ local statusline = require("mini.statusline")
 
 --- Git ------------------------------------------------------------------------
 --
--- mini.statusline's own section_git reads a summary that mini.git or gitsigns
--- publishes, and neither is installed, so this collects it instead.
---
--- One `git status` gives the branch and the dirty flag together, run through
--- vim.system so a slow repository never blocks a redraw. The line itself only
--- reads the string this leaves behind: it is evaluated many times a second and
--- must not do work.
+-- mini.statusline's own section_git needs mini.git or gitsigns, and neither is
+-- installed. One `git status` in the background gives the branch and the
+-- dirty flag, and the line only reads what it left behind, since it is drawn
+-- many times a second.
 
 local git = { branch = nil, dirty = false }
 
@@ -31,12 +25,11 @@ local function parse(out)
   for line in out:gmatch("[^\n]+") do
     local head = line:match("^# branch%.head (.+)$")
     if head then
-      -- Detached HEAD reports the literal "(detached)", left as it comes.
+      -- a detached HEAD reads "(detached)", kept as it comes
       branch = head
     elseif not line:match("^#") then
       dirty = true
-      -- The header lines come first, so with the branch already read there is
-      -- nothing left to learn from the rest of the output.
+      -- the headers come first, so the rest has nothing more to tell
       if branch then
         break
       end
@@ -47,8 +40,8 @@ local function parse(out)
 end
 
 local function refresh()
-  -- One run at a time, but a request that arrives during one is not dropped:
-  -- a write while `git status` runs would otherwise leave the dot stale.
+  -- one run at a time, but a request during a run is kept, or the dot goes
+  -- stale
   if refreshing then
     pending = true
     return
@@ -57,10 +50,10 @@ local function refresh()
   local dir = vim.fn.getcwd()
   refreshing = true
 
-  -- No index refresh: `git status` otherwise takes the index lock to write
-  -- one back, and this runs on every buffer change and every return to the
-  -- window, which is exactly when a commit in the terminal beside it wants
-  -- that lock. lua/mivn/blame.lua asks the same of its git.
+  -- NOTE: GIT_OPTIONAL_LOCKS=0 keeps `git status` from taking the index lock
+  -- to write a refreshed index back. This runs on every buffer switch and
+  -- every return to the window, which is just when a commit in the terminal
+  -- beside it wants that lock.
   vim.system(
     { "git", "status", "--porcelain=v2", "--branch" },
     { cwd = dir, text = true, env = { GIT_OPTIONAL_LOCKS = "0", GIT_TERMINAL_PROMPT = "0" } },
@@ -85,12 +78,8 @@ end
 
 local refresh_timer = assert(vim.uv.new_timer())
 
---- Coalesce a burst of events into one call. BufEnter alone fires several times
---- for a single `:bd`, and each one would otherwise be a subprocess.
----
---- One timer for the session: starting it again while it runs pushes the
---- deadline back. A timer per event would need closing, and a stopped one
---- never fires the callback that would close it.
+--- Runs refresh once per burst of events, since BufEnter alone fires several
+--- times for one `:bd`. Starting the one timer again pushes its deadline back.
 local function schedule_refresh()
   refresh_timer:start(150, 0, vim.schedule_wrap(refresh))
 end
@@ -99,22 +88,15 @@ local function section_git()
   if not git.branch then
     return ""
   end
-  -- The dot is the whole dirty indicator; a count of changed files would be
-  -- another subprocess for what the gutter already says. No leading space:
-  -- the group padding supplies it.
+  -- no leading space: the group's padding gives it
   return git.branch .. (git.dirty and " ●" or "")
 end
 
 --- Sections -------------------------------------------------------------------
 
---- The mode, one letter and its highlight.
----
---- The line-wise and block-wise variants collapse into V and S: the selection
---- itself already draws that difference on screen, so the block would only
---- repeat it. Visual and Select stay apart, because nothing else on screen
---- tells them apart and they differ in the one thing worth knowing: in Visual
---- the letters I type are commands, in Select they replace the selection.
---- mini.statusline hands both the Visual highlight, so Select carries its own.
+--- The letter and highlight for each mode. Line-wise and block-wise share V
+--- and S, since the selection already shows its shape. Visual and Select stay
+--- apart, since in Select what I type replaces the selection.
 local modes = {
   n = { "N", "MiniStatuslineModeNormal" },
   i = { "I", "MiniStatuslineModeInsert" },
@@ -138,49 +120,33 @@ local modes = {
 local MODE_FALLBACK = { "O", "MiniStatuslineModeOther" } -- operator-pending
 
 local function section_mode()
-  -- mode() answers with the state first ("no", "niI", "Rv"), so the first
-  -- byte picks the letter; "no" is the exception, since its first byte reads
-  -- as Normal while an operator is waiting.
+  -- the first byte picks the letter, but "no" is Normal with an operator
+  -- waiting
   local mode = vim.fn.mode()
   local entry = vim.startswith(mode, "no") and MODE_FALLBACK or modes[mode:sub(1, 1)] or MODE_FALLBACK
 
   return entry[1], entry[2]
 end
 
---- The macro recording indicator: `q` starts one silently, and 'showmode'
---- being off took away the "recording @w" that said so.
+--- "rec @w" while a macro records, since with 'showmode' off nothing else
+--- says so.
 local function section_recording()
   local rec = vim.fn.reg_recording()
 
   return rec ~= "" and ("rec @" .. rec) or ""
 end
 
---- Is this a buffer with something to read in it, rather than a panel?
----
---- A file, and also a help page or a quickfix list: those two have a
---- 'buftype' but they are text I am looking at, with a row and a column
---- worth reading, and left with the panels they showed the project's name
---- while the tab bar named a file I was not looking at (measured
---- 2026-08-30). The file tree, the landing buffer and the terminal are the
---- panels: unchecked, the banner gets a `[Scratch][-]` and a column number.
+--- The 'buftype's that hold text I read: a file, a help page, a quickfix list.
+--- The rest (the tree, the banner, the terminal) are panels, which get the
+--- project's name instead of a file and a location.
 local READABLE = { [""] = true, help = true, quickfix = true }
 
 local function is_file()
   return READABLE[vim.bo.buftype] == true
 end
 
---- The file, as a path relative to the project.
----
---- mini.statusline's own section_filename shows the absolute path, which is a
---- wide column of shared prefix. `%f` is the path as opened, relative to the
---- working directory, and the launcher makes that the project root. `%m` is
---- the modified flag, `%r` the read-only one; a terminal gets its name.
---- The base names that more than one listed buffer is using.
----
---- Kept rather than counted per redraw: the line is rebuilt many times a
---- second and walking the buffer list is not free. The autocmd below refreshes
---- it, and the set is small enough that rebuilding it whole beats keeping it
---- up to date piece by piece.
+--- The base names that more than one listed buffer is using, rebuilt when the
+--- buffer list changes rather than on every redraw.
 local shared = {}
 
 local function count_shared()
@@ -203,17 +169,8 @@ local function count_shared()
   end
 end
 
---- The file, but only the half the tab bar is not already showing.
----
---- The bar carries the name of every open buffer, so repeating it here says
---- nothing. What it cannot always carry is which of two files of the same name
---- this is: mini.tabline drops the bare name and starts prefixing directories
---- the moment two buffers share one, and it adds only as much path as it takes
---- to tell them apart. That is when the full path earns its place, and it is
---- the only time.
----
---- The flags stay either way. Modified and readonly are not on the tab bar at
---- all, measured, and the gutter only says the first of them.
+--- What the tab bar does not say about the buffer: its modified and readonly
+--- flags, and its path when another open buffer has the same name.
 local function section_filename()
   local buftype = vim.bo.buftype
 
@@ -221,9 +178,7 @@ local function section_filename()
     return "%t"
   end
 
-  -- A help page by its name, the way lua/mivn/title.lua titles the window,
-  -- and a quickfix list by its title, which is what filled it: the grep, the
-  -- diagnostics, the marked picker rows. Neither is in the tab bar.
+  -- a help page or a quickfix list is not in the tab bar
   if buftype == "help" then
     return "help " .. vim.fn.expand("%:t:r")
   end
@@ -242,46 +197,21 @@ local function section_filename()
   return "%m%r"
 end
 
---- The project, in place of the file name when there is no file, so the line
---- still says where I am while I am on the banner or in the tree.
----
---- The name lua/mivn/project.lua decides, which is the one the tab strip's
---- nameplate and the window title show. The three are read together and a
---- different spelling in each is a puzzle rather than three answers.
+--- The project's name, for a panel, which has no file to name.
 local function section_project()
-  -- WARN: mini.statusline puts what a section returns into the line itself,
+  -- NOTE: mini.statusline puts what a section returns into the line itself,
   -- so a directory called `50%` would be read as an item.
   return (project.name():gsub("%%", "%%%%"))
 end
 
---- The filetype, with the glyph the rest of the editor draws for it.
----
---- mini.statusline's own section_fileinfo builds the same pair and then adds
---- the encoding, the line ending and the file size, all three near-constant
---- here, so they are three columns of noise beside the one that matters.
----
---- The glyph alone was tried and taken out: at this size a logo that has to
---- be decoded is worse than a word. Beside the word it costs nothing and is
---- read by shape, which is the same reason the tree and the pickers draw it.
---- It is the same glyph in all three.
----
---- What made the difference is colour, and it took a while to see. The glyph
---- looked washed out here while the same one read fine in the tree, and the
---- tree was drawing it in its own colour while this was not. At one cell,
---- colour carries as much as shape does. Every other lead was measured and
---- came to nothing: the icon sets all live in the same font at the same
---- codepoints, so no family changes the drawing, and Material is the only
---- set with per-language icons worth having.
----
---- Required inside rather than at the top: this runs on redraw, long after
---- lua/mivn/find.lua has set the plugin up, and requiring it at load would
---- put the order of two unrelated modules in the way of drawing at all.
+--- The filetype, after its mini.icons glyph in the glyph's own colour.
 local function section_filetype(trunc_width)
   local filetype = vim.bo.filetype
   if statusline.is_truncated(trunc_width) or filetype == "" then
     return ""
   end
 
+  -- required on draw, long after lua/mivn/find.lua has set it up
   local ok, icons = pcall(require, "mini.icons")
   if not ok then
     return filetype
@@ -289,51 +219,28 @@ local function section_filetype(trunc_width)
 
   local glyph, glyph_hl, default = icons.get("filetype", filetype)
 
-  -- A filetype mini.icons has no glyph for gets a generic file, which says
-  -- nothing the word beside it does not, so those go without.
+  -- a generic file glyph says nothing the word does not
   if default then
     return filetype
   end
 
-  -- Coloured, in the icon's own group, and back to the section's for the
-  -- word. Uncoloured was tried first and is what made the glyph look washed
-  -- out here while the same one reads fine in the tree: the tree draws it in
-  -- its colour, and colour is doing as much of the work as shape at this
-  -- size. The icon groups set a foreground and no background, so the block
-  -- this section is drawn as keeps its own.
+  -- the icon groups set no background, so the glyph keeps the block's
   return ("%%#%s#%s%%#MiniStatuslineFileinfo# %s"):format(glyph_hl, glyph, filetype)
 end
 
---- The search count, labelled: "F: 3/20" while a search is live.
----
---- mini.statusline's own section gives the bare "3/20", empty once
---- `:nohlsearch` runs, which Esc does (lua/mivn/keymaps.lua), so the block comes
---- and goes with the search itself. The command line used to carry this
---- count; 'shortmess' "S" (init.lua) turned that copy off in favor of this
---- one. One honest limit: while a search is still being typed, searchcount()
---- counts the *previous* pattern, so the number here is one search behind
---- until Enter.
+--- The search count as "F: 3/20", empty once the highlight is cleared. While
+--- a search is still being typed it counts the previous pattern.
 local function section_search(trunc_width)
   local count = statusline.section_searchcount({ trunc_width = trunc_width })
 
   return count ~= "" and "F: " .. count or ""
 end
 
---- Where the cursor is: row and column, and nothing else.
+--- Row and column. The column counts characters, not screen cells, so it is
+--- the number `{count}|` takes and can be typed right back.
 ---
---- mini.statusline's own section_location reads `28|515 12|12`: four numbers
---- for a question that has two.
----
---- The column counts characters of text, not `%v`'s screen cells: a tab is
---- one, an inlay hint is nothing, a Greek letter counts like a Latin one. It
---- is the number `{count}|` takes (lua/mivn/margins.lua) and, on an all-ASCII
---- line, the col a compiler prints, so the number read here can be typed
---- right back.
----
---- The dash in `%-2{}` pads the column to two cells. Without it, crossing
---- column 9 widens this block and shifts the whole right-hand group sideways
---- while I am moving along a line. The row only gains a digit when the file
---- does.
+--- NOTE: The dash in `%-2{}` pads the column to two cells. Without it, going
+--- past column 9 widens the block and shifts everything left of it.
 local LOCATION = "%l:%-2{charcol('.')}"
 
 statusline.setup({
@@ -343,7 +250,6 @@ statusline.setup({
     active = function()
       local mode, mode_hl = section_mode()
 
-      -- On a panel: the mode, the branch, and where the project is.
       if not is_file() then
         return statusline.combine_groups({
           { hl = mode_hl, strings = { mode } },
@@ -366,28 +272,12 @@ statusline.setup({
         "%<", -- where the line is cut first when the window is narrow
         { hl = "MiniStatuslineFilename", strings = { section_filename() } },
         "%=", -- everything after this is pushed to the right
-        --
-        -- The order of what follows is the point, and it is decided by one
-        -- rule: this side is laid out right to left, so when a piece grows,
-        -- everything to its *left* slides over and everything to its right
-        -- stays where it is. The pieces that change width therefore go first,
-        -- and the ones I read at a glance go last.
-        --
-        -- `%S` is where 'showcmd' prints the command in progress, which
-        -- init.lua points here with 'showcmdloc'. It appears and vanishes as I
-        -- type, so it is first after `%=` and grows into the empty middle,
-        -- where there is nothing to disturb. The search count is next for the
-        -- same reason, being there only while a search is live.
+        -- NOTE: The order is the point. This side is laid out right to left,
+        -- so a piece that grows pushes only what is to its left. What comes
+        -- and goes as I type (`%S`, where 'showcmd' prints, and the search
+        -- count) goes first, and what I read at a glance goes last.
         { hl = "MiniStatuslineFileinfo", strings = { "%S", section_search(75) } },
-        -- Who wrote the line the cursor is on (lua/mivn/blame.lua), here
-        -- rather than at the end of the code line: it never sits on top of
-        -- anything, never depends on how long a line is, and is always in the
-        -- same place. Behind the two above so that a half-typed command cannot
-        -- push it about, which it did when this sat first and was the reason
-        -- the order got written down.
         { hl = "MivnStatuslineBlame", strings = { blame.line() } },
-        -- The filetype last, beside the location, since between them they are
-        -- what I glance at rather than watch.
         { hl = "MiniStatuslineFileinfo", strings = { section_filetype(120) } },
         { hl = mode_hl, strings = { LOCATION } },
       })
@@ -397,16 +287,14 @@ statusline.setup({
 
 local group = vim.api.nvim_create_augroup("mivn.statusline", { clear = true })
 
--- BufWritePost because the format-on-save pass is what most often makes a
--- clean tree dirty; FocusGained because a commit usually happens in the
--- terminal beside this window, not in it.
+-- FocusGained because I usually commit in a terminal beside this window.
 vim.api.nvim_create_autocmd({ "BufEnter", "BufWritePost", "FocusGained", "DirChanged" }, {
   group = group,
   callback = schedule_refresh,
 })
 
--- What the tab bar can say on a name alone changes only when the buffer list
--- does, or when a buffer is renamed under it.
+-- The shared names change only when the buffer list does, or when a buffer is
+-- renamed.
 vim.api.nvim_create_autocmd({ "BufAdd", "BufDelete", "BufFilePost" }, {
   group = group,
   callback = vim.schedule_wrap(count_shared),
