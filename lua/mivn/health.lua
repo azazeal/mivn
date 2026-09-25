@@ -207,81 +207,19 @@ local function check_binary(label, binary, probe, started)
   health.info(("%s: %s"):format(label, first_line(result.stdout, result.stderr, path)))
 end
 
---- The Go language version named anywhere in `text`, patch dropped, or nil.
---- Both `go version` and gopls answer with a `go1.26.5` somewhere in a line.
-local function go_language_version(text)
-  local found = (text or ""):match("go(%d+%.%d+)")
-  return found and vim.version.parse(found, { strict = false }) or nil
+--- Probe `binary` for its version and report it as a row named `label`, the
+--- way every server and formatter row is. `probe` is the arguments to ask
+--- with, `--version` when nil. For a language file's `health`.
+function M.binary(label, binary, probe)
+  check_binary(label, binary, probe, {})
 end
 
---- Whether gopls can understand the toolchain it is pointed at.
----
---- gopls type-checks with the go/types compiled into it, so the Go that built
---- it sets the language version ceiling, whatever the project asks for. A
---- gopls behind its toolchain reports errors on code that builds, and says
---- nothing about why: measured 2026-08-14, gopls built with go1.24.6 calls
---- `new(42)` "42 is not a type" in a module declaring go 1.26, which compiles
---- and runs. Nothing in gopls warns about this; its own version policy only
---- looks for a Go that is too old.
----
---- Newer is fine in the other direction, since go/types applies the rules of
---- the version in go.mod, so this only ever compares the two minors.
-local function check_gopls_toolchain()
+local function check_update()
   local health = vim.health
-
-  if vim.fn.exepath("gopls") == "" or vim.fn.exepath("go") == "" then
-    return
-  end
-
-  --- What `cmd` printed, or nil unless it ran and succeeded.
-  local function output(cmd)
-    local ok, result = pcall(function()
-      return vim.system(cmd, { text = true }):wait(5000)
-    end)
-
-    return ok and result.code == 0 and result.stdout or nil
-  end
-
-  -- gopls carries the Go it was built with in its own version report; the
-  -- workspace's is whatever `go` PATH resolves to.
-  local reported = output({ "gopls", "version", "-json" })
-  local decoded = reported and select(2, pcall(vim.json.decode, reported))
-
-  local built = type(decoded) == "table" and go_language_version(decoded.GoVersion)
-  local using = go_language_version(output({ "go", "version" }))
-
-  if not built or not using then
-    return
-  end
-
-  if vim.version.lt(built, using) then
-    health.warn(
-      ("gopls was built with Go %d.%d and this workspace runs %d.%d"):format(
-        built.major,
-        built.minor,
-        using.major,
-        using.minor
-      ),
-      "It cannot type-check the newer language, and the errors it invents blame your code. Rebuild it against this toolchain."
-    )
-  else
-    health.info(
-      ("gopls was built with Go %d.%d, and this workspace runs %d.%d"):format(
-        built.major,
-        built.minor,
-        using.major,
-        using.minor
-      )
-    )
-  end
-end
-
-function M.check()
-  local health = vim.health
-  local lsp = require("mivn.lsp")
+  local update = require("mivn.update").report()
 
   health.start("mivn")
-  local update = require("mivn.update").report()
+
   if not update.current then
     health.info("no release tag here, so this config is not checked for updates")
   elseif not update.latest then
@@ -294,31 +232,32 @@ function M.check()
   else
     health.ok(("%s, the newest release"):format(update.current))
   end
+end
 
-  health.start("language servers")
+local function check_servers(lsp)
+  vim.health.start("language servers")
 
   local started, scratch = start_all(lsp.servers)
   for name, entry in vim.spairs(lsp.servers) do
     check_binary(name, entry.binary, entry.probe, started)
   end
 
-  -- Every server started above has been waited on by now, killed if it
-  -- outlived its half second, so nothing is writing there any more. Removed
-  -- here rather than left to Neovim's exit, since a session runs this more
-  -- than once and each run would otherwise leave a directory behind.
+  -- Every server started above has been waited on by now, so nothing writes
+  -- there any more; removed here since a session can run this many times.
   vim.fn.delete(scratch, "rf")
+end
 
-  check_gopls_toolchain()
+--- What is on disk against what plugins.lua pins. vim.pack installs a plugin
+--- at its pin and never looks at the clone again, so a pin moved by a pull
+--- leaves the old checkout running, and a plugin dropped from plugins.lua
+--- stays on disk. Neither says anything on its own.
+local function check_plugins()
+  local health = vim.health
 
   health.start("plugins")
 
-  -- What is on disk against what plugins.lua pins. vim.pack installs a
-  -- plugin at its pin and then never looks at the clone again: a pin moved
-  -- by a pull leaves the old checkout running, and a plugin dropped from
-  -- plugins.lua stays on disk and in the lock. Neither says anything on its
-  -- own (measured 2026-09-03, a treesitter clone six commits behind its
-  -- pin), so this is where they are said. `info = false` keeps vim.pack from
-  -- asking every clone for its tags and branches, which nothing here reads.
+  -- `info = false` keeps vim.pack from asking every clone for its tags and
+  -- branches, which nothing here reads.
   local plugins = vim.pack.get(nil, { info = false })
   local behind, orphans = {}, {}
 
@@ -361,35 +300,43 @@ function M.check()
   if #behind == 0 and #orphans == 0 then
     health.ok(("%d plugins, all at their pins"):format(#plugins))
   end
+end
 
-  health.start("tree-sitter")
-
-  -- Silent by construction: a grammar without its queries highlights nothing
-  -- and reads as the colorscheme having forgotten the language.
+--- Silent by construction: a grammar without its queries highlights nothing
+--- and reads as the colorscheme having forgotten the language.
+local function check_grammars()
+  local health = vim.health
   local grammars = require("mivn.treesitter")
   local installed = grammars.installed()
   local broken = grammars.broken()
 
-  if #broken > 0 then
-    local one = #broken == 1
-    health.warn(
-      ("%d %s %s a parser but no queries: %s"):format(
-        #broken,
-        one and "grammar" or "grammars",
-        one and "has" or "have",
-        table.concat(broken, ", ")
-      ),
-      ":MivnInstallGrammars reinstalls them"
-    )
-  else
+  health.start("tree-sitter")
+
+  if #broken == 0 then
     health.ok(("%d grammars, all with their queries"):format(#installed))
+    return
   end
 
-  health.start("workspace trust")
+  local one = #broken == 1
+  health.warn(
+    ("%d %s %s a parser but no queries: %s"):format(
+      #broken,
+      one and "grammar" or "grammars",
+      one and "has" or "have",
+      table.concat(broken, ", ")
+    ),
+    ":MivnInstallGrammars reinstalls them"
+  )
+end
+
+local function check_trust()
+  local health = vim.health
   local trust = require("mivn.trust")
 
-  -- The workspace, which is the same directory :MivnTrust would act on, so
-  -- what this reports and what that changes cannot be two different places.
+  health.start("workspace trust")
+
+  -- The directory :MivnTrust would act on, so what this reports and what
+  -- that changes cannot be two different places.
   local here = trust.here()
   local state, decided_by = trust.status(here)
   if state == "allowed" then
@@ -404,24 +351,31 @@ function M.check()
     )
   end
 
-  -- info for the same reason check_binary uses it: these rows scan by name.
-  -- Every row is an answer I gave, since nothing is trusted ahead of time.
   for _, entry in ipairs(trust.decided()) do
     health.info(("%s: %s"):format(entry.path, entry.state))
   end
+end
+
+local function check_clients()
+  local health = vim.health
+  local clients = vim.lsp.get_clients()
 
   health.start("clients in this session")
-  local clients = vim.lsp.get_clients()
+
   if #clients == 0 then
     health.info("none attached; open a file a server covers, then rerun")
   end
-  -- info for the same reason check_binary uses it: these rows scan by name.
+
   for _, client in ipairs(clients) do
     health.info(("%s, rooted at %s"):format(client.name, client.root_dir or "(no root)"))
   end
+end
 
-  health.start("external formatters")
+local function check_formatters(lsp)
   local seen = {}
+
+  vim.health.start("external formatters")
+
   for ft, spec in vim.spairs(lsp.formatters) do
     if type(spec) == "function" then
       spec = spec(0)
@@ -433,18 +387,27 @@ function M.check()
       check_binary(ft, binary, lsp.probes[binary], {})
     end
   end
-  -- gci is additional, not essential: gopls already formats and organizes
-  -- imports, gci only re-groups them into the configured blocks.
-  --
-  -- $GOIMPORTNOGCI is lua/mivn/languages/go.lua's switch for a gci released
-  -- before a standard library package it is now meeting, which it reads as
-  -- third party. That module is asked rather than the variable, so what this
-  -- row says and what saving does cannot drift apart.
-  if require("mivn.languages.go").gci_off() then
-    health.info("gci: off (turned off by $GOIMPORTNOGCI)")
-  else
-    check_binary("gci", "gci", lsp.probes["gci"], {})
+end
+
+--- What a language file checks for itself, under a section of its own.
+local function check_languages(lsp)
+  for language, check in vim.spairs(lsp.checks) do
+    vim.health.start(language)
+    check()
   end
+end
+
+function M.check()
+  local lsp = require("mivn.lsp")
+
+  check_update()
+  check_servers(lsp)
+  check_plugins()
+  check_grammars()
+  check_trust()
+  check_clients()
+  check_formatters(lsp)
+  check_languages(lsp)
 end
 
 return M

@@ -280,10 +280,90 @@ vim.api.nvim_create_autocmd("BufWritePost", {
   end,
 })
 
+--- The Go language version named anywhere in `text`, patch dropped, or nil.
+--- Both `go version` and gopls answer with a `go1.26.5` somewhere in a line.
+local function go_language_version(text)
+  local found = (text or ""):match("go(%d+%.%d+)")
+  return found and vim.version.parse(found, { strict = false }) or nil
+end
+
+--- Whether gopls can understand the toolchain it is pointed at.
+---
+--- gopls type-checks with the go/types compiled into it, so the Go that built
+--- it sets the language version ceiling, whatever the project asks for. A
+--- gopls behind its toolchain reports errors on code that builds, and says
+--- nothing about why: measured 2026-08-14, gopls built with go1.24.6 calls
+--- `new(42)` "42 is not a type" in a module declaring go 1.26, which compiles
+--- and runs. Nothing in gopls warns about this; its own version policy only
+--- looks for a Go that is too old.
+---
+--- Newer is fine in the other direction, since go/types applies the rules of
+--- the version in go.mod, so this only ever compares the two minors.
+local function check_gopls_toolchain()
+  local health = vim.health
+
+  if vim.fn.exepath("gopls") == "" or vim.fn.exepath("go") == "" then
+    return
+  end
+
+  --- What `cmd` printed, or nil unless it ran and succeeded.
+  local function output(cmd)
+    local ok, result = pcall(function()
+      return vim.system(cmd, { text = true }):wait(5000)
+    end)
+
+    return ok and result.code == 0 and result.stdout or nil
+  end
+
+  -- gopls carries the Go it was built with in its own version report; the
+  -- workspace's is whatever `go` PATH resolves to.
+  local reported = output({ "gopls", "version", "-json" })
+  local decoded = reported and select(2, pcall(vim.json.decode, reported))
+
+  local built = type(decoded) == "table" and go_language_version(decoded.GoVersion)
+  local using = go_language_version(output({ "go", "version" }))
+
+  if not built or not using then
+    return
+  end
+
+  if vim.version.lt(built, using) then
+    health.warn(
+      ("gopls was built with Go %d.%d and this workspace runs %d.%d"):format(
+        built.major,
+        built.minor,
+        using.major,
+        using.minor
+      ),
+      "It cannot type-check the newer language, and the errors it invents blame your code. Rebuild it against this toolchain."
+    )
+  else
+    health.info(
+      ("gopls was built with Go %d.%d, and this workspace runs %d.%d"):format(
+        built.major,
+        built.minor,
+        using.major,
+        using.minor
+      )
+    )
+  end
+end
+
+--- What :checkhealth mivn says under "go": whether gopls can read this
+--- toolchain, and the gci pass, which is additional rather than essential,
+--- since gopls already formats and organizes the imports.
+local function health()
+  check_gopls_toolchain()
+
+  if gci_off() then
+    vim.health.info("gci: off (turned off by $GOIMPORTNOGCI)")
+  else
+    require("mivn.health").binary("gci", "gci")
+  end
+end
+
 return {
-  --- Whether the gci pass is off, so that :checkhealth mivn says off for the
-  --- same reason it does not run.
-  gci_off = gci_off,
+  health = health,
 
   servers = {
     gopls = {

@@ -28,6 +28,8 @@
 --   probes      how `:checkhealth mivn` asks one of those formatters for its
 --               version, by binary name. Only for the ones that do not take
 --               `--version`; a server says this in its own entry instead.
+--   health      a function `:checkhealth mivn` runs under a section named
+--               after the language, for what only that language knows.
 --
 -- An entry, in full:
 --
@@ -60,6 +62,7 @@ table.sort(languages)
 local servers = {}
 local formatters = {}
 local probes = {}
+local checks = {}
 local muted = {}
 
 for _, language in ipairs(languages) do
@@ -83,6 +86,8 @@ for _, language in ipairs(languages) do
   for binary, probe in pairs(loaded.probes or {}) do
     probes[binary] = probe
   end
+
+  checks[language] = loaded.health
 end
 
 --- Which of them are actually here -------------------------------------------
@@ -434,4 +439,4 @@ vim.api.nvim_create_autocmd("WinResized", {
 
 -- For lua/mivn/health.lua, which probes binaries instead of trusting
 -- executable(). Nothing else reads any of these.
-return { servers = servers, formatters = formatters, probes = probes }
+return { servers = servers, formatters = formatters, probes = probes, checks = checks }
