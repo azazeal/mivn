@@ -4,9 +4,11 @@
 --- Completion as I type ------------------------------------------------------
 --
 -- `wildtrigger()` opens the menu, and 'wildmode' says what each Tab does after
--- that. `noselect` has to come first: with `longest` there, the trigger would
--- insert the common prefix of the matches while I was still typing. `:` only,
--- since over a search the menu would cover the match 'incsearch' is showing.
+-- that. `:` only, since over a search the menu would cover the match
+-- 'incsearch' is showing.
+--
+-- NOTE: `noselect` has to come first in 'wildmode'. With `longest` there, the
+-- trigger would insert the common prefix of the matches while I am typing.
 vim.opt.wildoptions = "pum"
 vim.opt.wildmode = "noselect:lastused,longest:full,full"
 
@@ -24,12 +26,12 @@ vim.api.nvim_create_autocmd("CmdlineChanged", {
 --- Rewriting what was typed --------------------------------------------------
 --
 -- A user command cannot shadow a built-in, and Vim has no event that can veto
--- one, so a built-in that needs answering differently is changed on the
--- command line the moment before it runs. Only a typed line gets here: a
--- mapping's <Cmd> and nvim_cmd() go straight through.
+-- one, so a built-in that needs answering differently is changed on the command
+-- line the moment before it runs. Only a typed line gets here: a mapping's
+-- <Cmd> and nvim_cmd() go straight through.
 --
 -- NOTE: not a cnoreabbrev, the usual tool for this. Its bang trigger is flaky:
--- `:bd!` right after an expanded `:bd` went through unexpanded.
+-- `:bd!` right after an expanded `:bd` goes through unexpanded.
 
 local M = {}
 
@@ -41,8 +43,8 @@ function M.rewrite(fn)
   rewrites[#rewrites + 1] = fn
 end
 
---- Whether `word` is a spelling of the command `full`: a prefix of it, at
---- least `shortest` letters long.
+--- Whether `word` is a spelling of the command `full`: a prefix of it, at least
+--- `shortest` letters long.
 function M.spells(word, full, shortest)
   return word ~= nil and #word >= shortest and full:find(word, 1, true) == 1
 end
@@ -61,9 +63,9 @@ vim.api.nvim_create_autocmd("CmdlineLeavePre", {
       local instead = fn(line)
 
       if instead then
-        -- NOTE: setcmdline() answers 0, which Lua reads as true, and a
-        -- callback that returns true deletes its own autocmd. Returning its
-        -- result here would make the first rewrite the last.
+        -- NOTE: setcmdline() answers 0, which Lua reads as true, and a callback
+        -- that returns true deletes its own autocmd. Returning its result here
+        -- would make the first rewrite the last.
         vim.fn.setcmdline(instead)
         return
       end

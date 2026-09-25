@@ -1,58 +1,39 @@
--- Language servers: which ones, what to tell them, and what they may touch.
+-- Language servers: which ones run, what they are told, and how what they say
+-- is drawn (code lenses, floats, diagnostics).
 --
--- Neovim ships the LSP client; nvim-lspconfig only supplies each server's
--- connection details, which is its filetypes, its root markers and the
--- command when this config does not name one. A server whose binary is not
--- installed is skipped quietly, and that must never become an error: no
--- server means no LSP for that language while tree-sitter carries on.
--- `:checkhealth mivn` lists everything, on and off.
+-- The client is Neovim's; nvim-lspconfig supplies each server's filetypes, root
+-- markers and default command. A server whose binary is not on `PATH` is
+-- skipped quietly, never as an error, and `:checkhealth mivn` lists every
+-- server, on and off. Settings live in the language files; a project that wants
+-- its own carries a .nvim.lua.
 --
--- Nothing here installs anything. What runs is whatever `PATH` resolves,
--- which is the environment the editor was launched with and none of this
--- config's business; a language whose server is not on it gets tree-sitter
--- colours and nothing else.
+-- Every file under lua/mivn/languages/ is loaded, and each returns:
 --
--- There are no personal knobs either, and that is the point: this config is
--- mine and it is in git, so wanting a server configured differently is an
--- edit to its language file. The one thing that cannot be committed, which
--- Go's import prefixes are, arrives as an environment variable. A project
--- that wants its own settings carries a .nvim.lua, the stock way.
+--   servers     nvim-lspconfig's name for a server, to an entry (below)
+--   formatters  filetype to the command that formats it; this overrides what
+--               the language server offers (lua/mivn/format.lua runs both)
+--   probes      binary name to the arguments `:checkhealth mivn` asks its
+--               version with, for a formatter that does not take `--version`
+--   health      a function `:checkhealth mivn` runs under the language's name
 --
--- One file per language under lua/mivn/languages/, picked up by being there,
--- each returning:
+-- An entry:
 --
---   servers     nvim-lspconfig's name for a server, to the entry below
---   formatters  filetype to the command that formats it, which **overrides**
---               whatever the language server offers. lua/mivn/format.lua
---               owns the save chain both halves hang off.
---   probes      how `:checkhealth mivn` asks one of those formatters for its
---               version, by binary name. Only for the ones that do not take
---               `--version`; a server says this in its own entry instead.
---   health      a function `:checkhealth mivn` runs under a section named
---               after the language, for what only that language knows.
---
--- An entry, in full:
---
---   binary   what proves the server is installed. Defaults to cmd[1], and
---            has to be written out when cmd is a function or absent.
---   cmd      the command, replacing nvim-lspconfig's, in either shape
---            vim.lsp.config() takes. Omitted keeps lspconfig's.
---   config   what vim.lsp.config() takes, merged over lspconfig's defaults.
+--   binary   what proves the server is installed; defaults to cmd[1], so it
+--            is required when cmd is a function or absent
+--   cmd      replaces nvim-lspconfig's command, in either shape
+--            vim.lsp.config() takes
+--   config   what vim.lsp.config() takes, merged over nvim-lspconfig's
 --   format   false when the server must never be asked to format, whatever
---            it answers about supporting it.
+--            it says it supports
 --   probe    the arguments `:checkhealth mivn` asks the version with; false
---            when the binary has no harmless one-shot flag at all.
+--            when the binary has no harmless one-shot flag
 --
--- A language file is also free to do its own work when it is loaded: Go's
--- second import pass is an autocmd it registers itself, since nothing else
--- has any business knowing about it. Nothing but languages lives in that
--- directory, which is what lets the list above be a glob.
+-- A language file may also do its own work when it loads (Go registers its
+-- second import pass). Since every file in that directory is loaded, nothing
+-- but languages lives there.
 
 --- The languages -------------------------------------------------------------
 
--- Found rather than listed. A list would be one more thing to keep in step
--- with the directory it describes, and a language left off it would sit
--- there doing nothing, without a word.
 local languages = {}
 for _, path in ipairs(vim.api.nvim_get_runtime_file("lua/mivn/languages/*.lua", true)) do
   languages[#languages + 1] = vim.fn.fnamemodify(path, ":t:r")
@@ -102,7 +83,6 @@ table.sort(enabled)
 
 --- Starting them --------------------------------------------------------------
 
---- Hand `name`'s settings and command to Neovim.
 local function configure(name, entry)
   local config = vim.deepcopy(entry.config or {})
   config.cmd = entry.cmd or config.cmd
@@ -111,10 +91,9 @@ local function configure(name, entry)
 end
 
 -- A server that dies right after starting otherwise fails in silence: the
--- client detaches, features quietly stop, and nothing says why. Measured
--- with rust-analyzer behind a rustup shim with no component installed:
--- executable() said yes, the process recursed and died, and nothing said so.
--- Once per server per session, and not on shutdown.
+-- client detaches and nothing says why (rust-analyzer behind a rustup shim with
+-- no component installed passes executable() and then dies). This says so once
+-- per server per session, and not on shutdown.
 local exit_warned = {}
 
 vim.lsp.config("*", {
@@ -123,9 +102,7 @@ vim.lsp.config("*", {
       return
     end
 
-    -- One that was asked to go is not news, whatever it exits with. gopls
-    -- leaves with 2 when the client in front of its daemon is shut down, and
-    -- taking a directory's trust back stops every server it had.
+    -- one that was asked to stop is not news, whatever it exits with (gopls: 2)
     local client = vim.lsp.get_client_by_id(client_id)
     if client and client._is_stopping then
       return
@@ -137,22 +114,20 @@ vim.lsp.config("*", {
     end
     exit_warned[name] = true
 
-    -- Scheduled, because on_exit can run in a fast context.
+    -- on_exit can run in a fast context
     vim.schedule(function()
       vim.notify(("%s exited with code %d. :checkhealth mivn has details."):format(name, code), vim.log.levels.WARN)
     end)
   end,
 })
 
--- Installed ones only. Configuring a server this machine does not have costs
--- a runtime file lookup.
+-- Installed ones only, since configuring a server costs a runtime file lookup.
 for _, name in ipairs(enabled) do
   configure(name, servers[name])
 end
 
--- Enabled by the workspace's answer rather than here: none of them starts
--- until the directory this editor was opened in is trusted, and that answer
--- can change while it runs. lua/mivn/trust.lua says why and owns both.
+-- Not enabled here: none starts until the directory I opened is trusted, and
+-- that answer can change while the editor runs.
 require("mivn.trust").gate(enabled)
 
 require("mivn.format").setup(formatters, muted)
@@ -160,18 +135,7 @@ require("mivn.format").setup(formatters, muted)
 --- Code lenses ----------------------------------------------------------------
 
 -- The actions a server offers on a line, drawn above it. Neovim leaves them
--- off, so the ones a language file asks for (Go names seven in its gopls
--- settings) were being configured and never requested.
---
--- What they are in practice, measured: nothing at all on ordinary Go source,
--- one "run test" per test function in a _test.go, and seven on a go.mod for
--- tidy, vendor, govulncheck and the upgrades. rust-analyzer adds a reference
--- count per item and Run and Debug above each test and above main.
---
--- Running the one under the cursor is <leader>ax in lua/mivn/keymaps.lua.
--- Nothing else about them is a key: enabling asks for them and keeps them up
--- to date on its own, so refresh and clear are machinery rather than
--- decisions.
+-- off; enabling asks for them and keeps them up to date on its own.
 vim.api.nvim_create_autocmd("LspAttach", {
   group = vim.api.nvim_create_augroup("mivn.lsp.lenses", { clear = true }),
   callback = function(ev)
@@ -184,26 +148,18 @@ vim.api.nvim_create_autocmd("LspAttach", {
 
 --- Getting back out of a float ------------------------------------------------
 
--- <leader>ai opens the documentation float and a second one steps into it.
--- Neovim
--- maps `q` in there to close it and leaves Esc doing nothing, which is the
--- one place in mivn where Esc is not the way back: the rename prompt and
--- the trust dialog both take it. This is that key doing the same thing here.
--- `q` still works, and the mapping is on the float's own buffer, so it
--- reaches nothing else.
---
--- Wrapped rather than replaced: the stock function decides the size, the
--- highlighting and when the float closes on its own. All this adds is the
--- mapping, to the buffer it hands back. Signature help and the diagnostic
--- float come through here too, and get it for the same reason.
+-- Neovim closes an LSP float on `q` and leaves Esc doing nothing in there,
+-- while everywhere else in mivn Esc is the way back. This wraps the stock
+-- function, which still decides the size, the highlighting and when the float
+-- closes, and adds Esc on the float's own buffer. Signature help and the
+-- diagnostic float come through here too.
 local open_floating_preview = vim.lsp.util.open_floating_preview
 
 ---@diagnostic disable-next-line: duplicate-set-field it is the point
 vim.lsp.util.open_floating_preview = function(...)
   local buf, win = open_floating_preview(...)
 
-  -- Reusing a float that is already up hands back the same buffer, so this
-  -- can run twice for one window; setting the same mapping again is free.
+  -- a reused float hands back the same buffer, and mapping it again is harmless
   vim.keymap.set("n", "<Esc>", "<cmd>bdelete<cr>", {
     buffer = buf,
     silent = true,
@@ -211,12 +167,8 @@ vim.lsp.util.open_floating_preview = function(...)
     desc = "Close this float",
   })
 
-  -- Stock leaves 'concealcursor' empty, so the line the cursor is on drops
-  -- back to raw markdown. Stepping into the float lands on line one, which
-  -- is the ```rust that opens the signature, and reading documentation is
-  -- not the moment to be shown its markup. Normal mode only: a Visual
-  -- selection is usually me taking the text, and then the markup is the
-  -- point.
+  -- stock leaves 'concealcursor' empty, so the cursor's line shows raw
+  -- markdown; Visual still shows it, since there I am copying the text
   vim.wo[win].concealcursor = "n"
 
   return buf, win
@@ -224,45 +176,25 @@ end
 
 --- Diagnostics ---------------------------------------------------------------
 
--- The message for the line I am on is drawn *under* it rather than after it:
--- 'virtual_text' gets whatever space is left at the end of the line, which
--- truncates a rust-analyzer type mismatch where it starts to say something.
---
--- The trade is movement: text below the cursor is pushed down while a
--- diagnostic is open and springs back as I leave the line. `current_line`
--- keeps that to one place at a time; every other diagnostic stays a letter in
--- the sign column.
---
--- Under the line is not enough on its own, though, because the block does not
--- wrap either. Neovim's handler draws it with `virt_lines_overflow = 'scroll'`
--- and that field only takes 'trunc' or 'scroll', so with 'wrap' off
--- (init.lua) a long gopls message is cut at the right edge with nothing
--- saying there is more, and the tail is only reachable with `zL`, which drags
--- the code sideways to read a message about it.
---
--- What the handler does give is one virtual line per line of the message it
--- is handed, elbow on the first and an indent on the rest. So the wrapping is
--- a `format` that puts the breaks in, and there is no custom handler here.
+-- The message for the cursor's line is drawn under it, as virtual lines, rather
+-- than after it where it gets only what the line leaves over; every other
+-- diagnostic is a letter in the sign column. The handler cannot wrap those
+-- lines (its overflow is 'trunc' or 'scroll'), but it draws one per line of the
+-- message, so `format` puts the breaks in.
 
--- The elbow the handler draws in front of the first line, `└──── `, and the
--- six spaces it indents every line after it with.
+-- The elbow the handler draws before the first line, `└──── `, which is also
+-- the indent of every line after it.
 local ELBOW = 6
 
--- Narrower than this and the wrapping does more harm than the truncation did:
--- a diagnostic deep in an indented block, in a split, would get two words to
--- the line. It overflows the edge instead, and `Ctrl+W d` has the whole
--- message either way.
+-- The narrowest a message is wrapped to. Deep in an indented block in a split
+-- it would get two words to the line, so it runs off the edge instead.
 local NARROWEST = 40
 
--- The floor under that third, for a window short enough that a third of it is
--- one row. Three rows of a message is worth reading; one is the truncation
--- back again with an ellipsis on it.
+-- The fewest rows a message gets, in a window so short that a third of it is
+-- one row.
 local SHORTEST = 3
 
---- The window `bufnr` is showing in: the one I am in when it is one of them,
---- and otherwise the first of them. A buffer in no window at all has
---- diagnostics that arrived before I opened it, and then the screen's width
---- is the best guess there is.
+--- The window showing `bufnr`, the current one if it is, or nil when none is.
 local function window_showing(bufnr)
   local wins = vim.fn.win_findbuf(bufnr)
   if #wins == 0 then
@@ -279,12 +211,9 @@ local function window_showing(bufnr)
   return wins[1]
 end
 
---- How wide one diagnostic's message may be drawn, in screen cells, and how
---- many lines of it are worth drawing there.
----
---- Both are per diagnostic, because the handler indents the block to the
---- column the diagnostic starts on: the same message on a deeply indented
---- line has that much less room.
+--- How many cells wide and how many rows `diagnostic`'s message may be drawn.
+--- Per diagnostic, since the handler indents the block to the diagnostic's
+--- column. A buffer in no window gets the screen's size as a guess.
 local function room_for(diagnostic)
   local win = window_showing(diagnostic.bufnr)
 
@@ -296,12 +225,10 @@ local function room_for(diagnostic)
 
   local info = vim.fn.getwininfo(win)[1]
 
-  -- virtcol() counts the cells up to and including the character the
-  -- diagnostic sits on, which is one more than the indent the handler draws.
-  -- That extra one is kept on purpose: the longest line then stops one column
-  -- short of the right edge, and a row that ends on the last column reads as
-  -- cut off whether or not anything was lost. Buffer-local, since what a tab
-  -- is worth is 'tabstop' over there and not here.
+  -- NOTE: virtcol() counts one cell more than the indent the handler draws, and
+  -- that is on purpose: the longest line stops one column short of the edge,
+  -- since a row that ends on the last column reads as cut off. It runs in the
+  -- diagnostic's buffer because a tab is worth that buffer's 'tabstop'.
   local indent = vim.api.nvim_buf_call(diagnostic.bufnr, function()
     return vim.fn.virtcol({ diagnostic.lnum + 1, diagnostic.col + 1 })
   end)
@@ -311,19 +238,14 @@ local function room_for(diagnostic)
   return math.max(width, NARROWEST), math.max(math.floor(info.height / 3), SHORTEST)
 end
 
---- `message` broken into at most `rows` lines of at most `width` cells, as
---- one string with newlines in it, which is what the handler draws a virtual
---- line each of.
+--- `message` broken into at most `rows` lines of at most `width` cells, joined
+--- with newlines. It breaks only on the message's own spaces, so a token wider
+--- than `width` runs off the edge whole; each of the message's own lines is
+--- wrapped alone and keeps its leading whitespace. Past `rows` the last line
+--- ends in an ellipsis.
 ---
---- Breaks on the spaces the message already has and never inside a token, so
---- a token wider than `width` gets a line of its own and runs off the edge:
---- half a path or half an identifier is worse than one that overflows. Each
---- of the message's own lines is wrapped on its own and keeps the whitespace
---- it opens with, since a server that sent me an indented snippet meant it.
----
---- Every width in here is `strdisplaywidth` and never `#s`. A byte count
---- wraps a Greek message about a third too early and lets a Japanese one run
---- off the edge, because neither of them has one byte to the cell.
+--- NOTE: every width here is strdisplaywidth(), never `#s`. A byte count wraps
+--- Greek about a third too early and lets Japanese run off the edge.
 local function wrap(message, width, rows)
   local lines = {}
   local pieces = {}
@@ -341,8 +263,7 @@ local function wrap(message, width, rows)
         gap, between = "", 0
       end
 
-      -- The gap goes in as it stands rather than as one space, so a run of
-      -- them inside a line survives; the one a break lands on is the break.
+      -- the gap as it stands, so a run of spaces survives (dropped at a break)
       if gap ~= "" then
         held = held + 1
         pieces[held] = gap
@@ -360,10 +281,7 @@ local function wrap(message, width, rows)
     return table.concat(lines, "\n")
   end
 
-  -- Cut, with the marker that says so on the last line kept. Trimmed by
-  -- characters rather than by tokens, since the sentence is being cut in the
-  -- middle whatever I do, and the ellipsis is the thing that points at
-  -- `Ctrl+W d` for the rest.
+  -- trimmed by characters, to make room for the ellipsis
   local last = lines[rows]
   while vim.fn.strdisplaywidth(last) >= width do
     last = vim.fn.strcharpart(last, 0, vim.fn.strchars(last) - 1)
@@ -376,15 +294,13 @@ end
 
 --- The message the virtual lines handler draws for one diagnostic.
 ---
---- WARN: this runs for every diagnostic in the buffer on every publish, not
---- only the one the cursor is on, because the handler formats the whole list
---- before `current_line` picks out of it. Keep the work in here to the string
---- and the two tables it takes.
+--- NOTE: this runs for every diagnostic in the buffer on every publish, not
+--- only the cursor line's, because the handler formats the whole list before
+--- `current_line` picks from it. Keep it cheap.
 local function drawn(diagnostic)
   local message = diagnostic.message
 
-  -- The code in front, which is what Neovim's own formatter does and worth
-  -- keeping: "unusedparams" names which of gopls' checks is talking.
+  -- the code in front, as Neovim's own formatter does: it names the check
   if diagnostic.code then
     message = ("%s: %s"):format(diagnostic.code, message)
   end
@@ -409,16 +325,10 @@ vim.diagnostic.config({
   float = { border = "rounded", source = true },
 })
 
--- The breaks above go in when the diagnostics are published and not when they
--- are drawn, so they are the widths the windows had at the time. Opening the
--- tree, splitting, or resizing the terminal leaves every message wrapped for
--- a width that is gone, and the truncation is back until the server says
--- something new. Publishing them again is what re-measures them.
---
--- WinResized carries the windows that changed, so this touches those buffers
--- and no others: a session with twenty files open re-publishes the two that
--- are on screen, and only if they have anything to say. It covers the whole
--- screen changing too, since resizing the terminal resizes the windows in it.
+-- The breaks go in when diagnostics are published, not when they are drawn, so
+-- a window that changes size keeps the old width until they are shown again.
+-- This shows them again for the buffers in the windows that changed, and only
+-- the ones that have any.
 vim.api.nvim_create_autocmd("WinResized", {
   group = vim.api.nvim_create_augroup("mivn.lsp.diagnostics", { clear = true }),
   callback = function()
@@ -437,6 +347,5 @@ vim.api.nvim_create_autocmd("WinResized", {
   end,
 })
 
--- For lua/mivn/health.lua, which probes binaries instead of trusting
--- executable(). Nothing else reads any of these.
+-- What the language files declared, for `:checkhealth mivn`.
 return { servers = servers, formatters = formatters, probes = probes, checks = checks }

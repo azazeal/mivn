@@ -1,47 +1,33 @@
--- Completion in Insert mode: the menu opens by itself, the arrows walk it,
--- Enter and Tab take a match.
---
--- No plugin. 'autocomplete' is Neovim's own option for a menu that appears as
--- I type, new in 0.12, and the language server reaches it through 'complete'
--- like any other source.
+-- Completion in Insert mode: the menu opens by itself as I type, the arrows
+-- walk it, Enter and Tab take a match. No plugin: it is Neovim's own
+-- 'autocomplete', with the language server as one of its sources.
 
 --- What the menu is made of --------------------------------------------------
 
--- The menu appears as I type rather than only on Ctrl+X Ctrl+O.
 -- 'autocompletedelay' stays 0, since the wait is already the language server's
 -- round trip.
 vim.o.autocomplete = true
 
--- Where the matches come from, in order, which is also the priority: Neovim
--- gives each source a slice of time and the earlier ones get more. `o` is the
--- language server through 'omnifunc'; `.`, `w` and `b` are words already
--- written, in this buffer, other windows, then the rest of the buffer list.
--- This is the serverless default; a buffer a completing server attaches to
--- narrows to `o` alone, in the LspAttach below.
---
--- The `^10` on the word sources is a match limit: without it a long file fills
--- the menu with its own identifiers and pushes the server's answers off the
--- end. Vim's `u` is left out because it reads unloaded buffers off disk
--- mid-keystroke, and `t` wants a tags file this setup never generates.
+-- The sources, in priority order: `o` is the language server through
+-- 'omnifunc'; `.`, `w` and `b` are words from this buffer, other windows and
+-- the rest of the buffer list, ten matches each so a long file does not push
+-- the server's off the end. A buffer with a completing server narrows to `o`
+-- alone (below). `u` would read unloaded buffers off disk as I type, and `t`
+-- wants a tags file I never generate.
 vim.opt.complete = { "o", ".^10", "w^10", "b^10" }
 
--- `menuone` so a single match still gets a menu rather than being inserted
--- from under me, `noselect` so nothing is chosen until I choose it (which is
--- what leaves Enter free to be a newline), `popup` for the doc window, and
--- `fuzzy` so "nsl" reaches "nvim_set_lines". 'autocomplete' turns `noselect`
--- on by itself and ignores `menuone`; both are written out anyway because they
--- still govern the Ctrl+X completion underneath.
+-- `menuone` and `noselect` so nothing goes in until I choose it, which leaves
+-- Enter free to break the line; `popup` for the docs, and `fuzzy` so "nsl"
+-- finds "nvim_set_lines". 'autocomplete' sets `noselect` itself and ignores
+-- `menuone`, but Ctrl+X completion still reads both.
 vim.o.completeopt = "menuone,noselect,popup,fuzzy"
 
 --- The language server's half ------------------------------------------------
 
--- `enable` is what makes accepting a match do the work that comes with it:
--- expanding a snippet, applying the extra edits an item carries (the import
--- line for the symbol I picked), resolving the documentation in the popup.
---
--- No `autotrigger`: it fires on the trigger characters the server names, which
--- 'autocomplete' already covers, so both on means two requests racing on the
--- same character.
+-- `enable` makes accepting a match do what comes with it: expand a snippet,
+-- apply its extra edits (the import for the symbol I picked), resolve the docs
+-- in the popup. No `autotrigger`, since 'autocomplete' already fires on the
+-- server's trigger characters and the two would race on the same one.
 local group = vim.api.nvim_create_augroup("mivn.complete", { clear = true })
 
 vim.api.nvim_create_autocmd("LspAttach", {
@@ -51,11 +37,8 @@ vim.api.nvim_create_autocmd("LspAttach", {
     if client and client:supports_method("textDocument/completion") then
       vim.lsp.completion.enable(true, ev.data.client_id, ev.buf)
 
-      -- The server becomes the only source, which is Zed's rule. The word
-      -- sources would re-offer identifiers the server already answered with:
-      -- every call site is also a word, the server's entry carries the
-      -- signature while the word carries nothing, and Vim has no dedup
-      -- across sources (the LSP marks its items dup on purpose).
+      -- the server alone, since words would repeat its matches without their
+      -- signatures and Vim does not drop duplicates across sources
       vim.bo[ev.buf].complete = "o"
     end
   end,
@@ -71,34 +54,22 @@ vim.api.nvim_create_autocmd("LspDetach", {
       end
     end
 
-    -- Drops the buffer-local value, back to the global list above.
+    -- back to the global list
     vim.api.nvim_buf_call(ev.buf, function()
       vim.cmd("setlocal complete<")
     end)
   end,
 })
 
--- Vim's own sql completion is dropped, so `o` finds nothing in a sql buffer
--- and the word sources answer instead.
+-- Vim's own sql completion is dropped, so the word sources answer in a sql
+-- buffer. It asks a live database through the dbext plugin, which I do not
+-- want; without dbext every call prints an error and sleeps two seconds, on
+-- every key 'autocomplete' fires on. That sleep also runs the event loop while
+-- completion locks the buffer, which raised E565 from ui2's message timer.
 --
--- It completes table and column names by asking a live database, through the
--- dbext plugin, which is not installed here and is not going to be: I do not
--- want the editor talking to a database as I type. Without dbext every call
--- prints an error and then sits in `:sleep 2`, and 'autocomplete' calls it on
--- the keys I type, so a sql buffer stalls two seconds at a time. Measured: a
--- burst of five characters took 2.08s to land.
---
--- The sleep is also what raised E565 out of ui2's message timer: `:sleep`
--- runs the event loop while completion holds the buffer against changes, so a
--- message on its way out was removed at the one moment that is not allowed.
--- The timer is Neovim's and the missing guard is Neovim's; this only takes
--- away the one thing here that reaches it.
---
--- The flag is the sql ftplugin's own switch and goes first, since the
--- ftplugin reads it while the file type is being set. It turns off thirteen
--- Insert-mode mappings the ftplugin makes on Ctrl+C, all of them ways into
--- the completion below: with them, Ctrl+C in a sql buffer waits to see
--- whether a second key is coming instead of leaving Insert.
+-- The flag goes first, since the sql ftplugin reads it while the filetype is
+-- being set. It turns off the ftplugin's Ctrl+C mappings in Insert, which make
+-- Ctrl+C wait for a second key instead of leaving Insert.
 vim.g.omni_sql_no_default_maps = 1
 
 vim.api.nvim_create_autocmd("FileType", {
@@ -106,8 +77,7 @@ vim.api.nvim_create_autocmd("FileType", {
   pattern = "sql",
   desc = "Drop the sql omni-completion, which wants a database behind it",
   callback = function(ev)
-    -- Named rather than blanked, so that a language server which got there
-    -- first keeps the omnifunc it set.
+    -- only the sql one, so a server that got here first keeps its omnifunc
     if vim.bo[ev.buf].omnifunc == "sqlcomplete#Complete" then
       vim.bo[ev.buf].omnifunc = ""
     end
@@ -115,8 +85,6 @@ vim.api.nvim_create_autocmd("FileType", {
 })
 
 --- The keys -------------------------------------------------------------------
---
--- Which keys these are is lua/mivn/keymaps.lua's; this is what they do.
 
 local M = {}
 
@@ -125,13 +93,12 @@ local function selected()
   return vim.fn.complete_info({ "selected" }).selected ~= -1
 end
 
---- Accept the highlighted completion, or break the line.
+--- Accept the highlighted completion with Ctrl+Y, which applies the server's
+--- extra edits, or break the line through mini.pairs, as its docs ask of a
+--- mapping that takes Enter.
 ---
---- Acceptance goes through Ctrl+Y, the key the language server hangs its extra
---- edits off. The newline path goes through mini.pairs, which is the
---- integration its own docs ask completion mappings to do; the plugin maps
---- <CR> itself only when nothing else has. MiniPairs.cr() returns raw
---- termcodes, hence vim.keycode() on the other branch.
+--- NOTE: MiniPairs.cr() returns raw termcodes and the mapping does not replace
+--- keycodes, so the Ctrl+Y branch has to be vim.keycode() too.
 function M.enter()
   if selected() then
     return vim.keycode("<C-y>")
@@ -141,18 +108,11 @@ function M.enter()
 end
 
 --- Accept the highlighted completion, or the first one, else jump to the next
---- placeholder, else indent.
+--- snippet placeholder, else indent. The menu wins over a placeholder.
 ---
---- WARN: the placeholder branch is Neovim's own Insert-mode Tab, and taking
---- the key here took it with it. Neovim maps Tab in Insert and Select to
---- vim.snippet.jump when a snippet is live, so accepting a server's snippet
---- and pressing Tab for the next placeholder typed a tab into the middle of
---- the line. Shift+Tab is not mapped here, so jumping back never broke, which
---- is how it went unnoticed.
----
---- The menu comes first, and Zed reads the same way round: its snippet
---- bindings carry `!showing_completions`, so a match beats a placeholder
---- there too.
+--- NOTE: the snippet branch stands in for Neovim's own Insert-mode Tab, which
+--- jumps while a snippet is live and which this mapping replaces. Without it,
+--- Tab types a tab into the middle of an expanded snippet.
 function M.tab()
   if selected() then
     return "<C-y>"
@@ -171,11 +131,9 @@ end
 
 --- Close the menu, or stop typing when there is none.
 ---
---- The menu arrives on its own, so being rid of it should not cost me the mode
---- I am in: this puts back what I typed and leaves me typing, which is Ctrl+E,
---- Vim's own key for it. A second Esc then leaves Insert, where Vim spends the
---- first press on both at once. `<Insert>` is still one press out of typing,
---- menu or no menu.
+--- NOTE: over the menu this is Ctrl+E, which puts back what I typed and keeps
+--- me typing; Vim's Esc would close the menu and leave Insert at once. The menu
+--- arrives on its own, so being rid of it should not cost me the mode.
 function M.escape()
   if vim.fn.pumvisible() == 1 then
     return "<C-e>"
@@ -184,35 +142,23 @@ function M.escape()
   return "<Esc>"
 end
 
--- Ctrl+Space asks for the menu and it arrives stepped in: the top match is
--- highlighted, so Enter takes it and the arrows move from it. It earns its
--- place where the automatic trigger has nothing to go on: a fresh line or just
--- after a space. `<C-n>` rather than `<C-x><C-o>`, so it is the same set of
--- sources as the automatic menu instead of the server alone.
---
--- The menu `<C-n>` opens only shows up after the mapping returns, so the
--- highlight is placed by the CompleteChanged below, armed by `requested`.
--- TextChangedI disarms it when `<C-n>` found nothing: it fires on the next
--- typed character, before 'autocomplete' can open a menu this key never asked
--- for.
+-- Set by M.now() until the menu it asked for opens. That menu appears only
+-- after the mapping returns, so the CompleteChanged below highlights its top
+-- match. TextChangedI clears it when nothing matched, before 'autocomplete' can
+-- open a menu M.now() never asked for.
 local requested = false
 
--- The highlighted match, remembered because a highlight does not survive a
--- re-fill of the list: a source that answers late (the language server,
--- usually) lands its matches after the menu is already up, and the selection
--- resets to nothing. Measured with a server that takes 1.5s to answer. When
--- that happens the highlight goes back onto its match, wherever the re-fill
--- moved it, or to the top when the match is gone. This guards every
--- highlight, the arrows' included, not only Ctrl+Space's.
---
--- `n` is the length of the list, and it is how a re-fill is told apart from
--- me walking onto the "what I typed" entry, which is also "nothing selected":
--- walking never changes the length.
+-- The highlighted match and the list's length. A source that answers late
+-- re-fills the menu and the highlight drops to nothing, so it goes back onto
+-- its match, or the top when the match is gone. The length tells a re-fill
+-- apart from me walking onto the "what I typed" entry, which is also no
+-- selection: walking never changes it.
 local kept = nil
 
---- Highlight the match at `to` and remember it; the line is left alone. The
---- remembering has to happen here: this runs inside CompleteChanged, and
---- autocmds do not nest, so the handler cannot see its own selections.
+--- Highlight the match at `to` without inserting it, and remember it.
+---
+--- NOTE: the remembering has to happen here. This runs inside CompleteChanged
+--- and autocmds do not nest, so the handler never sees its own selections.
 local function highlight(to, items, n)
   kept = { word = items[to + 1].word, n = n }
   vim.api.nvim_select_popupmenu_item(to, false, false, {})
@@ -246,8 +192,7 @@ vim.api.nvim_create_autocmd("CompleteChanged", {
     end
 
     if n == kept.n then
-      -- Same list, so I walked here on purpose; from now on re-fills leave
-      -- the nothing-selected state alone too.
+      -- same length, so I walked here; leave later re-fills alone too
       kept = nil
       return
     end
@@ -273,7 +218,9 @@ vim.api.nvim_create_autocmd({ "CompleteDone", "TextChangedI", "InsertLeave" }, {
   end,
 })
 
---- Open the completion menu here, with the top match highlighted.
+--- Open the completion menu here, with the top match highlighted. It is `<C-n>`
+--- rather than `<C-x><C-o>`, so the sources are the automatic menu's and not
+--- the server's alone.
 function M.now()
   if vim.fn.pumvisible() == 1 then
     if not selected() then
