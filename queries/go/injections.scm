@@ -1,43 +1,25 @@
 ;; extends
 
 ;; SQL inside Go strings, marked by a /* sql */ comment right before the
-;; string.
+;; string, loose on case and inner spacing.
 ;;
-;;   const q  = /* sql */ `SELECT 1`
-;;   var   q  = /* sql */ `SELECT 1`
-;;   q       := /* sql */ `SELECT 1`
-;;   q        = /* sql */ `SELECT 1`
 ;;   db.Query( /* sql */ `SELECT 1`, arg)
+;;   q := /* sql */ `SELECT 1`
 ;;   {body: /* sql */ `SELECT 1`}
 ;;
-;; Three shapes, because the comment is not always the string's sibling. In
-;; a call it sits directly beside the string; in any declaration or assignment
-;; the grammar wraps the string in an `expression_list`, and inside a struct,
-;; map or slice literal it wraps it in a `literal_element`, so the comment
-;; sits beside the wrapper instead. Matching the wrapper without naming its
-;; parent covers const, var, := and = with the first, and a table of test
-;; cases with the second. `:InspectTree` on a Go file shows the shapes.
+;; Three shapes, because the comment is not always the string's sibling: in a
+;; declaration or assignment the string sits inside an `expression_list`, and
+;; in a struct, map or slice literal inside a `literal_element`. `:InspectTree`
+;; shows them. The capture is the *_content node, so the quotes never reach
+;; the SQL parser.
 ;;
-;; The capture lands on the *_content node rather than the literal, so the
-;; backticks or quotes are never handed to the SQL parser and no offset
-;; arithmetic is needed to trim them.
+;; `;; extends` adds these to nvim-treesitter's own Go injections rather than
+;; replacing them.
 ;;
-;; The tag is matched loosely on case and inner spacing, so a `/*sql*/` typed
-;; by someone else still lights up rather than silently doing nothing.
-;;
-;; If this ever stops working, check the `sql` grammar is installed before
-;; suspecting the query. An injection whose target grammar is missing fails
-;; silently: the string just renders as a plain string, with no error anywhere.
-;; `:MivnInstallGrammars` installs it. The `;; extends` above matters too; it is
-;; what adds these rules to nvim-treesitter's own Go injections (regex, printf)
-;; rather than replacing them.
-;;
-;; The other way it goes quiet is a language server marking the whole literal
-;; as a string: a semantic token is drawn above tree-sitter and paints over
-;; every colour in here, so the SQL parses and still looks like a string.
-;; colors/basalt.lua clears `@lsp.type.string` for that reason. `:Inspect` on a
-;; keyword is what tells the two apart: it lists the tree-sitter capture and
-;; the semantic token side by side, with the priority each is drawn at.
+;; When it goes quiet, check the `sql` grammar first (`:MivnInstallGrammars`),
+;; since a missing target grammar fails without a word. Then look for a semantic
+;; token painting over it: `:Inspect` on a keyword shows both side by side, and
+;; colors/basalt.lua clears `@lsp.type.string` for this.
 
 ((comment) @_sqltag
   .
