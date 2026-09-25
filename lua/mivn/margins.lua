@@ -155,15 +155,16 @@ vim.api.nvim_set_decoration_provider(ns, {
     for offset, line in ipairs(lines) do
       local row = first + offset - 1
 
-      -- Printable ASCII draws one column per byte, so a short line of it
-      -- cannot reach the first limit; this is what most lines cost. The
-      -- escapes: a tab or a control character can draw wider than a column
-      -- each (mark measures those), and a byte 0x80 and up can stand alone
-      -- and draw as <xx>, four columns, so those lines get one whole-line
-      -- measurement instead. Safe, because a line without a %c match
-      -- carries no NUL.
-      local short = #line < MARKS[1].column
-        and (not line:find("[%c\128-\255]") or (not line:find("%c") and vim.fn.strdisplaywidth(line) < MARKS[1].column))
+      -- A line that cannot reach the first limit is skipped, which is most of
+      -- them. Printable ASCII draws one column per byte. Anything else with
+      -- no tab or control character in it is measured whole, once: a Greek
+      -- line is two bytes a letter, so counting bytes would send every line
+      -- past 40 letters through mark(), and a stray byte draws as <xx>, so a
+      -- short one can still cross. A line with no %c match carries no NUL, so
+      -- strdisplaywidth may see it.
+      local ascii = not line:find("[\128-\255]")
+      local short = not line:find("%c")
+        and (ascii and #line < MARKS[1].column or not ascii and vim.fn.strdisplaywidth(line) < MARKS[1].column)
 
       if not short then
         mark(bufnr, row, line, tabstop)
