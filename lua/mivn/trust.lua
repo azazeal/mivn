@@ -97,9 +97,9 @@ function M.status(dir)
 
   while path do
     if list[path] == "!" then
-      return "denied", path, "list"
+      return "denied", path
     elseif list[path] then
-      return "allowed", path, "list"
+      return "allowed", path
     end
 
     local parent = vim.fs.dirname(path)
@@ -129,7 +129,6 @@ function M.decided()
       list[#list + 1] = {
         path = path,
         state = decision == "!" and "denied" or "allowed",
-        by = "me",
       }
     end
   end
@@ -262,9 +261,9 @@ end
 --- would be an answer about the wrong directory.
 function M.here()
   local workspace = M.workspace()
-  local _, where, source = M.status(workspace)
+  local _, where = M.status(workspace)
 
-  return source == "list" and where or workspace
+  return where or workspace
 end
 
 local ACTIONS = { "allow", "deny", "forget", "status" }
