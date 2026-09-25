@@ -40,6 +40,14 @@ vim.api.nvim_create_autocmd("LspAttach", {
       return
     end
 
+    -- The first server with hints decides; a second one attaching later
+    -- would otherwise undo a <leader>tn made in between.
+    for _, other in ipairs(vim.lsp.get_clients({ bufnr = ev.buf, method = "textDocument/inlayHint" })) do
+      if other.id ~= client.id then
+        return
+      end
+    end
+
     vim.lsp.inlay_hint.enable(not QUIET[vim.bo[ev.buf].filetype], { bufnr = ev.buf })
   end,
 })
