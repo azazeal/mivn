@@ -58,18 +58,12 @@ end
 --- The guard is the point: git searches upwards from -C, so a config directory
 --- that merely sits inside some other repository (a dotfiles repo holding all
 --- of ~/.config, say) answers every question below with that repository's tags
---- and origin. Unguarded, this would go on to ask GitHub about the wrong
---- project and offer to update a checkout that cannot be updated.
----
---- Comparing real paths and not the strings: running mivn through a
---- ~/.config/mivn symlink makes toplevel report where the symlink leads, which
---- never matches stdpath("config") as written.
+--- and origin. A `.git` of its own is what a checkout has and such a directory
+--- does not, and asking the disk costs no subprocess on the way to the banner.
 local rooted
 local function here(args)
   if rooted == nil then
-    local top = ask({ "rev-parse", "--show-toplevel" })
-    local real = top and vim.uv.fs_realpath(top)
-    rooted = real ~= nil and real == vim.uv.fs_realpath(vim.fn.stdpath("config"))
+    rooted = vim.uv.fs_stat(vim.fs.joinpath(vim.fn.stdpath("config"), ".git")) ~= nil
   end
 
   if not rooted then
@@ -79,18 +73,24 @@ local function here(args)
   return ask(args)
 end
 
---- The release this checkout is on, or nil when it is not a clone, has no
---- tags, or sits on something no release describes.
+--- `git describe --tags` for HEAD, asked once: `v0.2.1` on a release and
+--- `v0.2.1-7-gabc1234` past one. nil when it is not a clone or has no tags.
 ---
 --- `false` is the "asked once, got nothing" marker; nil alone would ask git
 --- again on every dashboard render.
-local installed
-local function version()
-  if installed == nil then
-    installed = here({ "describe", "--tags", "--abbrev=0" }) or false
+local described
+local function describe()
+  if described == nil then
+    described = here({ "describe", "--tags" }) or false
   end
 
-  return installed or nil
+  return described or nil
+end
+
+--- The release this checkout is on or past, for comparing with the newest.
+local function version()
+  local tag = describe()
+  return tag and (tag:gsub("%-%d+%-g%x+$", "")) or nil
 end
 
 --- The release this checkout is on, as something to show a person.
@@ -100,18 +100,9 @@ end
 --- so a checkout ahead of a release never claims to be that release. Nothing
 --- about the working tree: I dirty this config all day and do not need a
 --- banner telling me so.
----
---- Deliberately not what version() returns. That one is compared with
---- vim.version, where a +7 is build metadata and ignored, and the comparison
---- wants the release itself anyway.
-local shown
 function M.running()
-  if shown == nil then
-    local described = here({ "describe", "--tags" })
-    shown = described and (described:gsub("%-(%d+)%-g%x+$", "+%1")) or false
-  end
-
-  return shown or nil
+  local tag = describe()
+  return tag and (tag:gsub("%-(%d+)%-g%x+$", "+%1")) or nil
 end
 
 --- The public https URL for origin, whatever form origin is written in.
@@ -233,13 +224,13 @@ end
 --- next session asks again.
 local asking = false
 
-function M.check(force)
+function M.check()
   if asking then
     return
   end
 
   local known = state()
-  if not force and known.checked and os.time() - known.checked < TTL then
+  if known.checked and os.time() - known.checked < TTL then
     return
   end
 
@@ -384,7 +375,7 @@ local function pull()
         end
 
         -- The release moved, so the memo has to go; the banner asks again.
-        installed, shown = nil, nil
+        described = nil
         vim.api.nvim_exec_autocmds("User", { pattern = "MivnUpdate", modeline = false })
 
         local told = ("Updated to %s. Run :restart to load it."):format(target)
