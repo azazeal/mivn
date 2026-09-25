@@ -131,15 +131,13 @@ end
 --- edits off. The newline path goes through mini.pairs, which is the
 --- integration its own docs ask completion mappings to do; the plugin maps
 --- <CR> itself only when nothing else has. MiniPairs.cr() returns raw
---- termcodes, hence vim.keycode() on the other branches. The pcall keeps Enter
---- a plain newline if mini.pairs is ever dropped.
+--- termcodes, hence vim.keycode() on the other branch.
 function M.enter()
   if selected() then
     return vim.keycode("<C-y>")
   end
 
-  local ok, pairs = pcall(require, "mini.pairs")
-  return ok and pairs.cr() or vim.keycode("<CR>")
+  return require("mini.pairs").cr()
 end
 
 --- Accept the highlighted completion, or the first one, else jump to the next

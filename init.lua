@@ -443,14 +443,12 @@ require("mivn.hints") -- the LSP inlay hints, and which languages start without 
 require("mivn.complete") -- the Insert-mode completion menu
 require("mivn.pairs") -- auto-closing pairs; complete.lua's Enter calls into it
 require("mivn.diff") -- git changes in the gutter
-require("mivn.page") -- PageUp and PageDown, over the file and over the menu
 require("mivn.cmdline") -- completion as I type, and the typed commands mivn rewrites
 require("mivn.restart") -- :restart, refused when the window is remote
 require("mivn.terminal") -- the terminal panel and its toggle
 require("mivn.margins") -- the 80/100/120 width markers
 require("mivn.occurrences") -- the other copies of what is selected
 require("mivn.yank") -- a flash over what a yank took
-require("mivn.zoom") -- Ctrl and =, - or 0, under Neovide alone
 require("mivn.find") -- fuzzy finding, and the few keys Vim has no default for
 require("mivn.external") -- PDFs and their kin offered to the system opener
 require("mivn.prompt") -- vim.ui.input as a float instead of the bottom bar

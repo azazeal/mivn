@@ -102,11 +102,10 @@ copy_paste("x", "Y", "Y", "Copy the selected lines to the clipboard")
 --- happens to hold.
 local function paste(keys)
   return function()
-    local named = vim.v.register == '"' and '"+' or ""
     local register = vim.v.register == '"' and "+" or vim.v.register
     local after = vim.fn.getregtype(register):sub(1, 1) == "v" and "g" or ""
 
-    return named .. after .. keys
+    return clipboard(after .. keys)()
   end
 end
 
@@ -124,15 +123,12 @@ vim.keymap.set("n", "P", paste("P"), {
 -- (`:h v_P`). Plain `p` there would replace the selection *and* move the
 -- replaced text into the clipboard, so pasting the same thing over two
 -- selections in a row would paste something different the second time.
-vim.keymap.set({ "x" }, "p", paste("P"), {
-  expr = true,
-  desc = "Paste the clipboard over the selection",
-})
-
-vim.keymap.set({ "x" }, "P", paste("P"), {
-  expr = true,
-  desc = "Paste the clipboard over the selection",
-})
+for _, lhs in ipairs({ "p", "P" }) do
+  vim.keymap.set("x", lhs, paste("P"), {
+    expr = true,
+    desc = "Paste the clipboard over the selection",
+  })
+end
 
 copy_paste({ "n", "x" }, "<A-d>", "d", "Delete, and put it on the clipboard")
 copy_paste({ "n", "x" }, "<A-c>", "c", "Change, and put what was there on the clipboard")
