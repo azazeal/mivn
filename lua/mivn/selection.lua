@@ -1,6 +1,5 @@
 -- Putting a selection back after the text under it changed: the same shape,
--- the same two ends, and Select still Select. Carrying lines up and down
--- (lua/mivn/move.lua) and shifting them (lua/mivn/indent.lua) both need it.
+-- the same two ends, and Select still Select.
 
 local M = {}
 
@@ -31,8 +30,8 @@ end
 ---
 --- NOTE: not `gv`. It restores the marks the selection left, and with
 --- 'selection' exclusive the end mark sits one column short of the caret, so
---- every press pulled the caret one column left. A shift also moves the text
---- out from under the columns the marks remember.
+--- every press would pull the caret one column left. A shift also moves the
+--- text out from under the columns the marks remember.
 function M.restore(mode, anchor, caret)
   vim.api.nvim_win_set_cursor(0, anchor)
   vim.cmd("normal! " .. SHAPE[mode])

@@ -1,45 +1,20 @@
--- Where else the text I have picked out shows up.
+-- Where else the text I have picked out shows up. While a charwise selection
+-- on one line is up, in Visual or Select, every other copy of it on the lines
+-- the window shows gets a quiet tint. A copy is the selected bytes exactly,
+-- case and all, and not a word, so picking out `for` also marks `before`.
 --
--- While a selection is up, every other copy of it in the window gets a quiet
--- tint. No caret and no selection state, so the marks say "here too" and
--- nothing more. This is Zed's, and it is the thing I kept reaching for that
--- Neovim has no default for.
---
--- What counts as a copy is the selected bytes exactly, case and all. Not a
--- word and not a pattern, so picking out `for` also marks the middle of
--- `before`. Half a word is usually what I select when I want to see where
--- else it is, and a word-bounded rule finds nothing for those.
---
--- Charwise on one line, and nothing else: a selection running over several
--- lines is a block I am about to move rather than a phrase I am looking for.
---
--- Select counts as much as Visual does, though. Most of what I pick out
--- starts while I am typing, and a shifted key from Insert lands in Select
--- rather than in Visual (lua/mivn/keymaps.lua), so leaving Select out would
--- leave out most of the selections I make.
---
--- Only the lines the window is showing are searched. Zed spends a 100ms
--- debounce and a second pass over the whole file at this point, and neither
--- buys anything here: a mark on a line nobody can see is not drawn.
---
--- WARN: the marks are laid down as the selection changes, not drawn on the
--- way past. A decoration provider is the cheaper shape and is what
--- lua/mivn/margins.lua uses, but it cannot answer this question: Neovim asks
--- a provider only about the lines it is already repainting, and extending a
--- selection repaints the line the caret is on and nothing else. Measured on
--- screen: the copies on the caret's line showed up and every other line kept
--- what it had been drawn with before the selection existed. What a mark
--- depends on is what decides the shape. The width markers depend on their
--- own line and nothing else, so a provider suits them; these depend on a
--- selection somewhere else in the window, so they do not.
+-- NOTE: the marks are laid down as the selection changes, not drawn by a
+-- decoration provider as the window redraws, the way lua/mivn/margins.lua
+-- does it. Neovim asks a provider only about the lines it is repainting, and
+-- extending a selection repaints the caret's line alone, so every other line
+-- would keep what it had before the selection.
 
 local ns = vim.api.nvim_create_namespace("mivn.occurrences")
 
---- The buffer the marks are in, so that dropping them finds the buffer that
---- got them rather than whichever one is current by the time it happens.
+--- The buffer holding the marks, so clearing them does not depend on which
+--- buffer is current by then.
 local marked = nil
 
---- Take the marks down.
 local function clear()
   if marked and vim.api.nvim_buf_is_valid(marked) then
     vim.api.nvim_buf_clear_namespace(marked, ns, 0, -1)
@@ -48,12 +23,10 @@ local function clear()
   marked = nil
 end
 
---- The selection: the text picked out, the row it sits on, and the byte span
---- `[from, to)` it covers there. Nil unless it is one this marks.
----
---- The span's length comes from the text and not from the two columns,
---- because 'selection' is what decides whether the end column is in or out.
---- getregion() already knows; this does not have to.
+--- The selection: its text, its row and the byte span `[from, to)` it covers
+--- there, or nil unless it is one to mark. The span's length comes from the
+--- text and not from the columns, since 'selection' decides whether the end
+--- column is in.
 local function selected()
   local mode = vim.fn.mode()
 
@@ -63,19 +36,15 @@ local function selected()
 
   local anchor, caret = vim.fn.getpos("v"), vim.fn.getpos(".")
 
-  -- One line, and something on it. A selection that has not opened yet is
-  -- not one: 'selection' is exclusive here, so an anchor sitting on the
-  -- caret picks out nothing, and getregion() hands back the character under
-  -- it regardless (`:h getregion-notes`).
+  -- one line, and not empty: with the anchor on the caret getregion() still
+  -- returns the character under it (`:h getregion-notes`)
   if anchor[2] ~= caret[2] or anchor[3] == caret[3] then
     return nil
   end
 
-  -- WARN: both columns have to be inside the line before getregion() sees
-  -- them. It raises on a column past the end of the line rather than clamping
-  -- it (E964), and a position can be out of date for the moment a mode is
-  -- changing under it. Seen once, on a column 15 of a line that no longer had
-  -- 15 bytes in it; what put it there was never found again.
+  -- NOTE: getregion() raises E964 on a column past the end of the line rather
+  -- than clamping it, and a position can be out of date for the moment a mode
+  -- is changing under it, so both columns are checked first.
   local line = vim.fn.getline(anchor[2])
 
   if anchor[3] > #line + 1 or caret[3] > #line + 1 then
@@ -84,8 +53,7 @@ local function selected()
 
   local text = vim.fn.getregion(anchor, caret, { type = "v" })[1]
 
-  -- Whitespace alone would mark every indent in the window, which is noise
-  -- and never the question being asked.
+  -- whitespace alone would mark every indent in the window
   if not text or text:find("^%s*$") then
     return nil
   end
@@ -106,9 +74,7 @@ local function mark(bufnr, row, line, selection)
       return
     end
 
-    -- The selection is not another copy of itself, and neither is a match
-    -- that runs into it: with `aa` picked out of `aaaa`, the one starting at
-    -- the line's first byte is half of what is already highlighted.
+    -- not the selection itself, nor a match that overlaps it (`aa` in `aaaa`)
     if row ~= selection.row or stop <= selection.from or start - 1 >= selection.to then
       vim.api.nvim_buf_set_extmark(bufnr, ns, row, start - 1, {
         end_col = stop,
@@ -126,12 +92,8 @@ local function refresh()
 
   local bufnr = vim.api.nvim_get_current_buf()
 
-  -- Only a file is read for repeats. The tree, the terminal and the banner
-  -- hold something else, and a selection in one of them is on its way to
-  -- being copied rather than looked up.
-  --
-  -- First, before a selection is read at all: this decides the whole
-  -- question, and everything below it is work those buffers never need.
+  -- files only: in the tree, the terminal or the banner a selection is there
+  -- to be copied, not looked up
   if vim.bo[bufnr].buftype ~= "" then
     return
   end

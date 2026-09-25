@@ -1,9 +1,6 @@
--- Shows what can follow a key I have started typing.
---
--- Configured for learning, not just for the leader menu. `triggers` is left on
--- its default of every prefix, so `d` lists the motions and text objects that
--- complete it, `g` the g-commands, `"` the registers. The delay is short for
--- the same reason.
+-- Shows what can follow a key I have started typing, after any prefix and not
+-- only the leader (`triggers` stays at its default), so `d` lists what can
+-- complete it and `"` the registers.
 
 local wk = require("which-key")
 
@@ -11,18 +8,13 @@ wk.setup({
   preset = "modern",
   delay = 250,
 
-  -- Do not warn about keys with no description; most of what shows up here is
-  -- Vim's own grammar, which has never had one.
+  -- Vim's own keys have no description, so a missing one is not worth a
+  -- warning.
   notify = false,
 
-  -- Entering Visual mode is not a question, so nothing is answered.
-  --
-  -- Stock defers the panel only for `V` and Ctrl+V, which leaves plain Visual
-  -- opening it the moment a selection starts: `v`, and every shifted arrow,
-  -- Home and End with 'keymodel' the way it is here, all landed on a panel
-  -- covering the selection they had just made. Deferring for every mode this
-  -- reaches keeps the help where it belongs, on a prefix actually pressed:
-  -- `g` or `[` inside a selection still opens it.
+  -- No panel on entering a mode, only on a prefix pressed in it. The default
+  -- defers only `V` and Ctrl+V, so `v` and every shifted arrow would open a
+  -- panel over the selection just made; `g` or `[` inside one still opens it.
   defer = function()
     return true
   end,
@@ -38,16 +30,11 @@ wk.setup({
     padding = { 1, 2 },
   },
 
-  -- Group first, then Vim's own ordering, then alphabetical. Puts the
-  -- multi-key prefixes at the top of a panel rather than scattered through it.
+  -- Groups first, so the prefixes with more keys behind them top the panel.
   sort = { "group", "local", "order", "alphanum", "mod" },
 
-  -- The descriptions themselves live on the mappings (`desc = ...` at each
-  -- vim.keymap.set site) and which-key reads them from there; an entry here
-  -- exists only for what a mapping cannot carry. Icons first: which-key
-  -- guesses one from keywords in the description, and these three are the
-  -- ones it gets wrong. No desc on them on purpose, so the mapping's own
-  -- text stays the single copy.
+  -- Only what a mapping cannot carry; the descriptions stay on the mappings.
+  -- The icons are the ones which-key guesses wrong from the description.
   spec = {
     { "<leader>:", icon = { icon = "󰘳", color = "purple" } },
     { "<leader>h", icon = { icon = "󰋖", color = "cyan" } },
@@ -56,8 +43,7 @@ wk.setup({
     { "<leader>t", group = "toggle" },
     { "<leader>tt", icon = { icon = "󰙅", color = "blue" } },
 
-    -- Names for the prefixes Vim ships, so the panel explains itself instead
-    -- of listing bare letters.
+    -- Names for the prefixes Vim ships.
     { "g", group = "goto / misc" },
     { "z", group = "folds, scroll, spelling" },
     { "]", group = "next ..." },

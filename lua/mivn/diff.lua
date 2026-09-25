@@ -1,52 +1,32 @@
--- Git changes in the gutter: a bar beside added and changed lines, a low
--- underscore where lines were deleted. The comparison is against git's index,
--- so the gutter empties as hunks are staged.
---
--- The plugin's own keys are kept: `]h` and `[h` jump between hunks, `gh` is an
--- operator that stages what it covers (`ghgh` for the hunk under the cursor),
--- `gH` the same for resetting, and `:lua MiniDiff.toggle_overlay()` shows the
--- old text inline.
+-- Git changes in the gutter, against git's index, so the gutter empties as
+-- hunks are staged. mini.diff's own keys are kept: `]h`, `[h`, `gh`, `gH`.
 
 local diff = require("mini.diff")
 
 diff.setup({
   view = {
-    -- Spelled out because the default with 'number' on is to color the line
-    -- numbers instead of drawing signs, which reads as the gutter being
-    -- broken. The sign column is always reserved, so the bars cost no width.
+    -- Spelled out: with 'number' on, the default colors the line numbers
+    -- instead of drawing signs.
     style = "sign",
-    -- Two cells, the pad first: the sign field now sits immediately right of
-    -- the last digit ('statuscolumn' in init.lua), so a bare glyph would be
-    -- flush against the number instead of the border, which is the same
-    -- complaint one column over. With the pad the ink lands just before the
-    -- code, a rail on it.
+    -- Two cells, the pad first: 'statuscolumn' puts the sign right after the
+    -- line number, and the pad moves the bar over against the code.
     signs = { add = " ▎", change = " ▎", delete = " ▁" },
   },
 })
 
 local M = {}
 
---- Whether the overlay is on for this buffer, for the summary <leader>t?
---- prints. A buffer mini.diff never attached to counts as off, since there is
---- nothing there to turn on.
+--- Whether the overlay is on for this buffer; off where mini.diff never
+--- attached.
 function M.reviewing()
   local data = diff.get_buf_data(0)
 
   return data ~= nil and data.overlay
 end
 
---- Show the old text inline for every changed line, or stop; <leader>tr in
---- lua/mivn/keymaps.lua.
----
---- Guarded, because mini.diff only attaches to a buffer that has a file behind
---- it. On the banner, the tree or the terminal it raised "Buffer N is not
---- enabled" from inside the plugin, which is a stack trace for a key that
---- simply has nothing to do there.
----
---- It says which way it went, and the state is read back rather than assumed:
---- the overlay is per buffer, and on a file I have not changed there is
---- nothing on screen either way, so turning it on looks exactly like leaving
---- it off.
+--- Show the old text inline for every changed line, or stop, and say which:
+--- on a file I have not changed the two look the same. A buffer with no file
+--- behind it gets a warning, since mini.diff never attached and would raise.
 function M.toggle_review()
   if not diff.get_buf_data(0) then
     vim.notify("Nothing to compare here: this buffer has no file behind it.", vim.log.levels.WARN)

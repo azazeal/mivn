@@ -1,31 +1,17 @@
--- The inlay hints: what the server worked out so that I did not have to
--- write it. A type behind a `:=`, the name of the parameter an argument is
--- going into, the error a statement drops on the floor. Neovim draws none of
--- them until it is asked, and this asks wherever a server offers them.
+-- The inlay hints, drawn wherever a server offers them. Go starts with them
+-- hidden: it infers a type on nearly every line and passes arguments by
+-- position, so its hints cover most of the file.
 --
--- Go is the one language that starts with them hidden. gopls is asked for
--- all eight kinds (lua/mivn/languages/go.lua) and each one is worth reading,
--- but Go infers a type on nearly every line and passes its arguments by
--- position, so the eight together put something on most of the file and the
--- code stops being the thing on screen. Hidden is what I want walking into a
--- Go file, and <leader>tn is there for the one I am lost in.
---
--- The answer belongs to a buffer and not to the session, because it is a
--- question about the file in front of me. It does not outlive the server
--- reattaching either, which is what `:LspRestart` and a server that fell
--- over both do: the language's own default comes back, since the autocmd
--- below is the only thing that ever sets one.
---
--- How loud they read is the LspInlayHint highlight group, in
--- colors/basalt.lua.
+-- The toggle is per buffer and lasts until the server attaches again
+-- (`:LspRestart`, a crash), when the language's default comes back.
 
 local M = {}
 
 --- The filetypes that start with the hints hidden.
 local QUIET = { go = true }
 
---- Whether anything attached to `bufnr` has hints to offer at all. Without
---- this the toggle would report a state nothing on screen agrees with.
+--- Whether anything attached to `bufnr` offers hints, so the toggle does not
+--- report a state nothing on screen shows.
 local function offered(bufnr)
   return #vim.lsp.get_clients({ bufnr = bufnr, method = "textDocument/inlayHint" }) > 0
 end
@@ -40,8 +26,7 @@ vim.api.nvim_create_autocmd("LspAttach", {
       return
     end
 
-    -- The first server with hints decides; a second one attaching later
-    -- would otherwise undo a <leader>tn made in between.
+    -- the first server with hints decides, so a later one cannot undo a toggle
     for _, other in ipairs(vim.lsp.get_clients({ bufnr = ev.buf, method = "textDocument/inlayHint" })) do
       if other.id ~= client.id then
         return
@@ -53,13 +38,9 @@ vim.api.nvim_create_autocmd("LspAttach", {
 })
 
 --- The keys ------------------------------------------------------------------
---
--- lua/mivn/keymaps.lua binds this; the behavior is here.
 
---- Draw this buffer's inlay hints, or stop; <leader>tn.
----
---- It says which way it went, since a buffer whose server has nothing to hint
---- about looks the same either way.
+--- Draw this buffer's inlay hints, or stop, and say which: a buffer with
+--- nothing to hint looks the same either way.
 function M.toggle()
   local bufnr = vim.api.nvim_get_current_buf()
 
@@ -75,7 +56,7 @@ function M.toggle()
   vim.notify(("Inlay hints: %s"):format(on and "on" or "off"))
 end
 
---- Whether this buffer is drawing them, for the flags line under <leader>t?.
+--- Whether this buffer is drawing its inlay hints.
 function M.on()
   return vim.lsp.inlay_hint.is_enabled({ bufnr = 0 })
 end
