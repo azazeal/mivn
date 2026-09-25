@@ -110,6 +110,9 @@ moves. Each has runtime state of its own under `~/.local/share` and
   what is drawn rejoins to what it was handed, and that Greek and Japanese
   break where the cells are rather than where the bytes are. `diagnostics
   <pattern>` runs the cases whose name matches.
+- The four checks that drive an editor behind a socket keep their cases in
+  `.github/checks/<name>.lua` and share `.github/checks/harness.sh` and
+  `harness.lua`; a new one of that shape starts from those.
 - When a bug gets through, say what would have caught it and offer to add
   that, whether or not it is about the panels. Each of these scripts exists
   because a bug of its shape got through; the next shape will need its own
