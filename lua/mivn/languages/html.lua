@@ -3,11 +3,9 @@
 return {
   servers = {
     html = {
-      -- The plain command, for the reason lua/mivn/languages/json.lua gives:
-      -- nvim-lspconfig would otherwise reach into the project's node_modules.
+      -- The plain command and no probe, for the reasons json.lua gives.
       cmd = { "vscode-html-language-server", "--stdio" },
 
-      -- No harmless one-shot flag, for the reason json.lua gives too.
       probe = false,
     },
 

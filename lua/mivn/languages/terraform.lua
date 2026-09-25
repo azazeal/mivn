@@ -6,11 +6,10 @@ return {
       binary = "terraform-ls",
       probe = { "version" },
 
-      -- Opening one .tf file outside a Terraform directory is normal here,
-      -- and terraform-ls says so every time in a message long enough to raise
-      -- the hit-enter prompt, which stops everything until a key arrives. The
-      -- server offers this switch for exactly that; nothing else about it
-      -- changes.
+      -- Opening one .tf file outside a Terraform directory is normal for me,
+      -- and terraform-ls warns about it every time, in a message long enough
+      -- to raise the hit-enter prompt. This switch silences that warning and
+      -- nothing else.
       config = { init_options = { ignoreSingleFileWarning = true } },
     },
   },
