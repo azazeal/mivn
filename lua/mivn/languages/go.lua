@@ -164,6 +164,12 @@ local function gci_format(buf)
     return
   end
 
+  -- The same gate the rest of the save chain has (lua/mivn/format.lua).
+  local trust = require("mivn.trust")
+  if not trust.allows(trust.workspace()) then
+    return
+  end
+
   if vim.fn.executable("gci") ~= 1 then
     return
   end
