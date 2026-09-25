@@ -23,7 +23,7 @@ local statusline = require("mini.statusline")
 
 local git = { branch = nil, dirty = false }
 
-local refresh_timer, refreshing = nil, false
+local refreshing, pending = false, false
 
 local function parse(out)
   local branch, dirty = nil, false
@@ -47,7 +47,10 @@ local function parse(out)
 end
 
 local function refresh()
+  -- One run at a time, but a request that arrives during one is not dropped:
+  -- a write while `git status` runs would otherwise leave the dot stale.
   if refreshing then
+    pending = true
     return
   end
 
@@ -71,18 +74,25 @@ local function refresh()
       end
 
       vim.cmd.redrawstatus()
+
+      if pending then
+        pending = false
+        refresh()
+      end
     end)
   )
 end
 
+local refresh_timer = assert(vim.uv.new_timer())
+
 --- Coalesce a burst of events into one call. BufEnter alone fires several times
 --- for a single `:bd`, and each one would otherwise be a subprocess.
+---
+--- One timer for the session: starting it again while it runs pushes the
+--- deadline back. A timer per event would need closing, and a stopped one
+--- never fires the callback that would close it.
 local function schedule_refresh()
-  if refresh_timer then
-    refresh_timer:stop()
-  end
-
-  refresh_timer = vim.defer_fn(refresh, 150)
+  refresh_timer:start(150, 0, vim.schedule_wrap(refresh))
 end
 
 local function section_git()
