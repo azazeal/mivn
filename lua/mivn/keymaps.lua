@@ -1,22 +1,7 @@
--- Every key mivn takes, in one file.
---
--- A mapping that is on for the whole session lives here, whatever module owns
--- the behavior behind it: that module keeps the work and exports a function,
--- and this file decides which key runs it. One place to read, and `<Space>?`
--- is the same list from inside a running editor.
---
--- What is deliberately not here: a mapping that exists only while some buffer
--- does. It is made when that buffer is, and it belongs with the thing it acts
--- on. The hover float's Esc is lua/mivn/lsp.lua's, the message
--- pager's Esc is init.lua's, the tree's keys are lua/mivn/tree.lua's, the
--- dashboard's are lua/mivn/dashboard.lua's, the floating prompt's are
--- lua/mivn/prompt.lua's, and the picker's keys are mini.pick's own key loop
--- rather than mappings at all.
---
--- What is also not here: the CUA bridges Vim has an option for. Shift and an
--- arrow selecting, an arrow crossing the line boundary, the Greek layout, all
--- of them are 'keymodel', 'whichwrap' and 'langmap' in init.lua, and no
--- mapping is involved.
+-- Every key mivn takes for the whole session. The module that owns a behavior
+-- exports a function, and this file picks its key. A mapping that lives only as
+-- long as some buffer stays with that buffer's module, and the CUA habits Vim
+-- has an option for ('keymodel', 'whichwrap', 'langmap') are in init.lua.
 
 local blame = require("mivn.blame")
 local complete = require("mivn.complete")
@@ -38,39 +23,13 @@ local zoom = require("mivn.zoom")
 
 --- The clipboard --------------------------------------------------------------
 --
--- Copy and paste reach the system clipboard. Delete and change do not.
+-- Copy and paste reach the system clipboard; delete and change do not, and
+-- Alt+d and Alt+c are the cut that does. Vim's registers stay as they ship.
 --
--- 'clipboard' was `unnamedplus` here until 2026-08-16, which makes the unnamed
--- register and the clipboard one register. That is all it can do, and it takes
--- `d`, `c` and `x` with it, since those write to a register too: every delete
--- replaced whatever I had copied, sometimes an hour earlier and in another
--- application. Which keys reach the clipboard is not something the option can
--- express, so the option is gone and these carry it instead.
---
--- What that leaves is Vim's registers exactly as they ship. A delete still
--- fills `""` and the numbered ones, so nothing is lost to a cut: `"1p` pastes
--- the last line-wise delete, `"2p` the one before it, `"-p` the last small
--- one. What changes is only where an unprefixed `p` reads from.
---
--- Alt+d and Alt+c are the deliberate ones, the pair xileh uses in helix: cut
--- rather than delete, for when the clipboard is what I meant.
---
--- Every one of these is an <expr> mapping for one reason: a register I name
--- has to win. A plain `"+p` in the right-hand side names its register outright
--- and takes the one I typed with it, so `"1p` and `"ap` would both have pasted
--- the clipboard (measured 2026-08-16, which is how this stopped being a plain
--- mapping). `v:register` is the key I typed, or `"` when I typed none, so the
--- prefix is added only in that second case and every explicit register goes
--- through untouched.
---
--- The one thing that cannot be told apart is a literal `""p`, since v:register
--- reads `"` either way; that spelling reaches the clipboard like a bare `p`.
--- `"1p` and `"-p` are the ones that matter, and both work: the numbered
--- registers hold the last nine line-wise deletes and `"-` the last small one.
---
--- `"0` is a casualty and worth knowing about: Vim fills it on a yank that
--- names no register, and these always name `+`, so it stays empty here. It
--- also has nothing left to do, since `p` is the last yank by definition now.
+-- NOTE: every one of these is an <expr> mapping so that a register I name wins.
+-- A plain `"+p` on the right-hand side overrides the one I typed, so `"1p` and
+-- `"ap` would paste the clipboard too. The prefix goes on only when v:register
+-- is `"`, so a literal `""p` pastes the clipboard as well.
 local function clipboard(keys)
   return function()
     return (vim.v.register == '"' and '"+' or "") .. keys
@@ -81,25 +40,16 @@ local function copy_paste(mode, lhs, keys, desc)
   vim.keymap.set(mode, lhs, clipboard(keys), { expr = true, desc = desc })
 end
 
--- Normal's `Y` is Neovim's `y$` written out, because these are noremap: a bare
--- `Y` would reach Vim's own, which is `yy`, and quietly undo that default.
+-- NOTE: Normal's `Y` is written as `y$` because these are noremap. A bare `Y`
+-- reaches Vim's own, which is `yy`, and loses Neovim's default.
 copy_paste({ "n", "x" }, "y", "y", "Copy to the clipboard")
 copy_paste("n", "Y", "y$", "Copy to the end of the line, to the clipboard")
 copy_paste("x", "Y", "Y", "Copy the selected lines to the clipboard")
 
 --- Paste, leaving the caret after what was pasted rather than on its last
---- character.
----
---- `gp` and `gP` are Vim's own pair for that, and 'virtualedit' being onemore
---- (init.lua) is what lets the caret sit past the end of the line when the
---- paste ends there. Every other editor I use puts it there, and it is where
---- I type from next.
----
---- Charwise only. On a line-wise register `gp` lands on the line *after* the
---- block and a block-wise one below it, which is past the text rather than
---- after it, so those two keep Vim's landing inside what was pasted. The
---- register is read rather than assumed, since it is whatever the clipboard
---- happens to hold.
+--- character, through `gp` and `gP`; 'virtualedit' lets that be past the end of
+--- the line. Charwise only: on a line-wise or block-wise register `gp` lands
+--- past the text, so those keep Vim's landing.
 local function paste(keys)
   return function()
     local register = vim.v.register == '"' and "+" or vim.v.register
@@ -119,10 +69,9 @@ vim.keymap.set("n", "P", paste("P"), {
   desc = "Paste the clipboard before the cursor",
 })
 
--- Over a selection both keys are `P`, which puts without touching a register
--- (`:h v_P`). Plain `p` there would replace the selection *and* move the
--- replaced text into the clipboard, so pasting the same thing over two
--- selections in a row would paste something different the second time.
+-- NOTE: over a selection both keys are `P` (`:h v_P`), which leaves the
+-- registers alone. `p` there moves the replaced text onto the clipboard, so a
+-- paste over a second selection would paste that instead.
 for _, lhs in ipairs({ "p", "P" }) do
   vim.keymap.set("x", lhs, paste("P"), {
     expr = true,
@@ -135,42 +84,21 @@ copy_paste({ "n", "x" }, "<A-c>", "c", "Change, and put what was there on the cl
 
 --- Editing --------------------------------------------------------------------
 
--- Ctrl+Del deletes the word after the cursor: `dw` through i_CTRL-O, so it is
--- Vim's own motion doing the work. `<C-g>u` first breaks the undo block, the
--- same courtesy Neovim extends to Ctrl+W, so one `u` brings the word back
--- without taking the typing with it. Ctrl+W, the word *before* the cursor,
--- already ships with Vim.
---
--- An older terminal has no way to encode Ctrl+Del, so there the key stays a
--- plain Del; nothing to guard.
+-- `<C-g>u` breaks the undo block first, as Neovim does for Ctrl+W, so one `u`
+-- brings the word back without taking the typing with it.
 vim.keymap.set("i", "<C-Del>", "<C-g>u<C-o>dw", {
   desc = "Delete the word after the cursor",
 })
 
--- The same key from Normal. Vim has no meaning for it there and falls back to
--- Del, which is `x`, so the key took one character in Normal and a word one
--- keystroke later in Insert (measured 2026-09-03). Over a selection it is
--- left to Vim, where Del deletes what is picked out.
+-- In Normal Vim would read it as Del, which is `x`. Over a selection it stays
+-- Vim's Del.
 vim.keymap.set("n", "<C-Del>", "dw", {
   desc = "Delete the word after the cursor",
 })
 
--- `u` over a selection undoes, the way it does with nothing picked out. Vim
--- spends it on lowercasing the selection (`:h v_u`), which is where it went
--- after Tab had indented one and kept it picked out: the first `u` made
--- "Nothing" into "nothing", the second put the case back, and only the third
--- took the indent off (measured 2026-09-03). The selection is dropped first,
--- since the undo may well take the text under it away.
---
--- The case keys sit on the backtick: alone it toggles the case of the
--- selection, with Ctrl it uppercases, with Alt it lowercases. Vim's own `~`
--- and `U` keep doing the first two as well. What the backtick costs in
--- Visual is Vim's jump to a mark, which `'` still does by the line.
---
--- Ctrl and a backtick reaches Neovim from Neovide and from a terminal that
--- speaks the kitty keyboard protocol, which foot does; an older terminal
--- sends it as NUL, the byte Ctrl+Space arrives as, and there the key does
--- nothing. `U` is the spelling that works everywhere.
+-- `u` over a selection undoes, where Vim lowercases (`:h v_u`), so the case
+-- keys move to the backtick. Ctrl and a backtick needs Neovide or a terminal
+-- that speaks the kitty keyboard protocol; `U` works everywhere.
 vim.keymap.set("x", "u", "<Esc>u", {
   desc = "Drop the selection, then undo",
 })
@@ -187,10 +115,6 @@ vim.keymap.set("x", "<A-`>", "u", {
   desc = "Make the selection lowercase",
 })
 
--- Ctrl and a vertical arrow carries the line, or the selected lines, up or
--- down; lua/mivn/move.lua carries the argument. All four modes, since left
--- to 'keymodel' the key ended a Select selection and moved the caret up a
--- line, while the same key in Visual moved the lines (measured 2026-09-03).
 for _, mv in ipairs({
   { lhs = "<C-Up>", to = move.up, word = "up" },
   { lhs = "<C-Down>", to = move.down, word = "down" },
@@ -204,10 +128,8 @@ for _, mv in ipairs({
   })
 end
 
--- A bracket or a quote typed over a selection wraps it instead of replacing
--- it, the way every other editor I use answers that key. Which characters
--- these are is mini.pairs' table and not a list written here, so the pairs
--- stay configured in one place; lua/mivn/pairs.lua carries the trade-offs.
+-- A bracket or a quote typed over a selection wraps it. The characters come
+-- from mini.pairs' table, so the pairs are configured in one place.
 for _, wrap in ipairs(pairing.surrounds()) do
   vim.keymap.set("s", wrap.key, function()
     pairing.surround(wrap.open, wrap.close)
@@ -216,62 +138,31 @@ for _, wrap in ipairs(pairing.surrounds()) do
   })
 end
 
--- Esc clears leftover search highlighting, which Vim otherwise keeps lit until
--- :noh (Ctrl+L, a Neovim default, does the same plus a redraw). The real Esc
--- is sent on afterwards, so everything it already did still happens.
+-- The real Esc still follows, so it keeps doing what it did.
 vim.keymap.set("n", "<Esc>", "<Cmd>nohlsearch<CR><Esc>", {
   desc = "Clear search highlighting",
 })
 
 --- Moving and selecting -------------------------------------------------------
 
--- Ctrl and a horizontal arrow moves by a word, and Alt by a piece of one.
--- Both stop at the far side of what they crossed: the end of the word going
--- right, the start of it going left. That is Zed's shape, and the asymmetry
--- is the point, since the far side of a word depends on which way you came at
--- it. lua/mivn/words.lua carries the argument and the subword.
---
--- Going right lands *after* the last letter rather than on it. 'selection' is
--- exclusive (init.lua), so the cursor is a boundary between characters, and
--- landing after the word is what makes a selection back to its start hold the
--- word and nothing else. Measured on "foo bar": stopping on the second "o"
--- and selecting back gives "fo", stopping past it gives "foo".
---
--- The WORD reaches no arrow. It crosses `foo::bar(baz(r, g, b))` in one
--- press, which is never the distance meant. `W`, `B` and `gE` are untouched
--- and still Vim's.
---
--- Normal and Insert here; Visual and Select drop the selection and then run
--- these, at the end of this section. Insert is bound for the same reason the
--- shifted keys are, which is that Vim's own meaning for the key there is a
--- different distance: `<C-Right>` while typing is the start of the next
--- word, so the key measured one thing in Normal and another one letter
--- later. Measured on `foo parseHTTPUrl baz`, and the Alt pair meant nothing
--- at all there.
---
--- The step is the same function in both, since it puts the cursor at a column
--- rather than running a motion, and the column it picks is a boundary either
--- way (lua/mivn/words.lua).
---
--- Operator-pending takes plain `e`, since an inclusive motion already covers
--- the same text: `d<C-Right>` is `de`, the word and no more.
+-- Ctrl and a horizontal arrow moves by a word, Alt by a subword: right lands
+-- past the end, left on the start, which is Zed's shape. Insert is bound too,
+-- since Vim's own key there is a different distance. Visual and Select reach
+-- these through the drop at the end of this section.
 for _, key in ipairs({
   { lhs = "<C-Right>", forward = true, size = "word", to = "past the end of the word" },
   { lhs = "<C-Left>", forward = false, size = "word", to = "to the start of the previous word" },
   { lhs = "<A-Right>", forward = true, size = "subword", to = "past the end of the subword" },
   { lhs = "<A-Left>", forward = false, size = "subword", to = "to the start of the previous subword" },
 }) do
-  -- Going right stops at an end and going left at a start, which is the one
-  -- combination of the two axes the arrows want.
+  -- going right stops at an end, going left at a start
   vim.keymap.set({ "n", "i" }, key.lhs, words.move(key.forward, key.forward, key.size), {
     desc = "Move " .. key.to,
   })
 end
 
--- After an operator the arrows fall back to Vim's own, which cover the same
--- text: `e` is inclusive, so `d<C-Right>` is the word and no more, and `b` is
--- what Ctrl+Left runs anyway. The Alt pair has no operator form; select with
--- Alt+Shift and operate on that.
+-- After an operator the arrows run Vim's `e` and `b`: `e` is inclusive, so
+-- `d<C-Right>` covers the word and no more. The Alt pair has no operator form.
 vim.keymap.set("o", "<C-Right>", "e", {
   desc = "Through the end of the word",
 })
@@ -280,33 +171,12 @@ vim.keymap.set("o", "<C-Left>", "b", {
   desc = "To the start of the previous word",
 })
 
--- The four end keys land past the last character rather than on it. The end
--- of a piece is one place, and with a bar cursor drawn at the left edge of
--- the character it sits on, stopping on the last letter of a word puts the
--- caret one place short of where the word ends. A macro recorded there then
--- means something other than what I pressed it for, which is the whole
--- reason these moved.
+-- The four end keys land past the last character, in Normal and Visual. After
+-- an operator they stay Vim's inclusive motions, so `de` covers the word.
 --
--- All four run on words.lua rather than on Vim's keys plus a column, because
--- Vim's own skip: `e` moves to the end of the *next* word when the caret
--- already sits at the end of one, so on `foo (bar) baz` landing past `bar`
--- puts the caret on `)`, which has already ended, and the next press crosses
--- `)` and `baz` together. `ge` skips the same way going the other direction,
--- and `gE` plus a column right is a fixed point: it lands back where it
--- started every time. Measured, all three.
---
--- Visual as well as Normal. Vim moves an inclusive motion one further there
--- when the caret is past the anchor, so `vE` looks right, but only in that
--- direction: extend a selection leftwards and the compensation is gone. One
--- rule in both modes is the point.
---
--- Operator-pending is left alone, so `de`, `dE`, `dge` and `dgE` are Vim's
--- inclusive motions and cover the piece and no more. What this costs is `ea`,
--- which appended at the end of a word and now appends one character further
--- on; plain `i` is what does that job now.
---
--- `w`, `b` and their capitals are untouched. They stop at the first character
--- of a piece, which is already the boundary a piece starts at.
+-- NOTE: these go through words.lua, not Vim's key plus a column. `e` at the end
+-- of a word skips to the end of the next one, `ge` skips the same way
+-- backwards, and `gE` plus a column right lands back where it started.
 for _, key in ipairs({
   { lhs = "e", forward = true, size = "word", of = "word" },
   { lhs = "E", forward = true, size = "WORD", of = "WORD" },
@@ -318,26 +188,9 @@ for _, key in ipairs({
   })
 end
 
--- Home and End, on the same model and with Zed's rule for the indent.
---
--- Home goes to the first character that is not whitespace, which is where a
--- line actually starts, and to column zero from there: three presses walk
--- indent, zero, indent. Zed's own is `stop_at_indent`, and its rule is this
--- one exactly, taken from its movement code rather than guessed. Vim has both
--- halves as `^` and `0` and no key that alternates.
---
--- End takes the same `l` as `$`, in Normal only for the same reasons: after
--- an operator `d<End>` already covers the line, and in Visual exclusive
--- selection gives it the extra column. Zed has no indent notion at that end,
--- and neither does this.
---- Zed's three branches, in its own order (`indented_line_beginning` in
---- crates/editor/src/movement.rs): past the indent goes to the indent, and so
---- does column zero, while anything else, meaning the indent itself or a
---- column inside the whitespace, goes to column zero.
----
---- So from the text it is one press to the indent and a second to column
---- zero, and from inside the indentation it is one press to column zero. A
---- line that is all whitespace has no indent to go to.
+--- The keys Home runs, by Zed's `indented_line_beginning`: from past the indent
+--- or from column zero, the indent; from the indent or inside it, column zero.
+--- A line that is all whitespace goes to column zero.
 local function home()
   local indent = vim.api.nvim_get_current_line():find("%S")
   if not indent then
@@ -354,10 +207,8 @@ vim.keymap.set({ "n", "o" }, "<Home>", home, {
   desc = "Move to the first character of the line, or to column zero",
 })
 
--- The same rule while typing, where Vim's own Home is column zero and nothing
--- else. `<C-o>` runs the one Normal command and leaves the caret where it put
--- it. End needs none of this: Vim's own already goes past the last character
--- there, which is where this one goes too.
+-- The same rule while typing. End needs nothing here: Vim's own already goes
+-- past the last character.
 vim.keymap.set("i", "<Home>", function()
   return "<C-o>" .. home()
 end, {
@@ -365,22 +216,14 @@ end, {
   desc = "Move to the first character of the line, or to column zero",
 })
 
+-- Normal only: `d<End>` already covers the line, and exclusive selection gives
+-- Visual the extra column.
 vim.keymap.set("n", "<End>", "$l", {
   desc = "Move past the end of the line",
 })
 
--- Ctrl with either goes to the file's own ends, and Vim's pair misses both.
---
--- Ctrl+End is not `G`: it lands *on* the last character rather than past it,
--- a column short of where End stops. Ctrl+Home is `gg`, and `gg` keeps the
--- column while 'startofline' is off, which is Neovim's default, so from the
--- middle of a line it goes to line one and stays in the column I happened to
--- be in. Neither shows on a file I have just opened, with the caret at the
--- top already, which is how both lasted this long.
---
--- Normal here, and Visual and Select through the drop at the end of this
--- section. After an operator Vim's own pair already covers the text I would
--- be asking for, and in Insert Vim's own already goes to the two ends.
+-- Vim's own pair misses both ends: `G` lands on the last character, and `gg`
+-- keeps the column while 'startofline' is off.
 vim.keymap.set("n", "<C-Home>", "gg0", {
   desc = "Move to the start of the file",
 })
@@ -389,36 +232,18 @@ vim.keymap.set("n", "<C-End>", "G$l", {
   desc = "Move past the end of the file",
 })
 
--- Shift and an arrow selects by a character or a line. Said here rather than
--- left to 'keymodel', which is the whole reason 'keymodel' no longer carries
--- "startsel" at all (init.lua).
+-- Shift and an arrow selects by a character or a line, bound by hand since
+-- 'keymodel' has no "startsel" (init.lua says why). The motion is the unshifted
+-- key's.
 --
--- What that path did wrong: the selection started and the screen did not
--- repaint until the next key arrived, so the mode block still read N, nothing
--- was highlighted, and the cursor sat where it had been. Every key that
--- behaved was one bound by hand, which is how it was found. Shift+End made it
--- obvious because it jumps far; the arrows hid it by moving one cell, where a
--- screen one keypress behind looks much like a screen that is up to date.
+-- NOTE: the arrow runs with 'keymodel' cleared. "stopsel" cannot tell an arrow
+-- I typed from one a mapping fed it, so `v<Right>` would open a selection and
+-- end it at once.
 --
--- The motion is the *unshifted* key's, which is what "startsel" did too: it
--- spends the Shift on opening the selection and runs the key plain. So these
--- move by one character and one line, not by a word.
--- WARN: the arrow has to run with 'keymodel' out of the way. "stopsel" ends a
--- selection the moment an unshifted special key arrives and cannot tell one I
--- typed from one a mapping fed it, so `v<Right>` opened a selection and closed
--- it in the same breath, leaving the cursor moved and nothing selected.
--- Clearing the option for the length of one keystroke lets the arrow keep its
--- own meaning, wrapping across lines and all ('whichwrap' in init.lua), while
--- the selection survives.
---
--- WARN: :normal and not nvim_feedkeys. The keys have to run before the
--- option goes back, which takes feedkeys' "x", and "x" also runs whatever I
--- have already typed ahead, with the arrow joining the end of that queue: a
--- key typed right after the arrow ran first, so `abc`, Shift+Left twice and
--- `x` arriving in one burst left `abcx` and not `ax`. Measured 2026-09-03
--- through a socket, which is the same input path as typing. :normal runs its
--- own keys and leaves the typeahead alone, the same reason lua/mivn/pairs.lua
--- gives for its wrap.
+-- NOTE: :normal and not nvim_feedkeys. The keys must run before 'keymodel' goes
+-- back, which takes feedkeys' "x" flag, and "x" runs whatever I typed ahead
+-- first: `abc`, Shift+Left twice and `x` in one burst left `abcx` and not `ax`.
+-- :normal leaves the typeahead alone.
 local function arrow(keys)
   return function()
     local saved = vim.o.keymodel
@@ -432,32 +257,17 @@ local function arrow(keys)
   end
 end
 
--- The same keys pressed while typing, which is where they were missing: in
--- Insert the shifted arrows moved by a word and by a page, Vim's own meaning
--- for them there, and nothing was ever picked out.
+-- A shifted key pressed while typing opens a selection at the caret, then
+-- presses the key again for the Select mapping beside it to move, which is why
+-- those mappings remap. It opens Select and not Visual, since what I do to a
+-- selection made while typing is type over it.
 --
--- Every one of them is the same two steps, so they are written the same way:
--- open a selection at the caret, then press the key again and let the Select
--- mapping beside it do the moving. That second press is why these are the one
--- group here that remaps its own right-hand side.
+-- NOTE: the opening is a <Plug> so that its own keys are not remapped: `gh` in
+-- Normal is mini.diff's staging operator.
 --
--- What it opens is Select and not Visual. I am in the middle of typing, and
--- what I do next to something picked out while typing is type over it, which
--- is the one thing Select is for. Keys pressed from Normal are untouched and
--- still open Visual, where `y` and `d` mean what they say; 'selectmode' stays
--- unset (init.lua).
---
--- The opening is a <Plug> of its own rather than the two keys written into
--- each mapping, because those two keys must *not* be remapped: `gh` in Normal
--- is mini.diff's staging operator (lua/mivn/diff.lua), which is what ran the
--- first time this was written the short way.
---
--- WARN: `<C-o>` is what keeps the caret. Leaving Insert any other way moves
--- the cursor one column left, whatever 'virtualedit' says, and putting it
--- back by hand does not work either: that move lands after the mapping has
--- returned, so it drags the open selection left with it. Measured. `<C-o>`
--- is Vim's own "one command from where I am", and where I am is exactly where
--- the selection has to start.
+-- NOTE: `<C-o>` is what keeps the caret. Leaving Insert any other way moves the
+-- cursor one column left, and putting it back by hand lands after the mapping
+-- has returned, dragging the open selection with it.
 vim.keymap.set("i", "<Plug>(mivn-select)", "<C-o>gh", {
   desc = "Open a selection at the caret",
 })
@@ -471,8 +281,7 @@ for _, name in ipairs({ "Left", "Right", "Up", "Down" }) do
   local plain = ("<%s>"):format(name)
   local what = name:lower()
 
-  -- In Select the motion is borrowed through <C-o>, which runs it in Visual
-  -- for the one key and comes back, since Select is where typing replaces.
+  -- select borrows the motion through <C-o>, as Visual for one key
   local extend = arrow("<C-o>" .. plain)
 
   vim.keymap.set("n", shifted, arrow("v" .. plain), {
@@ -493,14 +302,6 @@ for _, name in ipairs({ "Left", "Right", "Up", "Down" }) do
   })
 end
 
--- Shift with either is said outright rather than left to 'keymodel'.
---
--- Home needs it because 'keymodel' runs Vim's own meaning of the key, which
--- is column zero rather than the indent. End needs it for a worse reason: on
--- the keymodel path the selection starts and the screen does not repaint
--- until the next key arrives, so the mode block still reads N, nothing is
--- highlighted, and the cursor sits where it was. Measured against the keys
--- beside it, every one that behaves is one bound here by hand.
 vim.keymap.set("n", "<S-End>", "v$", {
   desc = "Select to the end of the line",
 })
@@ -542,16 +343,13 @@ vim.keymap.set("i", "<S-Home>", selecting("<S-Home>"), {
   desc = "Select to the first character of the line",
 })
 
--- The same two ends with Shift, and four mappings each the way the Ctrl and
--- Alt arrows below have them: Normal has no selection yet so it opens Visual,
--- Insert opens Select through the <Plug> above, and Visual and Select have
--- one already so they take the plain motion. `$` needs no `l` on this side,
--- since an exclusive selection gives it the extra column on its own.
+-- The file's two ends with Shift. Normal opens Visual, Insert opens Select
+-- through the <Plug>, and Visual and Select take the plain motion. `$` needs no
+-- `l` here, since exclusive selection gives it the extra column.
 --
--- WARN: both motions are two commands, and in Select each needs its own
--- `<C-o>`, which covers one command and no more. Written `<C-o>G$` the `G`
--- runs in Visual and the `$` arrives back in Select, where a printable key
--- types over what is picked out.
+-- NOTE: in Select each command needs its own `<C-o>`, which covers one command
+-- and no more. Written `<C-o>G$`, the `$` arrives back in Select and types over
+-- the selection.
 for _, sel in ipairs({
   { lhs = "<C-S-Home>", line = "gg", column = "0", to = "to the start of the file" },
   { lhs = "<C-S-End>", line = "G", column = "$", to = "past the end of the file" },
@@ -576,25 +374,15 @@ for _, sel in ipairs({
   })
 end
 
--- Ctrl or Alt with Shift selects by the same step. 'keymodel' opens a
--- selection on its own and reaches for Vim's own meaning of the key, which is
--- the WORD, so the opening happens here instead.
---
--- Four mappings each, because the opening is what differs. From Normal there
--- is no selection yet, so this opens Visual the way a shifted arrow does
--- ('selectmode' is unset in init.lua), and from Insert it opens Select. In
--- Visual and Select, where there is one already, it is the plain motion.
--- After an operator the key is left alone: `d` and a shifted arrow is not
--- something I press.
+-- Ctrl or Alt with Shift selects by a word or a subword, in the same four modes
+-- as the file's two ends above. After an operator it is left alone.
 for _, sel in ipairs({
   { lhs = "<C-S-Right>", forward = true, size = "word", to = "past the end of the word" },
   { lhs = "<C-S-Left>", forward = false, size = "word", to = "to the start of the previous word" },
   { lhs = "<A-S-Right>", forward = true, size = "subword", to = "past the end of the subword" },
   { lhs = "<A-S-Left>", forward = false, size = "subword", to = "to the start of the previous subword" },
 }) do
-  -- The one motion Visual and Select share, and what the Insert mapping
-  -- reaches on its second press. It puts the cursor somewhere rather than
-  -- typing anything, so Select needs no <C-o> around it.
+  -- sets the cursor rather than typing, so Select needs no <C-o> around it
   local extend = words.move(sel.forward, sel.forward, sel.size)
 
   vim.keymap.set("n", sel.lhs, words.select(sel.forward, sel.forward, sel.size), {
@@ -615,19 +403,8 @@ for _, sel in ipairs({
   })
 end
 
--- Insert is the way out of typing and back into it.
---
--- Vim already opens Insert with it from Normal, and its other job, toggling
--- Replace, is one I have no use for: replacing something is deleting it and
--- writing over it, or picking it out and pressing `r`. So the key stops being
--- a Replace toggle and becomes the pair of the one Vim gave me, with `R`
--- still the way into Replace for the day I want it.
---
--- From a selection it drops it, leaves the text alone, and starts typing
--- where the caret already is, which is the end I was moving, or the other one
--- when `o` has sent it there. Visual and Select both, since the key means the
--- same in either: I have something picked out and what I want next is to
--- type. Vim gives Visual no meaning for it at all.
+-- Insert is the way out of typing as well as in, so it no longer toggles
+-- Replace; `R` still enters it.
 vim.keymap.set("i", "<Insert>", "<C-\\><C-N>", {
   desc = "Stop typing",
 })
@@ -636,11 +413,9 @@ vim.keymap.set({ "x", "s" }, "<Insert>", "<C-\\><C-N>i", {
   desc = "Type on from where the caret is",
 })
 
--- Normal and Insert; Visual and Select drop the selection and then come back
--- here, through the drop at the end of this section. Bound in Visual outright
--- the page key kept the selection on a short file and dropped it on a long
--- one, since only the scroll went through 'keymodel' (measured 2026-09-03).
--- lua/mivn/page.lua is why these are not Vim's own pair.
+-- Visual and Select reach these through the drop at the end of this section.
+-- Bound there directly, only the scroll would go through 'keymodel', so the
+-- selection would live on a short file and die on a long one.
 vim.keymap.set({ "n", "i" }, "<PageDown>", page.down, {
   desc = "A page down, or the last line when there is no page left",
 })
@@ -649,12 +424,8 @@ vim.keymap.set({ "n", "i" }, "<PageUp>", page.up, {
   desc = "A page up, or the first line when there is no page left",
 })
 
--- Select as well as Visual, since lua/mivn/page.lua's pair only opens a
--- selection when it is in Normal and otherwise just moves, which is what
--- extends one either way. Insert then goes through the same <Plug> as the
--- other shifted keys: it used to be left out because 'keymodel' would open
--- the selection itself with the unclamped motion, and 'keymodel' no longer
--- has "startsel" to do that with.
+-- These open a selection only from Normal and otherwise just move, which
+-- extends one. Insert goes through the <Plug> like the other shifted keys.
 vim.keymap.set({ "n", "x", "s" }, "<S-PageDown>", page.select_down, {
   desc = "Select a page down, to the last line when there is no page left",
 })
@@ -673,25 +444,17 @@ vim.keymap.set("i", "<S-PageUp>", selecting("<S-PageUp>"), {
   desc = "Select a page up, to the first line when there is no page left",
 })
 
--- An unshifted key pressed with something picked out drops the selection and
--- then means what it means without one. Said outright for every unshifted key
--- this file binds in Normal or Insert, because 'keymodel' cannot say it:
--- "stopsel" ends the selection and then runs *Vim's own* key, never a mapping
--- of mine. So Ctrl+Right out of a selection landed on the start of the next
--- word where the key on its own lands past the end of this one, Alt+Right
--- moved one character, Ctrl+Home kept the column, Ctrl+End stopped on the
--- last character, and Home kept a Visual selection alive while End dropped
--- it. Measured 2026-09-03, every key below.
+-- An unshifted key over a selection drops it, then means what it means without
+-- one. Bound for every unshifted key this file binds in Normal or Insert, since
+-- "stopsel" runs Vim's own key and never a mapping.
 --
--- Esc ends Visual or Select, and the key is then fed again and resolved in the
--- mode that leaves me in, so the mappings above are what run. A Select opened
--- while typing goes back to Insert on its own once the mapping's keys are
--- spent: Vim defers that restart while a mapping is still running
--- (`old_mapped_len` in normal.c), which is also why the re-fed key resolves
--- against Normal's table and not Insert's. Every key here lands the same from
--- either, so that costs nothing.
+-- The key is fed again after Esc and resolves against Normal's table, even from
+-- a Select opened while typing: Vim holds back the return to Insert until the
+-- mapping's keys are spent (`old_mapped_len` in normal.c). Every key here lands
+-- the same from either mode.
 --
--- The description is the Normal mapping's, so the two cannot drift apart.
+-- The description is read from the Normal mapping, so this stays below every
+-- key it lists.
 local function dropping(lhs)
   return "<Esc>" .. lhs
 end
@@ -716,28 +479,20 @@ for _, lhs in ipairs({
   })
 end
 
--- `{count}|` goes to a column, and Vim counts that column in screen cells;
--- lua/mivn/margins.lua respells it as the character column, the number the
--- status line shows and a compiler prints. `g|` keeps the screen-cell meaning.
+-- `{count}|` counts characters, not screen cells: the column the status line
+-- shows and a compiler prints.
 vim.keymap.set({ "n", "x", "o" }, "|", margins.to_char_column, {
   desc = "To the {count}'th character of the line",
 })
 
--- The tab bar's two chords. `Ctrl+Tab` is unbound in stock Vim, and
--- `:bnext`/`:bprevious` wrap at both ends, which is what makes this a cycle
--- rather than two keys that stop at the edges.
+-- The tab bar's two chords; `:bnext` and `:bprevious` wrap at both ends.
+-- Terminal mode is left out, since its keys belong to the shell and `:bnext`
+-- would put a file in the panel's split.
 --
--- The trap is what these must *not* be mapped to. In the legacy encoding a
--- terminal cannot say Ctrl+Tab and sends a plain Tab, and Normal-mode Tab is
--- `Ctrl+I`, forward through the jumplist; mapping Tab would quietly cost the
--- other half of `Ctrl+O`. So `<C-Tab>` and `<C-S-Tab>` only: they arrive as
--- themselves from Neovide and from a terminal speaking the extended keyboard
--- protocol, and on anything older they do nothing while Tab keeps its job.
--- Bound wherever I can be looking at a buffer, typing and selecting included,
--- because the tab bar is the window's and not the mode's; the zoom keys below
--- are the same argument. Terminal mode is the one left out, on purpose: in
--- there nearly every key belongs to the shell (lua/mivn/terminal.lua), and
--- `:bnext` would put a file in the panel's own split.
+-- NOTE: `<C-Tab>` only, never Tab. A legacy terminal sends Ctrl+Tab as Tab, and
+-- Normal-mode Tab is Ctrl+I, forward through the jumplist. The chords arrive as
+-- themselves from Neovide and extended-keyboard terminals and do nothing
+-- elsewhere.
 vim.keymap.set({ "n", "i", "x", "s" }, "<C-Tab>", "<Cmd>bnext<CR>", {
   desc = "Next buffer in the tab bar",
 })
@@ -748,48 +503,36 @@ vim.keymap.set({ "n", "i", "x", "s" }, "<C-S-Tab>", "<Cmd>bprevious<CR>", {
 
 --- Completion, in Insert mode -------------------------------------------------
 --
--- Up and Down are not bound and must not be: they already walk the menu the
--- useful way, moving the highlight without writing the match into the buffer.
--- Ctrl+E closes the menu and gives back what I typed. `:h popupmenu-keys`.
---
--- PageUp and PageDown are not here either. They belong to the file as much as
--- to the menu, and which one they move is decided above, in page.lua.
+-- NOTE: Up and Down are not bound. They already walk the menu without writing
+-- the match into the buffer (`:h popupmenu-keys`). PageUp and PageDown are
+-- page.lua's, above.
 
--- Enter takes the highlighted match, and is a newline the rest of the time.
--- The condition is the point: `noselect` means nothing is highlighted until I
--- press an arrow, so Enter while the menu is merely *open* still breaks the
--- line.
+-- `noselect` leaves nothing highlighted until an arrow, so Enter with the menu
+-- merely open still breaks the line.
 --
--- The newline path goes through mini.pairs, which returns raw termcodes,
--- hence `replace_keycodes = false`.
+-- NOTE: `replace_keycodes = false`, because the newline comes from mini.pairs
+-- as raw termcodes already.
 vim.keymap.set("i", "<CR>", complete.enter, {
   expr = true,
   replace_keycodes = false,
   desc = "Accept the highlighted completion, or break the line",
 })
 
--- Tab takes a match without asking for the arrow first: the highlighted one if
--- there is one, otherwise the top of the list. What it costs is a literal Tab
--- while the menu happens to be open, which is close to free, since indentation
--- is settled by EditorConfig and applied on save.
+-- With the menu open Tab takes a match without an arrow first, the top one when
+-- none is highlighted.
 vim.keymap.set("i", "<Tab>", complete.tab, {
   expr = true,
   desc = "Accept the completion, or jump to the next placeholder, else a tab",
 })
 
--- Shift+Tab is the other half of Zed's pair, and while typing that is one step
--- of indent off the line. It replaces Neovim's own Insert-mode Shift+Tab, so
--- lua/mivn/indent.lua answers the placeholder first the way that one did.
+-- This replaces Neovim's own Insert-mode Shift+Tab, so a snippet placeholder
+-- still comes first.
 vim.keymap.set("i", "<S-Tab>", indent.dedent_line, {
   expr = true,
   desc = "Jump to the previous placeholder, or dedent the line",
 })
 
--- The same pair over a selection, in Visual and in Select. Select costs
--- nothing here: Tab is not a printable key as far as Select mode is
--- concerned, so neither of these took anything that was replacing text.
--- lua/mivn/indent.lua carries the argument, the snippet order and what `gv`
--- gets wrong.
+-- Select loses nothing here: Tab is not a printable key there.
 vim.keymap.set({ "x", "s" }, "<Tab>", indent.indent, {
   desc = "Indent the selected lines, and keep the selection",
 })
@@ -798,23 +541,13 @@ vim.keymap.set({ "x", "s" }, "<S-Tab>", indent.dedent, {
   desc = "Dedent the selected lines, and keep the selection",
 })
 
--- Esc with the menu open closes the menu and leaves me typing, the way it does
--- in Zed and VS Code; a second Esc leaves Insert. Vim spends the one press on
--- both at once, and a menu I never asked for is not worth the mode I am in.
--- Ctrl+E, Vim's own key for this, is untouched and still does it.
 vim.keymap.set("i", "<Esc>", complete.escape, {
   expr = true,
   desc = "Close the completion menu, or stop typing",
 })
 
--- Ctrl+Space asks for the menu, the way it does in Zed and VS Code, and like
--- there it arrives stepped in: the top match is highlighted, so Enter takes
--- it, the arrows move from it, and PageUp and PageDown page the list. Asking
--- is the signal that a match is wanted, which is the signal the automatic menu
--- never has, and why that one stays unselected.
---
--- Bound twice for one key: a terminal sends Ctrl+Space as NUL, which arrives
--- as `<C-@>`, while a GUI sends the key itself.
+-- The menu opens with the top match highlighted, unlike the automatic one,
+-- since asking is the sign that a match is wanted.
 vim.keymap.set("i", "<C-Space>", complete.now, {
   desc = "Open the completion menu here, top match highlighted",
 })
@@ -825,10 +558,8 @@ vim.keymap.set("i", "<C-@>", complete.now, {
 
 --- The leader -----------------------------------------------------------------
 --
--- The whole custom surface, and it is meant to stay this short: anything rare
--- goes through the command palette instead of earning a key. The first six
--- open the same floating window, from mini.pick, so the keys inside it are
--- learned once (lua/mivn/find.lua).
+-- Short on purpose: anything rare goes through the command palette. The first
+-- six open the same mini.pick window.
 
 local function leader(lhs, rhs, desc)
   vim.keymap.set("n", lhs, rhs, { desc = desc, silent = true })
@@ -841,11 +572,8 @@ leader("<leader>:", find.palette, "Command palette")
 leader("<leader>h", find.help, "Help")
 leader("<leader>?", find.keymaps, "Every key, searchable")
 
--- <leader>t is where the toggles live, all of them, so that the question
--- "what turns this on" has one answer and the panel under <leader>t is the
--- list. The two that decide what a listing shows reach the tree and the
--- finders at once, since those are two views of one directory;
--- lua/mivn/filters.lua holds that answer and says why.
+-- Every toggle lives under <leader>t. Dotfiles and ignored files reach the tree
+-- and the finders at once, since those are two views of one directory.
 leader("<leader>tt", tree.toggle, "Toggle tree")
 leader("<leader>t`", terminal.toggle, "Toggle terminal")
 leader("<leader>tw", margins.toggle_wrap, "Toggle wrap")
@@ -853,28 +581,15 @@ leader("<leader>th", filters.toggle_dotfiles, "Toggle dotfiles")
 leader("<leader>ti", filters.toggle_ignored, "Toggle ignored files")
 leader("<leader>tb", blame.toggle, "Toggle blame")
 
--- `n` because the two letters of "hints" that would have been obvious are
--- spent: `h` hides dotfiles and `i` the ignored files. The hints are off in
--- Go to begin with, which lua/mivn/hints.lua explains.
+-- The key is `n` because `h` and `i` are taken.
 leader("<leader>tn", hints.toggle, "Toggle inlay hints")
 
--- The gutter says which lines changed; this says what they were. mini.diff
--- ships no key for it, and the question it answers, "what did I do to this
--- file", is one I ask far more often than I stage a hunk, which has two keys.
--- The guard and the toast are lua/mivn/diff.lua's.
+-- The gutter says which lines changed; review shows what they were.
 leader("<leader>tr", diff.toggle_review, "Toggle review")
 
--- The six flags in one line, keyed by the letter that flips each, since the
--- panel above is where I am reading them from anyway. The tree and the
--- terminal are left out: they are on screen or they are not, and a line
--- saying which is a line about something I can see.
---
--- Read fresh at the press rather than remembered, because three of the six
--- are not the session's to answer: wrap belongs to this window, and review
--- and the hints to this buffer.
---
--- Two pairs of words, the same two each key uses on its own: a flag is on or
--- off, and a thing that appears in a listing is shown or hidden.
+-- The six flags in one line, keyed by the letter that flips each; the tree and
+-- the terminal are on screen or not. Read at the press, since wrap belongs to
+-- the window and review and the hints to the buffer.
 leader("<leader>t?", function()
   local function say(flag, yes, no)
     return flag and yes or no
@@ -892,19 +607,10 @@ leader("<leader>t?", function()
   )
 end, "What is on")
 
--- <leader>a is what I ask the language server to do to this code, and
--- <leader>g is where I ask it to take me. Neovim's own gr-keys still work and
--- are left alone: these are a second way in, grouped so the panel under a
--- prefix is the list of what a server can do rather than five letters
--- scattered through the g-commands.
---
--- Both are set here rather than on LspAttach, the way Neovim sets its own:
--- without a server they answer "no clients attached", which is a better thing
--- to meet than a key that silently is not there.
---
--- Code action is the one of these that also takes a selection, since a server
--- offers actions on a range (extract a function, say). Visual costs Vim's own
--- Space there, which is `l`, one cell to the right; `l` still does that.
+-- <leader>a is what I ask the language server to do to this code, <leader>g
+-- where I ask it to take me. Set here rather than on LspAttach, so without a
+-- server they answer "no clients attached" instead of being missing. Code
+-- action takes a selection too, since a server offers actions on a range.
 vim.keymap.set({ "n", "x" }, "<leader>aa", vim.lsp.buf.code_action, {
   desc = "Code action",
   silent = true,
@@ -917,18 +623,15 @@ leader("<leader>ax", vim.lsp.codelens.run, "Run the code lens on this line")
 leader("<leader>ad", find.buffer_diagnostics, "Diagnostics in this buffer")
 leader("<leader>aD", find.diagnostics, "Diagnostics in the workspace")
 
---
--- Each goes through find.list, so one answer is a jump and several are the
--- picker every other list in this config opens, rather than the quickfix
--- window stock puts them in.
+-- Each goes through find.list, so one answer is a jump and several open the
+-- picker rather than the quickfix window.
 leader("<leader>gd", find.list(vim.lsp.buf.definition), "Go to definition")
 leader("<leader>gD", find.list(vim.lsp.buf.declaration), "Go to declaration")
 leader("<leader>gi", find.list(vim.lsp.buf.implementation), "Go to implementation")
 leader("<leader>gt", find.list(vim.lsp.buf.type_definition), "Go to type definition")
--- references takes the LSP context first and its options second, unlike the
--- four above, so the options cannot simply be passed along: handed over as
--- the first argument they are sent to the server as the request's context,
--- and a function in there is not something the wire can carry.
+-- NOTE: references takes the LSP context first and its options second, so it is
+-- wrapped. Handed over first, the options go to the server as the request's
+-- context, and a function in there cannot cross the wire.
 leader(
   "<leader>gr",
   find.list(function(opts)
@@ -945,27 +648,17 @@ leader(
   "Symbols in the workspace"
 )
 
--- And Neovim's own, off, because the chains above are the way and one way is
--- the point: a second key for the same request is a thing to keep in step and
--- a second row in every panel that lists what is bound.
---
--- What comes back by dropping them is Vim's: `gO` is the outline of a help
--- page or a man page again, and `gd` its local declaration search, which is
--- what those keys mean everywhere this editor has no server attached anyway.
---
--- Neovim sets all of them unconditionally rather than as a server attaches,
--- and `gra` in Visual as well as Normal, which is why that one comes off
--- twice; <leader>aa above is bound in both for it.
+-- Neovim's own gr-keys and `gO` come off, so each request has one key, and `gO`
+-- is the outline of a help or man page again. Neovim sets `gra` in Visual as
+-- well, hence the second delete.
 for _, lhs in ipairs({ "grn", "gra", "grr", "gri", "grt", "grx", "gO" }) do
   pcall(vim.keymap.del, "n", lhs)
 end
 
 pcall(vim.keymap.del, "x", "gra")
 
--- `K` is not among them because it is not global: Neovim sets it on the
--- buffer as a server attaches, and only where nothing has claimed the key
--- already. So it comes off the same way, one buffer at a time. Without it `K`
--- is 'keywordprg' again, which is `:help` in Vim files and `man` elsewhere.
+-- Neovim sets `K` per buffer as a server attaches, so it comes off the same
+-- way. Without it `K` is 'keywordprg' again.
 vim.api.nvim_create_autocmd("LspAttach", {
   group = vim.api.nvim_create_augroup("mivn.keymaps.lsp", { clear = true }),
   desc = "Take Neovim's K off; hover is <leader>ai",
@@ -976,17 +669,12 @@ vim.api.nvim_create_autocmd("LspAttach", {
 
 --- The window -----------------------------------------------------------------
 
--- Ctrl with =, - or 0 zooms, and the numpad's +, - and 0 do the same. Neovide
--- only: in a terminal these keys never reach nvim, since foot takes them
--- itself and resizes its own font, which is the right owner there.
+-- Neovide only: a terminal takes these keys for its own font. The keypad sends
+-- its own codes, so each action has two keys.
 --
--- Each action maps two keys, because the keypad sends its own codes and a
--- <C-=> map never sees <C-kPlus>. The keypad digits are <k0> through <k9> in
--- key notation, not spelled-out names: <C-kZero> parses as nothing and maps a
--- literal sequence no key sends.
+-- NOTE: the keypad digits are <k0> to <k9>. <C-kZero> parses as nothing and
+-- maps a literal sequence no key sends.
 if vim.g.neovide then
-  -- Zooming while typing, while selecting and in the terminal panel too: the
-  -- window is the same window in all of them.
   local MODES = { "n", "i", "x", "s", "t" }
 
   for _, z in ipairs({
@@ -1000,10 +688,8 @@ if vim.g.neovide then
   end
 end
 
--- ZR is :restart's Normal-mode spelling. It is a built-in, not a mapping, so
--- one mapping shadows it; lua/mivn/restart.lua refuses it when the window is
--- on another machine. A count keeps Vim's meaning, a restart without the
--- session, so `1ZR` is still the spelling of `:restart!`.
+-- ZR is :restart's built-in Normal-mode spelling. A count keeps Vim's meaning,
+-- a restart without the session, so `1ZR` is still `:restart!`.
 vim.keymap.set("n", "ZR", function()
   restart.restart(vim.v.count > 0)
 end, {
@@ -1012,22 +698,14 @@ end, {
 
 --- The command line -----------------------------------------------------------
 --
--- The four keys the automatic completion menu needs.
--- `:h cmdline-autocompletion` gives this exact recipe with the two arms the
--- other way round; the menu is open most of the time here (lua/mivn/cmdline.lua opens it
--- as I type), and a menu I cannot walk with the arrows is a menu I have to
--- learn a key for.
+-- The completion menu opens as I type, so the arrows walk it while it is open
+-- and are history otherwise; `:h cmdline-autocompletion` has this recipe with
+-- the two arms the other way round. Stock arrows in a file menu do nothing
+-- (`Down`) or climb to the parent directory (`Up`).
 --
--- Measured, in file completion: `Down` does nothing at all and `Up` moves the
--- completion out into the parent directory, silently turning `:e lua/mivn/tr`
--- into `:e lua/`. Shift+Up and Shift+Down are not reliably history either,
--- since an open file menu takes them too, so they get `Ctrl+E` first: the key
--- that ends completion and puts back what I typed.
---
--- Note the two kinds of history key differ. `Up` and `Down` recall only the
--- commands starting with what is on the line; Shift and the arrows walk the
--- whole history unfiltered. PageUp and PageDown are left alone, because while
--- the menu is open they page it.
+-- Shift and an arrow is history either way, so it sends Ctrl+E first to end the
+-- menu. It walks the whole history, where `Up` and `Down` recall only what
+-- starts with the line.
 local function cmdline_key(in_menu, plain)
   return function()
     return vim.fn.wildmenumode() == 1 and in_menu or plain
