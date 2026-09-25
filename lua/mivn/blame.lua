@@ -46,6 +46,10 @@ local enabled = false
 --- like when it was true, so a stale answer can be recognised as one.
 local answers = {}
 
+--- The buffers git has been asked about, so that coming back to one does not
+--- ask again. Writing and typing still do.
+local asked = {}
+
 local MINUTE, HOUR, DAY = 60, 60 * 60, 24 * 60 * 60
 local WEEK, MONTH, YEAR = 7 * DAY, 30 * DAY, 365 * DAY
 
@@ -89,31 +93,35 @@ local function whom(name, mail)
   return handle or name
 end
 
---- One entry per line of the file, in order, from `git blame --line-porcelain`.
+--- One entry per line of the file, in order, from `git blame --porcelain`:
+--- the commit that line came from, as `{ sha, author, when }`, shared by every
+--- line of the same commit.
 ---
---- The porcelain format is a header naming the commit, then its fields, then
---- the line's own text behind a tab. `--line-porcelain` repeats the fields for
---- every line rather than only the first time a commit is seen, which is more
---- output to read and no table to keep.
+--- The porcelain format is a header naming the commit, the commit's fields the
+--- first time it is seen, then the line's own text behind a tab.
 local function parse(stdout)
-  local lines = {}
-  local sha, name, mail, when
+  local commits, lines = {}, {}
+  local commit
 
   for line in vim.gsplit(stdout, "\n", { plain = true }) do
-    local hash = line:match("^(%x+) %d+ %d+")
+    local sha = line:match("^(%x+) %d+ %d+")
 
-    if hash then
-      sha = hash
-    elseif vim.startswith(line, "author ") then
-      name = line:sub(#"author " + 1)
-    elseif vim.startswith(line, "author-mail ") then
-      mail = line:sub(#"author-mail " + 1)
-    elseif vim.startswith(line, "author-time ") then
-      when = tonumber(line:sub(#"author-time " + 1))
+    if sha then
+      commit = commits[sha] or { sha = sha }
+      commits[sha] = commit
     elseif vim.startswith(line, "\t") then
-      -- The text of the line closes its block, so everything needed is read.
-      lines[#lines + 1] = { sha = sha, author = whom(name, mail), when = when }
+      lines[#lines + 1] = commit
+    elseif vim.startswith(line, "author ") then
+      commit.name = line:sub(#"author " + 1)
+    elseif vim.startswith(line, "author-mail ") then
+      commit.mail = line:sub(#"author-mail " + 1)
+    elseif vim.startswith(line, "author-time ") then
+      commit.when = tonumber(line:sub(#"author-time " + 1))
     end
+  end
+
+  for _, each in pairs(commits) do
+    each.author = whom(each.name, each.mail)
   end
 
   return lines
@@ -184,7 +192,9 @@ local function ask(buf)
   -- which is what keeps the answer line for line with the buffer while it is
   -- dirty. The path still has to be named, since it is what git looks the
   -- history up by.
-  vim.system({ "git", "blame", "--line-porcelain", "--contents", "-", "--", file }, {
+  asked[buf] = true
+
+  vim.system({ "git", "blame", "--porcelain", "--contents", "-", "--", file }, {
     text = true,
     stdin = table.concat(lines, "\n") .. "\n",
     cwd = vim.fs.dirname(file),
@@ -229,13 +239,22 @@ end
 local function enable()
   enabled = true
 
-  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-    ask(buf)
-  end
+  ask(vim.api.nvim_get_current_buf())
 
-  -- A file opened while this is on arrives ready, and writing one asks again,
-  -- so the answer follows a commit made from the terminal.
-  vim.api.nvim_create_autocmd({ "BufReadPost", "BufWritePost" }, {
+  -- Only a buffer that comes on screen is asked about, since only the line
+  -- under the cursor is ever shown. A buffer loaded behind my back, a rename
+  -- touching twenty files say, costs nothing.
+  vim.api.nvim_create_autocmd("BufEnter", {
+    group = GROUP,
+    callback = function(event)
+      if not asked[event.buf] then
+        ask(event.buf)
+      end
+    end,
+  })
+
+  -- Writing asks again, so the answer follows a commit made from the terminal.
+  vim.api.nvim_create_autocmd("BufWritePost", {
     group = GROUP,
     callback = function(event)
       ask(event.buf)
@@ -253,6 +272,7 @@ local function enable()
     group = GROUP,
     callback = function(event)
       answers[event.buf] = nil
+      asked[event.buf] = nil
     end,
   })
 end
@@ -260,6 +280,7 @@ end
 local function disable()
   enabled = false
   answers = {}
+  asked = {}
 
   vim.api.nvim_clear_autocmds({ group = GROUP })
   pcall(vim.cmd.redrawstatus)
