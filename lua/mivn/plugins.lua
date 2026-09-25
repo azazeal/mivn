@@ -52,14 +52,27 @@ vim.pack.add({
 -- https URLs to ssh (url.<base>.insteadOf), and then the plugins above,
 -- https as their URLs read, fetch over SSH, and on a machine whose agent
 -- holds no key the update hangs on a passphrase prompt nothing draws.
--- GIT_CONFIG_GLOBAL=/dev/null drops the rewrite for the update's git
--- subprocesses alone: set before the call, restored once the work is done.
--- "Done" is after the call for a forced update, but at the review buffer's
--- deletion otherwise: these are blobless clones, so the checkout that the
--- buffer's :write starts still fetches blobs, and quitting the buffer is
--- the cancel. Not process-wide, ever: :terminal must keep the user's real
--- git config. TODO.md's dashboard entry records the fuller story.
+-- GIT_CONFIG_GLOBAL=/dev/null drops the rewrite, set before the call and
+-- restored once the work is done: after the call for a forced update, and
+-- when the review buffer goes otherwise, since these are blobless clones and
+-- the checkout its :write starts still fetches.
+--
+-- The variable is the whole editor's for that long, so a :terminal opened
+-- while the review is up starts without my git config too.
 local pack_update = vim.pack.update
+
+--- The review buffers vim.pack.update has open, as a set.
+local function reviews()
+  local found = {}
+
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_get_name(buf):find("nvim-pack://confirm", 1, true) then
+      found[buf] = true
+    end
+  end
+
+  return found
+end
 
 ---@diagnostic disable-next-line: duplicate-set-field it is the point
 vim.pack.update = function(...)
@@ -70,13 +83,14 @@ vim.pack.update = function(...)
     vim.env.GIT_CONFIG_GLOBAL = saved
   end
 
+  local before = reviews()
   local ok, err = pcall(pack_update, ...)
 
+  -- This call's own review, and not one an earlier update left open.
   local review
-  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_get_name(buf):find("nvim-pack://confirm", 1, true) then
+  for buf in pairs(reviews()) do
+    if not before[buf] then
       review = buf
-      break
     end
   end
 
