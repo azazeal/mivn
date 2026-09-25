@@ -10,7 +10,7 @@
 ;;   db.Query( /* sql */ `SELECT 1`, arg)
 ;;   {body: /* sql */ `SELECT 1`}
 ;;
-;; Three patterns, because the comment is not always the string's sibling. In
+;; Three shapes, because the comment is not always the string's sibling. In
 ;; a call it sits directly beside the string; in any declaration or assignment
 ;; the grammar wraps the string in an `expression_list`, and inside a struct,
 ;; map or slice literal it wraps it in a `literal_element`, so the comment
@@ -39,41 +39,30 @@
 ;; keyword is what tells the two apart: it lists the tree-sitter capture and
 ;; the semantic token side by side, with the priority each is drawn at.
 
-; db.Query( /* sql */ `...`, arg)
 ((comment) @_sqltag
   .
   [
+    ; db.Query( /* sql */ `...`, arg)
     (raw_string_literal
       (raw_string_literal_content) @injection.content)
     (interpreted_string_literal
       (interpreted_string_literal_content) @injection.content)
+    ; q := /* sql */ `...`, and const, var and = the same way
+    (expression_list
+      [
+        (raw_string_literal
+          (raw_string_literal_content) @injection.content)
+        (interpreted_string_literal
+          (interpreted_string_literal_content) @injection.content)
+      ])
+    ; {body: /* sql */ `...`} in a struct, map or slice literal
+    (literal_element
+      [
+        (raw_string_literal
+          (raw_string_literal_content) @injection.content)
+        (interpreted_string_literal
+          (interpreted_string_literal_content) @injection.content)
+      ])
   ]
-  (#lua-match? @_sqltag "^/%*%s*[sS][qQ][lL]%s*%*/$")
-  (#set! injection.language "sql"))
-
-; const/var q = /* sql */ `...`   and   q := /* sql */ `...`   and   q = ...
-((comment) @_sqltag
-  .
-  (expression_list
-    [
-      (raw_string_literal
-        (raw_string_literal_content) @injection.content)
-      (interpreted_string_literal
-        (interpreted_string_literal_content) @injection.content)
-    ])
-  (#lua-match? @_sqltag "^/%*%s*[sS][qQ][lL]%s*%*/$")
-  (#set! injection.language "sql"))
-
-; {body: /* sql */ `...`}   and   {/* sql */ `...`}, in a struct, map or
-; slice literal
-((comment) @_sqltag
-  .
-  (literal_element
-    [
-      (raw_string_literal
-        (raw_string_literal_content) @injection.content)
-      (interpreted_string_literal
-        (interpreted_string_literal_content) @injection.content)
-    ])
   (#lua-match? @_sqltag "^/%*%s*[sS][qQ][lL]%s*%*/$")
   (#set! injection.language "sql"))
