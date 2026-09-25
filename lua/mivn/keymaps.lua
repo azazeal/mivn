@@ -1018,7 +1018,7 @@ end, {
 --
 -- The four keys the automatic completion menu needs.
 -- `:h cmdline-autocompletion` gives this exact recipe with the two arms the
--- other way round; the menu is open most of the time here (init.lua opens it
+-- other way round; the menu is open most of the time here (lua/mivn/cmdline.lua opens it
 -- as I type), and a menu I cannot walk with the arrows is a menu I have to
 -- learn a key for.
 --

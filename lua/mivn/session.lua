@@ -356,48 +356,28 @@ end, {
 })
 
 -- The two above are Mivn-prefixed because a user command has to start with a
--- capital, and `:bda` and `:bdo` are what a hand types. Both spellings are
--- free: Vim's own shortest forms are `bd` for bdelete and `bufd` for bufdo,
--- so neither completes to anything today.
---
--- Rewritten on the way out of the command line rather than abbreviated, the
--- same move the tree's `:bd` guard and restart.lua make. A cnoreabbrev was
--- measured and rejected: its bang trigger was flaky, with `:bd!` right after
--- an expanded `:bd` sailing through unexpanded, while this event fires once
--- per executed command line.
+-- capital, and `:bda` and `:bdo` are what a hand types. Both are free: Vim's
+-- own shortest forms are `bd` for bdelete and `bufd` for bufdo.
 local SHORTHAND = {
   bda = "MivnBdAll",
   bdo = "MivnBdOthers",
 }
 
-vim.api.nvim_create_autocmd("CmdlineLeavePre", {
-  group = group,
-  desc = "Rewrite :%bd, :bda and :bdo to close files but not panels",
-  callback = function()
-    if vim.fn.getcmdtype() ~= ":" then
-      return
-    end
+local cmdline = require("mivn.cmdline")
 
-    local line = vim.fn.getcmdline()
+cmdline.rewrite(function(line)
+  local short, bang = line:match("^(bd%l)(!?)$")
+  if SHORTHAND[short] then
+    return SHORTHAND[short] .. bang
+  end
 
-    -- WARN: nothing here may return setcmdline's result. It answers 0 on
-    -- success, every number is true in Lua, and a Neovim autocmd callback
-    -- returning true deletes itself: the first rewrite worked and the next
-    -- one landed on E492, because the handler was no longer there.
-    local short, shortbang = line:match("^(bd%l)(!?)$")
-    if SHORTHAND[short] then
-      vim.fn.setcmdline(SHORTHAND[short] .. shortbang)
-      return
-    end
+  -- The % spelling only. `:1,$bd` and friends run untouched.
+  local word, all = line:match("^%%(%l+)(!?)$")
+  if cmdline.spells(word, "bdelete", 2) then
+    return "MivnBdAll" .. all
+  end
 
-    -- The % spelling only, and any prefix of "bdelete" at least two
-    -- letters long. `:1,$bd` and friends run untouched: narrow on purpose,
-    -- the way the tree's :bd guard is.
-    local word, bang = line:match("^%%(%l+)(!?)$")
-    if word and #word >= 2 and ("bdelete"):find(word, 1, true) == 1 then
-      vim.fn.setcmdline("MivnBdAll" .. bang)
-    end
-  end,
-})
+  return nil
+end)
 
 return M

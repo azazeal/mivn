@@ -412,20 +412,9 @@ require("nvim-tree").setup({
 
 --- The :bd guard --------------------------------------------------------------
 --
--- `:bd` typed with the cursor parked in the tree used to delete the tree's own
--- buffer and take the split with it. Vim has no cancellable pre-delete event,
--- so the deletion itself cannot be vetoed; what can be changed is the command
--- line, on CmdlineLeavePre, the moment before it runs. Any spelling of bdelete
--- typed alone from the tree window is rewritten to a command that explains.
---
--- Narrow on purpose: a count (`:2bd`) names a real buffer and runs untouched,
--- and so does anything scripted through nvim_cmd or <Cmd>, which the event
--- does not fire for. Those land on the old annoying-but-recoverable
--- behavior, and the layout invariant below keeps the aftermath survivable.
---
--- Not a command-line abbreviation, the classic tool here: measured, its bang
--- trigger was flaky, with `:bd!` right after an expanded `:bd` sailing through
--- unexpanded. This event fires exactly once per executed command line.
+-- `:bd` typed in the tree would delete the tree's own buffer and take the split
+-- with it, so it is rewritten to a command that explains (lua/mivn/cmdline.lua).
+-- Narrow on purpose: a count (`:2bd`) names a real buffer and runs untouched.
 
 vim.api.nvim_create_user_command("MivnTreeBd", function()
   vim.notify("The tree is not a file. <Space>tt hides it; Ctrl+W l goes back to the code.")
@@ -434,22 +423,15 @@ end, {
   desc = "What :bd becomes inside the tree",
 })
 
-vim.api.nvim_create_autocmd("CmdlineLeavePre", {
-  group = vim.api.nvim_create_augroup("mivn.tree.bd", { clear = true }),
-  desc = "Rewrite :bd typed inside the tree",
-  callback = function()
-    if vim.bo.filetype ~= "NvimTree" or vim.fn.getcmdtype() ~= ":" then
-      return
-    end
+local cmdline = require("mivn.cmdline")
 
-    -- Any prefix of "bdelete" at least two letters long, i.e. the spellings
-    -- that actually run it.
-    local word = vim.fn.getcmdline():match("^(%l+)!?$")
-    if word and #word >= 2 and ("bdelete"):find(word, 1, true) == 1 then
-      vim.fn.setcmdline("MivnTreeBd")
-    end
-  end,
-})
+cmdline.rewrite(function(line)
+  if vim.bo.filetype ~= "NvimTree" then
+    return nil
+  end
+
+  return cmdline.spells(line:match("^(%l+)!?$"), "bdelete", 2) and "MivnTreeBd" or nil
+end)
 
 -- The layout invariant, "the tree is never the only window", lives in
 -- lua/mivn/session.lua with the rest of the endgame rules; it reads the

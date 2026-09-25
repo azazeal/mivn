@@ -87,42 +87,31 @@ local function reopen(names)
   vim.cmd.stopinsert()
 end
 
--- The same rewrite the tree's :bd guard uses: a user command cannot shadow a
--- built-in, so the command line is changed the moment before it runs. `rest`
--- is the shortest spelling that resolves to :restart (`res` is :resize;
--- measured with fullcommand()), and whatever follows the word is :restart's
--- own [+cmd][command] tail.
---
--- Only the bare bang-less spelling is taken, since that is the one wanting a
--- session. `:restart!` is the way to skip one and needs no help.
-vim.api.nvim_create_autocmd("CmdlineLeavePre", {
-  group = vim.api.nvim_create_augroup("mivn.restart", { clear = true }),
-  desc = "Refuse :restart when the window is remote, and let the panels out of the session",
-  callback = function()
-    if vim.fn.getcmdtype() ~= ":" then
-      return
-    end
+-- :restart as typed. `rest` is the shortest spelling that resolves to it
+-- (`res` is :resize), and whatever follows the word is :restart's own
+-- [+cmd][command] tail. Only the bare bang-less spelling is taken, since that
+-- is the one wanting a session; `:restart!` needs no help.
+local cmdline = require("mivn.cmdline")
 
-    -- WARN: nothing below may return setcmdline's result. It answers 0 on
-    -- success, every number is true in Lua, and an autocmd callback returning
-    -- true deletes itself.
-    local word, bang, tail = vim.fn.getcmdline():match("^%s*(%l+)(!?)(.*)$")
-    if not (word and #word >= 4 and ("restart"):find(word, 1, true) == 1) then
-      return
-    end
+cmdline.rewrite(function(line)
+  local word, bang, tail = line:match("^%s*(%l+)(!?)(.*)$")
+  if not cmdline.spells(word, "restart", 4) then
+    return nil
+  end
 
-    if remote_ui() then
-      vim.fn.setcmdline("MivnRestartRemote")
-    elseif bang == "" and tail:match("^%s*$") then
-      vim.fn.setcmdline("MivnRestart")
-    elseif bang == "" then
-      -- A [+cmd] or a [command] of my own. There is one [command] slot and it
-      -- would have to carry both mine and the reopen, so a tail keeps its
-      -- command and gives up the session.
-      vim.fn.setcmdline("restart!" .. tail)
-    end
-  end,
-})
+  if remote_ui() then
+    return "MivnRestartRemote"
+  end
+
+  if bang ~= "" then
+    return nil
+  end
+
+  -- A [+cmd] or a [command] of my own. There is one [command] slot and it
+  -- would have to carry both mine and the reopen, so a tail keeps its command
+  -- and gives up the session.
+  return tail:match("^%s*$") and "MivnRestart" or ("restart!" .. tail)
+end)
 
 --- Restart, keeping the session and the panels; ZR and :restart both land
 --- here, the key through lua/mivn/keymaps.lua and the command through the

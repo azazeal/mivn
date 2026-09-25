@@ -250,35 +250,6 @@ vim.opt.laststatus = 3
 -- this is the rest of them catching up rather than a new look.
 vim.opt.winborder = "rounded"
 
--- Command-line completion as a popup menu that opens by itself as I type.
--- `wildtrigger()` is Vim's own function for that, new in 0.12, so this is an
--- option and an autocmd rather than a plugin.
---
--- 'wildmode' lists what each successive Tab does. `noselect:lastused` is what
--- the automatic trigger gets: menu up with nothing inserted, so Enter runs
--- what I typed and not a suggestion, and `:b` is ordered by recency. Then
--- `longest:full` on the first Tab and `full` after it. `noselect` has to be
--- first: with `longest` there, the trigger would insert the common prefix of
--- the matches while I was still typing.
---
--- `:` only, and not `/` or `?`: over a search, a popup covers the match
--- 'incsearch' is already showing me. `:h cmdline-autocompletion` has the
--- fuller setup this one is trimmed from.
-vim.opt.wildoptions = "pum"
-vim.opt.wildmode = "noselect:lastused,longest:full,full"
-
-vim.api.nvim_create_autocmd("CmdlineChanged", {
-  group = vim.api.nvim_create_augroup("mivn.cmdline", { clear = true }),
-  pattern = ":",
-  desc = "Open the completion menu as the command line is typed",
-  callback = function()
-    vim.fn.wildtrigger()
-  end,
-})
-
--- The four keys that walk that menu are in lua/mivn/keymaps.lua, with every
--- other mapping.
-
 -- No history across sessions. shada holds :oldfiles, per-file marks and the
 -- jumplist, all keyed by path, so it is the thing that goes stale and starts
 -- pointing at directories renamed out from under it.
@@ -473,6 +444,7 @@ require("mivn.complete") -- the Insert-mode completion menu
 require("mivn.pairs") -- auto-closing pairs; complete.lua's Enter calls into it
 require("mivn.diff") -- git changes in the gutter
 require("mivn.page") -- PageUp and PageDown, over the file and over the menu
+require("mivn.cmdline") -- completion as I type, and the typed commands mivn rewrites
 require("mivn.restart") -- :restart, refused when the window is remote
 require("mivn.terminal") -- the terminal panel and its toggle
 require("mivn.margins") -- the 80/100/120 width markers
