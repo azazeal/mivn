@@ -1,50 +1,30 @@
--- basalt: my dark theme, named for what magma becomes when it cools. It began
--- as Modest Dark, a Zed theme by Tim Cole (https://github.com/timcole/modest-
--- dark, MIT), and is now its own palette, in its own repository, which my
--- terminal and my shell prompt read as well.
+-- basalt, my dark theme. Its palette lives in a repository of its own, which
+-- my terminal and my shell prompt read as well. It started from Tim Cole's
+-- Modest Dark for Zed (https://github.com/timcole/modest-dark, MIT).
 --
--- The split is worth knowing before changing anything here. basalt owns the
--- values: it decides what orange is and how far a wash sits from the page.
--- This file owns the roles: it decides that a git branch is orange and that a
--- selection is a magenta wash. So a colour that is the wrong shade is a
--- question for basalt, and a colour on the wrong thing is a question for the
--- table below.
+-- basalt owns the values and this file owns the roles. So a colour in the
+-- wrong shade is a question for basalt, and a colour on the wrong thing is a
+-- question for the tables below.
 --
--- Written out rather than pulled from a plugin, and copied rather than
--- generated. A colorscheme is a table of highlight groups, so a dependency
--- here would buy nothing, and a generator would buy less: the values move
--- rarely and the reasons live in this file, where a generator cannot carry
--- them.
---
--- This file owns every highlight group mivn sets, the plugins' and my own
--- included. No module under lua/mivn/ defines one, and no module names a color:
--- the palette below is the only place a hex lives. That costs the plugin
--- sections here being written for plugins this file cannot check are installed,
--- which is free: a highlight group nothing draws with is a few bytes in a
--- table. What it buys is one place to look when a color is wrong, and one pass
--- that leaves everything colored, so `:colorscheme basalt` on a running editor
--- restores the whole screen instead of the half of it a colorscheme used to
--- own.
+-- Every highlight group mivn sets lives here, the plugins' and my own
+-- included, and the palette below is the only place a hex lives. So
+-- `:colorscheme basalt` on a running editor colours the whole screen again.
 
 vim.cmd.highlight("clear")
 vim.g.colors_name = "basalt"
 vim.o.termguicolors = true
 vim.o.background = "dark"
 
--- The palette, in basalt's own names and under its one rule: a dot means an
--- accent, no dot means a surface. Every value is copied from basalt.json in
--- the basalt repository and nothing here invents one, so a colour that looks
--- wrong is either the wrong entry picked below or a question for basalt.
+-- The palette, in basalt's own names, every value copied from basalt.json in
+-- the basalt repository. Nothing here invents one.
 --
--- The surfaces are a scale, deepest to lightest, and the order is the whole
--- idea: what sits beside or behind the file goes under the page, what is
--- drawn on top of the file goes over it. The depth step is what separates two
--- surfaces, which is why the tree needs no visible separator.
+-- The surfaces run deepest to lightest: what sits beside or behind the file
+-- goes under the page, what is drawn on top of it goes over. The step between
+-- two surfaces is what parts them.
 --
--- Each accent carries four renditions. `text` is the accent as writing.
--- `deep` is a saturated fill. `container` is a dimmed ground with ordinary
--- text on it, and `wash` is a fainter ground meant to sit under text that is
--- already coloured, which is what every tint in this file wants.
+-- Each accent has four renditions: `text` for writing, `deep` for a strong
+-- fill, `container` for a dim ground under plain text, and `wash` for a fainter
+-- ground under text that already has a colour.
 local c = {
   sunk = "#08090C", -- behind the page: the tree, the tab strip, inactive tabs
   page = "#0F1217", -- the page: the buffer and its number and sign columns
@@ -111,9 +91,8 @@ local c = {
     container = "#492A4E",
   },
 
-  -- The two steps between red and its container that the dashboard's fire
-  -- gradient needs and the scale above has no name for. Nothing else may use
-  -- them; they are named here only so every hex stays in this table.
+  -- Two steps between red and its container, for the dashboard's fire
+  -- gradient and nothing else. Named only so that every hex stays here.
   fire4 = "#BC4D58",
   fire5 = "#893B45",
 }
@@ -133,12 +112,9 @@ hl({
   FloatBorder = { fg = c.muted, bg = c.raised },
   FloatTitle = { fg = c.blue.text, bg = c.raised, bold = true },
 
-  -- The caret carries the mode, in the same hues the status line's mode block
-  -- uses, and lua/mivn/init.lua's 'guicursor' names which group goes with
-  -- which mode. `sunk` for the text under a block, because that is the color
-  -- foot draws it in and this is what makes Neovide agree with it. In a
-  -- terminal the foreground is ignored and only the background travels, as
-  -- OSC 12.
+  -- The caret takes the mode block's hue; 'guicursor' in init.lua picks the
+  -- group for each mode. The text under a block is `sunk`, the colour foot
+  -- draws it in, and a terminal only ever gets the background, as OSC 12.
   Cursor = { fg = c.sunk, bg = c.blue.text },
   lCursor = { link = "Cursor" },
   iCursor = { fg = c.sunk, bg = c.green.text },
@@ -148,9 +124,8 @@ hl({
   oCursor = { fg = c.sunk, bg = c.cyan.text },
   TermCursor = { fg = c.sunk, bg = c.cyan.text },
 
-  -- Select's caret, orange the way its mode block and its selection are.
-  -- 'guicursor' has no Select mode to name it in, so lua/mivn/select.lua
-  -- hangs it on every mode for as long as Select lasts.
+  -- Select's caret. 'guicursor' has no Select mode, so this goes on every
+  -- mode for as long as Select lasts.
   MivnCursorSelect = { fg = c.sunk, bg = c.orange.text },
   CursorLine = { bg = c.row },
   CursorColumn = { bg = c.row },
@@ -162,53 +137,22 @@ hl({
   FoldColumn = { fg = c.faint, bg = c.page },
   Folded = { fg = c.muted, bg = c.inlay },
 
-  -- A tint rather than another grey, in Visual's own hue, so that the mode
-  -- block, the caret and the selection all say magenta at once. The wash is
-  -- the rendition made for this: a ground meant to sit under text that is
-  -- already coloured, where a flat fill would bury the code I still have to
-  -- read.
-  --
-  -- Over the page and not the active row: 'cursorline' is documented as not
-  -- used while Visual is active, so the row under a selection is the page.
+  -- Visual's magenta as a wash, so the code under a selection keeps its own
+  -- colours. It sits on the page, since 'cursorline' is off during Visual.
   Visual = { bg = c.magenta.wash },
   VisualNOS = { bg = c.magenta.wash },
 
-  -- Select mode's own tint, orange the way the status line's Select block is.
-  -- Every wash but two sits at one lightness, so which mode I am in changes
-  -- the hue of what is picked out and not how well I can read it.
-  -- Neovim paints Visual and Select with the one `Visual` group, so the
-  -- window in Select points that group here for as long as it is in it;
-  -- lua/mivn/select.lua is what does the pointing.
+  -- Select's selection. Neovim draws Visual and Select with the one `Visual`
+  -- group, so a window in Select points `Visual` here for as long as it lasts.
   MivnSelect = { bg = c.orange.wash },
 
-  -- The other copies of what is selected (lua/mivn/occurrences.lua). Cyan is
-  -- one of the two washes that sit above the common lightness, and this mark
-  -- is why: sRGB has no dark teal with the chroma to separate from the row
-  -- the caret is on, which is the row a selection is always on, so the wash
-  -- buys the separation with lightness instead. Measured on screen, against
-  -- five candidates.
-  --
-  -- It started as Visual's own magenta at a weaker strength, on the argument
-  -- that the same hue would say "the same text"; on screen it only said
-  -- "another selection", and the one place the caret actually was took a
-  -- second to find. So the copies get a hue of their own, and the only
-  -- magenta in the window is the selection. Not Search's yellow either,
-  -- which answers a different question.
+  -- The other copies of what is selected, in a hue of their own so that the
+  -- selection is the only magenta in the window. Cyan's wash is lighter than
+  -- most, since no darker teal stands out on the row the caret is on.
   MivnOccurrence = { bg = c.cyan.wash },
 
-  -- The flash over a fresh yank (lua/mivn/yank.lua). Green because the yank
-  -- went somewhere and nothing is wrong, and because it is the only wash with
-  -- nothing else already on it: magenta is the selection, orange is Select,
-  -- cyan is the other copies. Not Search's yellow, which answers a question I
-  -- did not ask here.
-  --
-  -- It sits at the common wash lightness, so a yank says as much as a
-  -- selection does and no more. Against the row the caret is on that is
-  -- 1.14:1, under the 1.25:1 the occurrence mark above had to buy, and the
-  -- difference is that this one moves: a mark that appears and goes is found
-  -- by the change rather than by the contrast. If it ever reads too faint on
-  -- the caret's row, the step up is the container rendition and not another
-  -- hue.
+  -- The flash over a fresh yank, in green: nothing is wrong, and it is the
+  -- one wash no other mark uses.
   MivnYank = { bg = c.green.wash },
 
   Search = { fg = c.page, bg = c.yellow.text },
@@ -216,8 +160,7 @@ hl({
   CurSearch = { fg = c.page, bg = c.orange.text },
   MatchParen = { fg = c.cyan.text, bold = true },
 
-  -- The indent guide color doubles as every window-splitting line, which is
-  -- what keeps splits from drawing a bright seam across the screen.
+  -- The indent guides' colour, so a split draws no bright seam on the screen.
   WinSeparator = { fg = c.raised, bg = c.page },
   VertSplit = { link = "WinSeparator" },
 
@@ -233,15 +176,13 @@ hl({
   PmenuShadow = { bg = c.sunk },
   PmenuShadowThrough = { bg = c.sunk },
 
-  -- The letters of a match that the query hit, in the picker's own yellow
-  -- so the two menus read the same way; `fuzzy` in 'completeopt' is what
-  -- makes them worth marking, since they are then rarely a prefix.
+  -- The letters the query hit, in the picker's yellow so both menus read
+  -- alike.
   PmenuMatch = { fg = c.yellow.text, bg = c.raised, bold = true },
   PmenuMatchSel = { fg = c.yellow.text, bg = c.guide, bold = true },
 
-  -- What a match would insert, drawn in the line as the menu is walked.
-  -- The same ground the inlay hints and the diff overlay take: in the
-  -- window but not in the file.
+  -- What a match would insert, shown in the line: in the window but not yet
+  -- in the file, like an inlay hint.
   ComplMatchIns = { fg = c.dim, bg = c.inlay },
   WildMenu = { link = "PmenuSel" },
 
@@ -270,16 +211,13 @@ hl({
   ModeMsg = { fg = c.body, bold = true },
   MsgArea = { fg = c.body, bg = c.page },
 
-  -- The three kinds ui2 tells apart in what a shell command prints and in a
-  -- message that says something went right: stock links them to the message
-  -- groups above, said outright so this file stays the whole list.
+  -- ui2's groups for good news and for what a shell command prints.
   OkMsg = { link = "MoreMsg" },
   StderrMsg = { link = "ErrorMsg" },
   StdoutMsg = { fg = c.body },
 
-  -- The placeholder a snippet is on, while Tab steps through them. The
-  -- selection is Select's orange already; this is the faint ring the other
-  -- placeholders get, so the next stop can be seen before it is reached.
+  -- A snippet's placeholders: the current one in Select's orange, the rest on
+  -- a faint ground so the next stop shows before I reach it.
   SnippetTabstop = { bg = c.inlay },
   SnippetTabstopActive = { bg = c.orange.wash },
 })
@@ -329,10 +267,8 @@ hl({
 hl({
   ["@variable"] = { fg = c.body },
 
-  -- `self` and `this`: a value the language bound for me rather than one I
-  -- named, which is what orange already says with `nil` and `true`. It was
-  -- yellow, and yellow is types, so `fn go(&self) -> u32` drew the receiver
-  -- and the return type in one colour.
+  -- `self` and `this`: a value the language bound rather than one I named,
+  -- which is what orange says for `nil` and `true`.
   ["@variable.builtin"] = { fg = c.orange.text },
 
   ["@variable.member"] = { fg = c.red.text },
@@ -340,17 +276,8 @@ hl({
   ["@constant.builtin"] = { fg = c.orange.text },
   ["@constant.macro"] = { fg = c.magenta.text },
 
-  -- Where a name lives, not the name: `context` in `context.Context`. Reading
-  -- a signature I am after what it takes and what it gives back, and those are
-  -- the type names; the package answers a second question I ask later and only
-  -- sometimes. In one colour the two ran together into a single word parted by
-  -- a dot. Dim also tells `time.Now()` from `t.Now()` at a glance, which is a
-  -- package against a value, and body would have buried the qualifier in the
-  -- variables instead.
-  --
-  -- In Elixir this is the name in `defmodule` and `alias` as well, and those
-  -- go quiet with it. The keyword beside them still says what the line is, and
-  -- it is a line or two a file against every qualified call.
+  -- Where a name lives (`context` in `context.Context`), dim so the type name
+  -- reads first and `time.Now()` stands apart from `t.Now()`.
   ["@module"] = { fg = c.dim },
 
   ["@string.escape"] = { fg = c.cyan.text, bold = true },
@@ -402,13 +329,11 @@ hl({
   ["@lsp.type.parameter"] = { link = "@variable.parameter" },
   ["@lsp.type.property"] = { link = "@property" },
 
-  -- WARN: cleared, like the comment token above, and for a sharper reason. A
-  -- semantic token is drawn at priority 125 and tree-sitter at 100, so a
-  -- server marking a whole string literal as a string paints over whatever is
-  -- injected inside it. In Go that is the SQL in queries/go/injections.scm:
-  -- the fragment parsed, the keywords were captured, and every one of them
-  -- still came out the green of the string around it (measured 2026-08-27,
-  -- gopls). Cleared, the token paints nothing and the injection shows through.
+  -- NOTE: Cleared, like the comment token above. A semantic token draws at
+  -- priority 125 and tree-sitter at 100, so a server that marks a whole string
+  -- literal paints over whatever is injected in it, such as the SQL that
+  -- queries/go/injections.scm finds in Go strings. Cleared, the token paints
+  -- nothing and the injection shows through.
   ["@lsp.type.string"] = {},
 
   ["@lsp.type.struct"] = { link = "@type" },
@@ -435,9 +360,8 @@ hl({
   DiagnosticVirtualTextInfo = { fg = c.blue.text, bg = c.inlay },
   DiagnosticVirtualTextHint = { fg = c.muted, bg = c.inlay },
 
-  -- The block drawn under the line, which wraps, so its right edge is ragged
-  -- by several columns. A background would paint that shape instead of the
-  -- words, which is why these carry the colour and nothing behind it.
+  -- No background: these lines wrap, and a ground would paint their ragged
+  -- right edge rather than the words.
   DiagnosticVirtualLinesError = { fg = c.red.text },
   DiagnosticVirtualLinesWarn = { fg = c.yellow.text },
   DiagnosticVirtualLinesInfo = { fg = c.blue.text },
@@ -460,9 +384,8 @@ hl({
   DiffDelete = { fg = c.red.text, bg = c.red.container },
   DiffChange = { bg = c.raised },
   DiffText = { bg = c.green.container },
-  -- The words added within a changed line, since 'diffopt' draws inline
-  -- changes by default now; the same ground as a changed word, one step
-  -- brighter is not a step this palette has.
+  -- The words added inside a changed line, on the changed word's ground: the
+  -- palette has no brighter step.
   DiffTextAdd = { bg = c.green.container },
 
   -- The file-status colors the tree and the gutter share.
@@ -473,19 +396,13 @@ hl({
 
 --- Terminal ------------------------------------------------------------------
 
--- :terminal buffers, so a shell inside Neovim matches foot outside it. The
--- sixteen slots are foot's, entry for entry, with one deliberate difference:
--- slot 0 is `sunk` here and `row` there. foot draws its window on `sunk`, so a
--- slot 0 that matched it would render black text invisible; a :terminal buffer
--- draws on the page, which `sunk` already sits under. Measured, the two
--- choices are 1.06:1 and 1.09:1 against the page, so nothing turns on it.
+-- The sixteen colours of a :terminal buffer, slot for slot foot's but for
+-- slot 0: foot draws on `sunk` and so puts `row` there, while a :terminal
+-- draws on the page, which `sunk` already sits under.
 --
--- WARN: the bright half repeats the regular half for slots 9 to 14. basalt has
--- one text weight per accent and no lifted rendition, and inventing one here
--- would put a colour on screen that is in no palette. So a program drawing
--- bright red beside red gets one red, and bold carries the difference, which
--- is the signal those programs pair with the bright slot anyway. foot's
--- config says the same thing on its own side.
+-- Slots 9 to 14 repeat 1 to 6, since basalt has one text colour per accent;
+-- bold carries the difference, as those programs pair it with the bright slot
+-- anyway.
 vim.g.terminal_color_0 = c.sunk
 vim.g.terminal_color_1 = c.red.text
 vim.g.terminal_color_2 = c.green.text
@@ -505,10 +422,8 @@ vim.g.terminal_color_15 = c.bright
 
 --- The status line -----------------------------------------------------------
 
--- The mode block: the accent as a background, the darkest background as text.
--- Each mode gets the color the theme already uses for the thing that mode is
--- about, so the association is one I am learning anyway from the syntax
--- highlighting.
+-- The mode block: each mode in the hue the syntax gives what that mode is
+-- about, so the pairing is one I learn from the code anyway.
 hl({
   MiniStatuslineModeNormal = { fg = c.sunk, bg = c.blue.text, bold = true }, -- functions
   MiniStatuslineModeInsert = { fg = c.sunk, bg = c.green.text, bold = true }, -- strings
@@ -522,40 +437,17 @@ hl({
   MiniStatuslineModeCommand = { fg = c.sunk, bg = c.yellow.text, bold = true }, -- types
   MiniStatuslineModeOther = { fg = c.sunk, bg = c.cyan.text, bold = true }, -- terminal, rest
 
-  -- The branch in orange, for what orange means here: a fixed label naming
-  -- where I am, which is the company constants and numbers keep. The dirty
-  -- dot rides along: it is one token with the name, and yellow already means
-  -- "modified" elsewhere.
-  --
-  -- Yellow was the other candidate and it lost on that same test. Yellow is
-  -- this palette's attention color, warnings and Todo and Search, and it is
-  -- "modified" in the tree, the tabline and the gutter as well. A branch name
-  -- is on screen every second and asks for none of that.
-  --
-  -- WARN: this used to say the color came from my shell prompt, and that is
-  -- the one reason it must not give. The prompt asks for ANSI slot 3, which
-  -- is yellow here (terminal_color_3 above) and yellow in foot as well now,
-  -- so the two stopped agreeing inside a :terminal without a line here
-  -- changing. The prompt lives in my dotfiles repository and names basalt's
-  -- orange outright rather than borrowing a slot, so the two agree again;
-  -- that is welcome and it is still not the reason. Either way, do not
-  -- repaint this one to chase the other.
+  -- The branch, and its dirty dot with it, in orange: a fixed label like a
+  -- constant, where yellow would ask for attention all the time.
   MivnStatuslineGit = { fg = c.orange.text, bg = c.raised },
 
-  -- Who wrote the line the cursor is on takes the file name's own colors: it
-  -- is the same kind of thing, something the file says about itself rather
-  -- than something I watch. The low background is what parts it from the
-  -- filetype beside it, which on the raised one ran together with it into a
-  -- single block. It still loses to everything around it, which is the point,
-  -- and sinking the surface leaves it a little easier to read than the grey it
-  -- had.
+  -- The blame takes the file name's colours: it is something the file says
+  -- about itself, not something I watch.
   MivnStatuslineBlame = { fg = c.muted, bg = c.inlay },
 
-  -- `%=` fills with whatever color is in force, which is the file name's, so
-  -- the low background runs from the name through the empty middle and comes
-  -- out again under the blame. The line reads as a raised block at each end
-  -- with a trough between them: what I watch sits on the raised part, what is
-  -- only context sits in the trough.
+  -- `%=` fills with the file name's colours, so the line is a raised block at
+  -- each end with a low trough between: what I watch sits raised, what is
+  -- only context sits low.
   MiniStatuslineDevinfo = { fg = c.body, bg = c.raised },
   MiniStatuslineFileinfo = { fg = c.body, bg = c.raised },
   MiniStatuslineFilename = { fg = c.muted, bg = c.inlay },
@@ -565,14 +457,12 @@ hl({
 --- The tab bar ---------------------------------------------------------------
 
 hl({
-  -- The active tab lifts to the panel background, the rest sit back on the
-  -- editor background.
   MiniTablineCurrent = { fg = c.body, bg = c.raised, bold = true },
   MiniTablineVisible = { fg = c.muted, bg = c.sunk },
   MiniTablineHidden = { fg = c.faint, bg = c.sunk },
 
-  -- Unsaved changes are the one thing worth coloring, so an unwritten buffer is
-  -- obvious without reading the name.
+  -- Unsaved changes are the one thing worth colouring, so an unwritten buffer
+  -- shows without reading its name.
   MiniTablineModifiedCurrent = { fg = c.yellow.text, bg = c.raised, bold = true },
   MiniTablineModifiedVisible = { fg = c.yellow.text, bg = c.sunk },
   MiniTablineModifiedHidden = { fg = c.orange.text, bg = c.sunk },
@@ -580,16 +470,12 @@ hl({
   MiniTablineFill = { bg = c.sunk },
   MiniTablineTabpagesection = { fg = c.page, bg = c.magenta.text, bold = true },
 
-  -- The strip that stands in for the tree above it, so the gap reads as the
-  -- panel continuing upward rather than as an empty tab.
+  -- The tree's columns in the bar, drawn as the tree so the panel reads as
+  -- running up to the top rather than as an empty tab.
   MivnTablineTreeFill = { link = "NvimTreeNormal" },
 
-  -- The project's name, in that strip. Only the foreground can say "this is
-  -- not a tab": the strip and every tab that is not the current one are all
-  -- on `sunk` already. Blue is the one colour the bar does not use, and it is
-  -- what the tree draws its folder names in, so the name reads as the folder
-  -- the rows below it are inside. Not bold, which is how the current tab says
-  -- it is current; a nameplate should be quieter than every tab, not louder.
+  -- The project's name over the tree: blue like the tree's folder names, and
+  -- not bold, so it does not read as a tab.
   MivnTablineProject = { fg = c.blue.text, bg = c.sunk },
 })
 
@@ -608,8 +494,7 @@ hl({
   NvimTreeGitFolderDirtyHL = { fg = c.yellow.text },
   NvimTreeGitFolderStagedHL = { fg = c.green.text },
 
-  -- Panel chrome: a shade off the editor background so the split reads as a
-  -- panel without needing a bright separator.
+  -- The panel sits below the page, so the split needs no separator line.
   NvimTreeNormal = { fg = c.body, bg = c.sunk },
   NvimTreeNormalNC = { fg = c.body, bg = c.sunk },
   NvimTreeWinSeparator = { fg = c.sunk, bg = c.sunk },
@@ -619,48 +504,38 @@ hl({
   NvimTreeEmptyFolderName = { fg = c.faint },
   NvimTreeIndentMarker = { fg = c.raised },
   NvimTreeCursorLine = { bg = c.row },
-  -- WARN: the decorators are additive, and only the attributes a group sets
-  -- clobber a lower one's. That is what lets four states share the file name
-  -- without fighting: git owns the foreground, an open buffer adds bold, a
-  -- diagnostic adds an undercurl, and cut and copied take the two attributes
-  -- left. Set a foreground in any of these and it wipes the git colour, which
-  -- is the one state every file has.
+  -- NOTE: The decorators stack, and each one overrides only the attributes it
+  -- sets. Git owns the foreground, an open buffer adds bold, a diagnostic an
+  -- undercurl, and cut and copied take the two attributes left. A foreground
+  -- in any of these would wipe the git colour, which every file has.
   NvimTreeOpenedHL = { bold = true },
 
-  -- Stock puts these two on the undercurl, which diagnostics need and which
-  -- they outrank, and in colours from outside this palette. Strikethrough is
-  -- what cut already means everywhere else.
+  -- Off the undercurl that stock gives them, which diagnostics need, and
+  -- strikethrough for cut, which is what it means everywhere else.
   NvimTreeCutHL = { strikethrough = true },
   NvimTreeCopiedHL = { italic = true },
 
-  -- Out of the colour system rather than given a colour of their own. All
-  -- three resolved to the folder blue, so an extensionless executable like
-  -- .github/scripts/repin read as a directory and README.md read as an open
-  -- one. That the panel says nothing about these is the point: it is there
-  -- for the layout.
+  -- Plain, since stock draws all three in the folder blue and a script then
+  -- reads as a directory.
   NvimTreeExecFile = { link = "NvimTreeNormal" },
   NvimTreeImageFile = { link = "NvimTreeNormal" },
   NvimTreeSpecialFile = { link = "NvimTreeNormal" },
 
-  -- The panel is below the page, so the stock "invisible against the page"
-  -- is one step lighter than this surface and the tildes show faintly.
+  -- The tildes in the panel's own colour, since the page's shows up on it.
   NvimTreeEndOfBuffer = { fg = c.sunk },
   NvimTreeLineNr = { fg = c.faint, bg = c.sunk },
 
-  -- Both carried hexes from outside the palette, and the picker is live:
-  -- opening from the tree with more than one candidate window flashed a blue
-  -- that is nowhere else in the theme. Shaped like the status line's mode
-  -- block, which is the other place a letter is stamped on an accent.
+  -- Stock gives both colours from outside the palette. The window picker is
+  -- a letter on an accent, like the mode block.
   NvimTreeFolderIcon = { fg = c.muted },
   NvimTreeWindowPicker = { fg = c.sunk, bg = c.blue.text, bold = true },
 
-  -- Metadata about the panel rather than content in it, so it takes the
-  -- line-number grey and not the comment grey; comment grey is what an
-  -- untracked file is drawn in, two rows up.
+  -- About the panel rather than in it, so the line-number grey; the comment
+  -- grey is an untracked file's.
   NvimTreeHiddenDisplay = { fg = c.faint },
 
-  -- Not yet written, as against the name's yellow for changed on disk: the
-  -- same statement at two stages.
+  -- Unsaved, in the yellow the name takes for changed on disk: one statement
+  -- at two stages.
   NvimTreeModifiedIcon = { fg = c.yellow.text },
 })
 
@@ -671,27 +546,19 @@ hl({
   MiniDiffSignChange = { fg = c.yellow.text },
   MiniDiffSignDelete = { fg = c.red.text },
 
-  -- The inline overlay, <Space>tr. Two planes, and the colour says which one
-  -- you are on: red is the old text, green is yours. So an added line and a
-  -- changed one are told apart by *where* the colour is, not by two shades of
-  -- green: an added line is washed edge to edge, a changed one is green only
-  -- on the words that changed, with a red-marked reference line beside it.
-  --
-  -- These were falling through to Neovim's stock Diff groups, and stock links
-  -- the changed-words group to DiffText, which is green's container here. So
-  -- the words being taken away were drawn in the colour of addition.
+  -- The inline overlay: red is the old text and green is mine, so an added
+  -- line is green edge to edge and a changed one only on the words that
+  -- changed.
   MiniDiffOverAdd = { bg = c.green.container },
   MiniDiffOverChangeBuf = { bg = c.green.container },
 
-  -- WARN: no background, deliberately. mini.diff draws this across the whole
-  -- of the line you are editing, to the end of the line, so a background here
-  -- kills CursorLine on every changed line in the file.
+  -- NOTE: No background. mini.diff draws this over the whole of a changed
+  -- line, to its end, so a background here would hide CursorLine on every
+  -- changed line in the file.
   MiniDiffOverContextBuf = {},
 
-  -- The reference line needs a ground of its own: a virtual line takes none
-  -- by default, so without this the old text is drawn exactly like the file
-  -- and reads as code. Faint on purpose, since the empty number column beside
-  -- a virtual line already says what it is and the red words are the reading.
+  -- The old text's line needs a ground of its own, or it reads as code in the
+  -- file.
   MiniDiffOverContext = { fg = c.body, bg = c.inlay },
   MiniDiffOverChange = { fg = c.bright, bg = c.red.container },
   MiniDiffOverDelete = { link = "MiniDiffOverChange" },
@@ -699,16 +566,13 @@ hl({
 
 --- The picker ----------------------------------------------------------------
 
--- Picker windows should read like the rest of the theme rather than bring their
--- own palette, so most of this is the float chrome above.
 hl({
   MiniPickNormal = { link = "NormalFloat" },
   MiniPickBorder = { link = "FloatBorder" },
   MiniPickBorderText = { link = "FloatTitle" },
 
-  -- The busy border needs its own bg: mini.pick's default link lands on a
-  -- group with none, so the border also flashed transparent while a live
-  -- grep was searching.
+  -- Its own background, since mini.pick's default has none and the border
+  -- would go see-through while a grep runs.
   MiniPickBorderBusy = { fg = c.yellow.text, bg = c.raised },
   MiniPickPrompt = { fg = c.blue.text, bold = true },
   MiniPickMatchCurrent = { bg = c.guide, bold = true },
@@ -731,8 +595,8 @@ hl({
 
 --- The width markers ---------------------------------------------------------
 
--- One column each, past 80, 100 and 120, escalating. Colored as a background
--- because a single character has to be seen out of the corner of an eye.
+-- One column each, past 80, 100 and 120, as a background so a single cell is
+-- seen out of the corner of an eye.
 hl({
   MivnMargin80 = { fg = c.page, bg = c.green.text, bold = true },
   MivnMargin100 = { fg = c.page, bg = c.orange.text, bold = true },
@@ -741,10 +605,9 @@ hl({
 
 --- The landing buffer --------------------------------------------------------
 
--- A fire gradient: it starts on the yellow, orange and red above and falls to
--- the diff-removed background through the two fire steps named in the
--- palette, so it borrows no colors from outside the theme. One group per row
--- of the block letters, top to bottom.
+-- A fire gradient, one group per row of the block letters, top to bottom:
+-- yellow, orange and red, then down to red's container through the two fire
+-- steps.
 hl({
   MivnDashboardFire1 = { fg = c.yellow.text },
   MivnDashboardFire2 = { fg = c.orange.text },
@@ -753,35 +616,26 @@ hl({
   MivnDashboardFire5 = { fg = c.fire5 },
   MivnDashboardFire6 = { fg = c.red.container },
 
-  -- The muted grey the theme uses for comments, so the supporting text sits
-  -- back.
   MivnDashboardTagline = { fg = c.muted },
   MivnDashboardByline = { fg = c.muted },
   MivnDashboardName = { fg = c.orange.text, bold = true },
 
-  -- The release, one step back from the byline it sits on: the theme's
-  -- structural grey, the one line numbers use, so the row reads as metadata
-  -- first and identity second, with the name the only accent on it.
+  -- The release, a step back from the byline in the line-number grey.
   MivnDashboardVersion = { fg = c.faint },
 
-  -- The count of commits past that release, in the color this theme already
-  -- gives modified files, which is what a checkout past a release is. The +
-  -- itself stays grey: the number is what the eye is being sent to. It only
-  -- ever appears where I develop, so it is allowed to be the brightest thing
-  -- on the row.
+  -- The commits past that release, in the yellow of a modified file, which is
+  -- what a checkout past a release is.
   MivnDashboardVersionAhead = { fg = c.yellow.text },
 
-  -- The update notice, cool against a warm block so it reads as information
-  -- rather than another piece of the art, and dim enough that a screen with
-  -- nothing to say still looks the same as it always did.
+  -- The update notice, cool against the warm block so it reads as news
+  -- rather than as part of the art.
   MivnDashboardUpdate = { fg = c.dim },
 })
 
 --- The hidden cursor ---------------------------------------------------------
 
--- Blended out to nothing, which is what lets the panels park a cursor where
--- there is nothing to edit. See lua/mivn/panel.lua, which points 'guicursor' at
--- this group and owns when.
+-- Blended out to nothing, so a panel can hide the caret where there is
+-- nothing to edit.
 hl({
   MivnCursorHidden = { blend = 100 },
 })
