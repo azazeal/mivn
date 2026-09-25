@@ -76,7 +76,7 @@ return {
 
   formatters = {
     markdown = function(buf)
-      -- NOTE: Honoring a config means running what it says. rumdl's
+      -- NOTE: honoring a config means running what it says. rumdl's
       -- `[code-block-tools]` names commands to run over fenced code blocks;
       -- `fmt --stdin` does not run them and a file argument does (rumdl
       -- 0.2.52). Passing the file, or a rumdl that changes this, needs the

@@ -21,7 +21,7 @@ return {
         -- lua/mivn/trust.lua decides whether the server starts at all; these
         -- decide what it does once it has.
         --
-        -- NOTE: Flat keys, not nested under a section. expert reads them
+        -- NOTE: flat keys, not nested under a section. expert reads them
         -- straight from the didChangeConfiguration notification.
         settings = {
           compileOnType = false,
@@ -31,7 +31,7 @@ return {
         -- My git config stays out of that clone, for the reason
         -- lua/mivn/update.lua gives.
         --
-        -- NOTE: The excludes file needs its own line. git reads
+        -- NOTE: the excludes file needs its own line. git reads
         -- $XDG_CONFIG_HOME/git/ignore even with no config at all, and fails
         -- when it cannot read it.
         cmd_env = {

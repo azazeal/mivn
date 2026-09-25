@@ -11,7 +11,7 @@ return {
       -- The plain command, for the reason json.lua gives.
       cmd = { "yaml-language-server", "--stdio" },
 
-      -- NOTE: The `yaml.format.enable` setting cannot replace this. In VS Code
+      -- NOTE: the `yaml.format.enable` setting cannot replace this. In VS Code
       -- the extension around the server acts on it, and the bare server keeps
       -- on formatting.
       format = false,
@@ -42,7 +42,7 @@ return {
       -- retain_line_breaks_single keeps one blank line where the default
       -- strips them all.
       --
-      -- NOTE: It needs scan_folded_as_literal beside it. yamlfmt keeps a
+      -- NOTE: it needs scan_folded_as_literal beside it. yamlfmt keeps a
       -- blank line as a `#magic___^_^___line` comment that it takes out at
       -- the end, and a blank line under a folded (`>`) block gets folded into
       -- the value, marker and all. scan_folded_as_literal stops that, and

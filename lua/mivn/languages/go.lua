@@ -58,7 +58,7 @@ end
 --- toolchain, so a project is parsed once rather than once per window. The
 --- daemon outlives its last window by a minute.
 ---
---- NOTE: The daemon's name after `auto;` carries the Go version. One daemon
+--- NOTE: the daemon's name after `auto;` carries the Go version. One daemon
 --- for all would serve everything with whichever toolchain reached it first,
 --- and read every other project against the wrong standard library
 --- (https://github.com/golang/go/issues/50991).
@@ -151,7 +151,7 @@ local function gci_format(buf)
 
   local path = vim.api.nvim_buf_get_name(buf)
 
-  -- NOTE: One session is one workspace, and the sections were built for it.
+  -- NOTE: one session is one workspace, and the sections were built for it.
   -- A file from another checkout would get this one's "ours" block, which is
   -- churn in a repository that never asked for it, so it is skipped with a
   -- warning. gopls has already organised its imports; only the grouping is
@@ -177,7 +177,7 @@ local function gci_format(buf)
     cmd[#cmd + 1] = section
   end
 
-  -- NOTE: Only when there is a module to be local to. Asking for
+  -- NOTE: only when there is a module to be local to. Asking for
   -- `localmodule` without one is not a no-op: gci refuses the whole file.
   if context then
     cmd[#cmd + 1] = "-s"
@@ -186,7 +186,7 @@ local function gci_format(buf)
 
   cmd[#cmd + 1] = path
 
-  -- NOTE: The buffer matches the disk now, just after the write. If it no
+  -- NOTE: the buffer matches the disk now, just after the write. If it no
   -- longer does when gci answers, I typed in between, and splicing the file
   -- in would throw those keystrokes away. The changedtick guards that.
   local tick = vim.api.nvim_buf_get_changedtick(buf)
@@ -406,7 +406,7 @@ return {
       probe = false,
 
       config = {
-        -- NOTE: No .golangci.yml, which nvim-lspconfig puts first. Markers
+        -- NOTE: no .golangci.yml, which nvim-lspconfig puts first. Markers
         -- are read in order, not nearest first, so one shared config above
         -- many checkouts (mine sits in ~) would root every Go file under it
         -- there. Nothing is lost: the server runs golangci-lint in the file's

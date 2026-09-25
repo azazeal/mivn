@@ -54,7 +54,7 @@ vim.o.title = true
 -- tail.
 vim.o.titlelen = 0
 
--- NOTE: Plain `%{}` and not `%{%...%}`, so the result goes in as it stands
+-- NOTE: plain `%{}` and not `%{%...%}`, so the result goes in as it stands
 -- rather than being read as more items, and a file called `50%.md` keeps its
 -- name.
 vim.o.titlestring = "%{v:lua.require'mivn.title'.render()}"

@@ -329,7 +329,7 @@ hl({
   ["@lsp.type.parameter"] = { link = "@variable.parameter" },
   ["@lsp.type.property"] = { link = "@property" },
 
-  -- NOTE: Cleared, like the comment token above. A semantic token draws at
+  -- NOTE: cleared, like the comment token above. A semantic token draws at
   -- priority 125 and tree-sitter at 100, so a server that marks a whole string
   -- literal paints over whatever is injected in it, such as the SQL that
   -- queries/go/injections.scm finds in Go strings. Cleared, the token paints
@@ -504,7 +504,7 @@ hl({
   NvimTreeEmptyFolderName = { fg = c.faint },
   NvimTreeIndentMarker = { fg = c.raised },
   NvimTreeCursorLine = { bg = c.row },
-  -- NOTE: The decorators stack, and each one overrides only the attributes it
+  -- NOTE: the decorators stack, and each one overrides only the attributes it
   -- sets. Git owns the foreground, an open buffer adds bold, a diagnostic an
   -- undercurl, and cut and copied take the two attributes left. A foreground
   -- in any of these would wipe the git colour, which every file has.
@@ -552,7 +552,7 @@ hl({
   MiniDiffOverAdd = { bg = c.green.container },
   MiniDiffOverChangeBuf = { bg = c.green.container },
 
-  -- NOTE: No background. mini.diff draws this over the whole of a changed
+  -- NOTE: no background. mini.diff draws this over the whole of a changed
   -- line, to its end, so a background here would hide CursorLine on every
   -- changed line in the file.
   MiniDiffOverContextBuf = {},

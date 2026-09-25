@@ -11,7 +11,7 @@ return {
       binary = "docker-language-server",
 
       config = {
-        -- NOTE: The section is `docker.lsp`, and Neovim splits a section on
+        -- NOTE: the section is `docker.lsp`, and Neovim splits a section on
         -- the dot before it looks it up, so the table has to be nested. A key
         -- with the dot in it is never found.
         settings = {

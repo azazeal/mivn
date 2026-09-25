@@ -235,7 +235,7 @@ end
 --- Row and column. The column counts characters, not screen cells, so it is
 --- the number `{count}|` takes and can be typed right back.
 ---
---- NOTE: The dash in `%-2{}` pads the column to two cells. Without it, going
+--- NOTE: the dash in `%-2{}` pads the column to two cells. Without it, going
 --- past column 9 widens the block and shifts everything left of it.
 local LOCATION = "%l:%-2{charcol('.')}"
 
@@ -268,7 +268,7 @@ statusline.setup({
         "%<", -- where the line is cut first when the window is narrow
         { hl = "MiniStatuslineFilename", strings = { section_filename() } },
         "%=", -- everything after this is pushed to the right
-        -- NOTE: The order is the point. This side is laid out right to left,
+        -- NOTE: the order is the point. This side is laid out right to left,
         -- so a piece that grows pushes only what is to its left. What comes
         -- and goes as I type (`%S`, where 'showcmd' prints, and the search
         -- count) goes first, and what I read at a glance goes last.

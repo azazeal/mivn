@@ -63,7 +63,7 @@ local function nameplate(columns)
   local name = project.name(columns - 2)
   local blank = columns - 1 - vim.fn.strdisplaywidth(name)
 
-  -- NOTE: What this returns is scanned for `%` items, so a directory called
+  -- NOTE: what this returns is scanned for `%` items, so a directory called
   -- `50%` would be read as one.
   name = name:gsub("%%", "%%%%")
 
@@ -79,7 +79,7 @@ function M.render()
     return mini_string()
   end
 
-  -- NOTE: The `%<` puts the cut after the nameplate. mini fits its line to the
+  -- NOTE: the `%<` puts the cut after the nameplate. mini fits its line to the
   -- whole screen, so with enough buffers open the two are too wide together,
   -- and without it the nameplate is cut first and the tabs slide over the
   -- tree, where a click lands on the wrong buffer.

@@ -11,7 +11,7 @@ local ELLIPSIS = "…"
 local cached = nil
 
 local function read()
-  -- NOTE: The global working directory and not the window's. An `:lcd` is a
+  -- NOTE: the global working directory and not the window's. An `:lcd` is a
   -- place to look at a file from, not a change of project.
   local last = vim.fn.fnamemodify(vim.fn.getcwd(-1, -1), ":~:t")
 

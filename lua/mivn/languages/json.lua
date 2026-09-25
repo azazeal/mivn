@@ -15,7 +15,7 @@ local EXTRA = {
 return {
   servers = {
     jsonls = {
-      -- NOTE: The plain command, because nvim-lspconfig's own `cmd` is a
+      -- NOTE: the plain command, because nvim-lspconfig's own `cmd` is a
       -- function that prefers `<root>/node_modules/.bin/<server>` when the
       -- project has one, i.e. opening a repository would run the language
       -- server that repository shipped.
@@ -28,7 +28,7 @@ return {
       config = {
         settings = {
           json = {
-            -- NOTE: Not optional, even though it reads like a default. The
+            -- NOTE: not optional, even though it reads like a default. The
             -- server computes
             -- `validateEnabled = !!settings.json.validate.enable` when settings
             -- arrive, so any settings sent without it turn validation off,
