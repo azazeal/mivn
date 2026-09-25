@@ -11,6 +11,11 @@ on:
       - opened
       - reopened
       - synchronize
+  # Every check against Neovim's latest release, so a new Neovim breaking the
+  # config shows up on a schedule rather than on my next push.
+  schedule:
+    - cron: "0 6 * * 1" # Mondays, 06:00 UTC
+  workflow_dispatch:
 
 # Nothing here writes to the repo; the stylua token only reads releases.
 permissions:

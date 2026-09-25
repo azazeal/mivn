@@ -1,8 +1,5 @@
-# Weekly upkeep, off the push path.
-#
-# Two jobs: boot the config against Neovim's latest release, so a new Neovim
-# breaking the config shows up on a schedule rather than on my next push, and
-# run vim.pack.update, opening a PR when it moves the lock file.
+# Weekly upkeep, off the push path: move the plugin pins, and open a PR when
+# they moved. ci.yml runs its own checks on the same schedule.
 #
 # One known limit: a PR opened with the default GITHUB_TOKEN does not trigger
 # the ci workflow on its own. Close and reopen the PR to get a run, or push
@@ -18,35 +15,6 @@ permissions:
   contents: read
 
 jobs:
-  # Not plain "Boot": that is ci.yml's required check, and check names are a
-  # repo-wide namespace, so a same-named job here could satisfy the ruleset
-  # from the wrong workflow.
-  boot-stable:
-    name: Boot (stable)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout the code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1.6.1
-        with:
-          neovim: true
-          version: stable
-
-      # Headless Neovim prints a config error and still carries on to exit 0,
-      # so the output is what gets asserted, never the exit code.
-      - name: Boot the config headless
-        run: |
-          mkdir -p ~/.config
-          ln -sfn "$PWD" ~/.config/nvim
-
-          out=$(nvim --headless "+lua io.write('boot clean')" +qa 2>&1)
-          printf '%s\n' "$out"
-
-          grep -q 'boot clean' <<< "$out"
-          if grep -Eqi 'error|E[0-9]{3}' <<< "$out"; then exit 1; fi
-
   plugin-updates:
     name: Check for updates
     runs-on: ubuntu-latest
