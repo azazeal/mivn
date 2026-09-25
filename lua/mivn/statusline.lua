@@ -174,10 +174,6 @@ end
 local function section_filename()
   local buftype = vim.bo.buftype
 
-  if buftype == "terminal" then
-    return "%t"
-  end
-
   -- a help page or a quickfix list is not in the tab bar
   if buftype == "help" then
     return "help " .. vim.fn.expand("%:t:r")
