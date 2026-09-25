@@ -1,22 +1,14 @@
 -- What a panel window has in common: the file tree and the landing buffer are
 -- lists to point at, so both hide the cursor and let the highlighted row say
--- where I am.
---
--- It is a module of its own because the panels are, not because of the caret.
--- 'guicursor' is global and lua/mivn/caret.lua owns it, so hiding is an
--- override asked for by name here rather than the option being swapped out and
--- put back, which is what used to leak when Select mode wanted it too.
+-- where I am. 'guicursor' is global, so the hiding goes through
+-- lua/mivn/caret.lua.
 
 local caret = require("mivn.caret")
 
 local M = {}
 
--- The trick: 'guicursor' takes a highlight group per mode, and a fully
--- transparent group leaves the cursor with no pixels to draw. The group is
--- defined in colors/basalt.lua.
---
--- Only a GUI draws its own cursor, so this reaches Neovide and not a terminal,
--- where the cursor belongs to the terminal and keeps being drawn.
+-- A fully transparent group, so the cursor has nothing to draw. Only a GUI
+-- takes this; a terminal draws its own cursor and keeps drawing it.
 local GROUP = "MivnCursorHidden"
 
 --- The filetypes whose windows hide the cursor, as a set.
@@ -29,21 +21,14 @@ end
 
 local group = vim.api.nvim_create_augroup("mivn.panel", { clear = true })
 
--- Recomputed on every arrival rather than paired enter/leave autocmds per
--- panel, so the state follows from where the cursor actually is and no closed
--- window or float can leave it hidden somewhere that never asked for it.
+-- Worked out again on every arrival rather than paired with a leave, so no
+-- closed window or float can leave the cursor hidden. BufEnter too, because
+-- the landing buffer arrives in the window I am already in.
 --
--- BufEnter is needed beside WinEnter because the landing buffer arrives by
--- being put into the window I am already in, which is not a window change.
---
--- WARN: the work is put off to the next tick because these events also fire
--- while a plugin is standing in another window for a moment. Opening the tree
--- without giving it focus is that case: it enters its own window, fills it,
--- and puts me back without a second arrival, so the last event says NvimTree
--- while I am sitting in the file. Read at the event, the caret stays hidden
--- for the rest of the session; read a tick later, every one of them agrees on
--- the window I am actually in. Both calls are no-ops when nothing changed, so
--- a burst of events costs one write to the option at most.
+-- NOTE: the work waits for the next tick because a plugin can stand in another
+-- window for a moment and come back without a second arrival. Opening the tree
+-- without focus does that, so the last event says NvimTree while I am in the
+-- file; read at the event, the cursor stays hidden for the rest of the session.
 vim.api.nvim_create_autocmd({ "WinEnter", "BufEnter", "BufWinEnter" }, {
   group = group,
   callback = function()

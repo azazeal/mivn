@@ -57,7 +57,7 @@ list from inside the editor.
 |---|---|
 | `:checkhealth mivn` | Runs every configured server and formatter once and reports which ones actually answer |
 | `:MivnTrust [action] [dir]` | Decides whether this workspace may have code run for it. See [Trust](#trust) |
-| `:MivnInstallGrammars` | Compiles the tree-sitter grammars mivn knows about. Run once after cloning |
+| `:MivnInstallGrammars` | Compiles the tree-sitter grammars mivn knows about, and repairs any that lost their queries. Run once after cloning |
 | `:MivnUpdateGrammars` | Updates every installed grammar |
 | `:MivnUpdate` | Pulls the newest mivn, if this checkout has no changes of its own |
 | `:MivnDashboard` | Opens the landing buffer again |
@@ -298,12 +298,13 @@ heard of.
 
 | Path          | What it holds                                             |
 |---------------|-----------------------------------------------------------|
-| `init.lua`    | Options and the command-line setup                        |
-| `lua/mivn/`   | One module per concern; trade-offs live in each header    |
+| `init.lua`    | Options, and the order every module loads in              |
+| `lua/mivn/`   | One module per concern                                    |
 | `lua/mivn/keymaps.lua` | Every key that is on for the whole session       |
 | `lua/mivn/languages/` | One file per language: its servers, settings and formatting |
 | `colors/`     | The basalt theme                                          |
 | `queries/`    | Tree-sitter extras: SQL in Go strings                     |
 | `.github/scripts/` | The checks CI runs, and the release and repin tools  |
+| `.github/checks/` | The cases of the checks that drive a real editor      |
 | `DEFAULTS.md` | The tour of stock Vim, and what mivn changes, marked so   |
 | `TODO.md`     | State and queue; friction lands here first                |

@@ -1,53 +1,36 @@
--- The session: one owner for what happens when buffers and windows run out.
+-- The session: what happens when buffers and windows run out.
 --
--- Three modules used to fight Neovim's endgame each in its own corner: the
--- dashboard decided when the banner comes back and when closing the last
--- file quits, the tree healed collapsed layouts and read quit intent off a
--- wall clock, and the terminal swept up the blank buffers its exit left
--- behind. Same states, three owners, coordinated by scheduling accidents.
--- This module is the one owner. The rules:
---
--- - A session the banner claimed keeps living, the way Zed and VS Code do:
---   closing the last file lands back on the banner, and only a quit
---   command ends the editor. An unclaimed session (`git commit`,
---   `nvim file.txt`) ends when its last file closes, which is what the
---   tool waiting on $EDITOR needs.
--- - The tree is never the only window. A layout that collapses to just the
---   tree heals with an editing window beside it, unsaved work first,
---   unless a quit command asked for exactly that collapse; then the
---   session ends, the same answer stock Vim gives `:q` on a last window.
--- - The blank [No Name] buffers Neovim conjures when the last listed
---   buffer goes are reaped: deleted while something real is on screen,
---   unlisted when the blank is all that is left.
---
--- Quit intent is a flag QuitPre raises and the next event-loop tick
--- lowers, not a timer: the window close a quit causes runs inside the same
--- command, so WinClosed reads the flag synchronously and cannot confuse a
--- plugin closing a window with me quitting. A refused quit (unsaved work)
--- closes nothing, and the flag simply expires.
+-- - A session the banner claimed keeps living: closing the last file lands back
+--   on the banner, and only a quit command ends the editor. An unclaimed
+--   session (`git commit`, `nvim file.txt`) ends when its last file closes,
+--   which is what the tool waiting on $EDITOR needs.
+-- - The tree is never the only window. A layout that collapses to just the tree
+--   heals with an editing window beside it, unsaved work first, unless a quit
+--   command asked for that collapse; then the session ends, as stock Vim
+--   answers `:q` on a last window.
+-- - The blank [No Name] buffers Neovim makes when the last listed buffer goes
+--   are reaped: deleted while something real is on screen, unlisted when the
+--   blank is all that is left.
 
 local M = {}
 
---- Whether Neovim started with nothing to edit: no arguments, or exactly
---- one naming a directory. The dashboard and the tree both key their
---- startup on this one answer.
+--- Whether Neovim started with nothing to edit: no arguments, or exactly one
+--- naming a directory.
 function M.empty_start()
   if vim.fn.argc() > 1 then
     return false
   end
 
-  -- argv() returns a list and argv(n) a string, under one annotation, so
-  -- the cast says which call this is.
+  -- argv(n) is a string, but it shares one annotation with argv()
   local arg = vim.fn.argv(0) --[[@as string]]
   return vim.fn.argc() == 0 or vim.fn.isdirectory(arg) == 1
 end
 
---- Every buffer that counts as something I am actually editing.
+--- Every buffer that counts as something I am editing: an empty 'buftype' and
+--- either a file name or unsaved changes.
 ---
---- Not keyed on 'buflisted': netrw flips that flag on its own buffer as it
---- redraws, so a rule trusting it reads state that moves underneath it. A
---- real buffer has an empty 'buftype' and either a file name or unsaved
---- changes.
+--- NOTE: not keyed on 'buflisted'. netrw flips that flag on its own buffer as
+--- it redraws, so a rule trusting it reads state that moves underneath it.
 function M.real_buffers()
   local banner = require("mivn.dashboard").FILETYPE
 
@@ -72,12 +55,9 @@ function M.is_blank(buf)
   return #lines <= 1 and (lines[1] or "") == ""
 end
 
---- Reap every blank listed buffer nothing shows, except `except`.
----
---- Two modes, because deleting is only safe while some other buffer
---- exists to take its place: "delete" while something real is on screen,
---- "unlist" when the blank may be all that is left and deleting it would
---- just conjure the next one into the tab bar.
+--- Reap every blank listed buffer no window shows, except `except`. `mode` is
+--- "delete" while something real is on screen, and "unlist" when the blank may
+--- be all that is left, where deleting it would only make Neovim add the next.
 function M.reap_blanks(mode, except)
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     if
@@ -99,10 +79,8 @@ function M.reap_blanks(mode, except)
 end
 
 --- The buffer to put back in front of me, or nil for the landing buffer.
----
---- Unsaved first: the heal runs after a quit was refused over unsaved
---- work, so that work is what the window is for. Most recently used breaks
---- the tie.
+--- Unsaved first, since the heal follows a quit refused over unsaved work; most
+--- recently used breaks the tie.
 local function last_real_buffer()
   local best, best_key = nil, -1
 
@@ -121,30 +99,25 @@ local function last_real_buffer()
   return best
 end
 
---- The layout invariant: the tree is never the only window.
+--- The layout rule: the tree is never the only window.
 ---
 --- A window holding the tree cannot show a file, since nvim-tree takes its
---- buffer back, so a layout that is nothing but the tree is one I cannot
---- type my way out of, and `:q` on the last file window is enough to land
---- there. With quit intent behind the close the session ends instead; a
---- quitall Vim refuses (unsaved work somewhere) falls through to the heal,
---- so that work gets a window to be seen in.
+--- buffer back, and `:q` on the last file window is enough to land there. With
+--- quit intent behind the close the session ends instead; a quitall Vim refuses
+--- (unsaved work somewhere) falls through to the heal, so that work gets a
+--- window to be seen in.
 local function heal(quit_asked)
   if vim.v.exiting ~= vim.NIL then
     return
   end
 
-  -- Floating windows do not count: a picker or a hover comes and goes.
+  -- floats do not count: a picker or a hover comes and goes
   local windows = vim.tbl_filter(function(win)
     return vim.api.nvim_win_get_config(win).relative == ""
   end, vim.api.nvim_list_wins())
 
-  if #windows ~= 1 then
-    return
-  end
-
-  local tree = windows[1]
-  if vim.bo[vim.api.nvim_win_get_buf(tree)].filetype ~= "NvimTree" then
+  local tree = require("mivn.tree")
+  if #windows ~= 1 or tree.window() ~= windows[1] then
     return
   end
 
@@ -162,9 +135,9 @@ local function heal(quit_asked)
     require("mivn.dashboard").open()
   end
 
-  -- The split halved it. Panels keep their width.
-  if vim.api.nvim_win_is_valid(tree) then
-    vim.api.nvim_win_set_width(tree, require("mivn.tree").WIDTH)
+  -- the split halved it, and panels keep their width
+  if vim.api.nvim_win_is_valid(windows[1]) then
+    vim.api.nvim_win_set_width(windows[1], tree.WIDTH)
   end
 end
 
@@ -172,6 +145,10 @@ local group = vim.api.nvim_create_augroup("mivn.session", { clear = true })
 
 local quitting = false
 
+-- NOTE: quit intent is a flag lowered on the next tick of the event loop, not a
+-- timer. The window close a quit causes runs inside the same command, so a
+-- plugin closing a window later never reads as me quitting, and a refused quit
+-- closes nothing and the flag just expires.
 vim.api.nvim_create_autocmd("QuitPre", {
   group = group,
   desc = "Remember, for one tick, that window closes come from a quit",
@@ -186,9 +163,9 @@ vim.api.nvim_create_autocmd("QuitPre", {
 vim.api.nvim_create_autocmd("WinClosed", {
   group = group,
   desc = "Heal a layout that collapsed to just the tree",
-  -- The flag is read here, synchronously, while the closing command is
-  -- still the one running; the heal itself is deferred because the closed
-  -- window is still in the window list until afterwards.
+  -- NOTE: the flag is read here, while the closing command still runs; by the
+  -- time the heal runs it is down again. The heal is deferred because the
+  -- closed window stays in the window list until afterwards.
   callback = function()
     local quit_asked = quitting
     vim.schedule(function()
@@ -197,47 +174,38 @@ vim.api.nvim_create_autocmd("WinClosed", {
   end,
 })
 
--- The blank buffer Neovim leaves behind is where `:bd` on the last file
--- puts me: in a claimed session the banner comes back, in an unclaimed one
--- the session ends. No bang on the quit, ever: unsaved work keeps blocking
--- it, and `:bd` refuses a modified buffer anyway, so this path is only
--- reachable after a deliberate write or a deliberate `!`.
+-- The blank buffer Neovim leaves behind is where `:bd` on the last file puts
+-- me: in a claimed session the banner comes back, in an unclaimed one the
+-- session ends. The quit has no bang, so unsaved work keeps blocking it.
 --
--- Keyed on arriving at a buffer rather than on one being deleted: the
--- delete events fire while the window is still on its way somewhere, so a
--- deferred check sees whatever Neovim fell back to mid-flight. BufEnter is
--- settled.
+-- NOTE: keyed on arriving at a buffer, not on one being deleted. The delete
+-- events fire while the window is still on its way somewhere, so a deferred
+-- check sees whatever Neovim fell back to mid-flight; BufEnter is settled.
 vim.api.nvim_create_autocmd("BufEnter", {
   group = group,
   callback = function(ev)
     if vim.v.exiting ~= vim.NIL then
       return
     end
-    -- UI sessions only. A headless run is automation, and this hook firing
-    -- there is not hypothetical: vim.pack.update() pumps the event loop
-    -- mid-command (vim.wait under the hood), this callback saw a blank
-    -- unclaimed session and quitall'd nvim from inside the update. That is
-    -- how the weekly plugin-update job went green while updating nothing.
+    -- NOTE: UI sessions only. vim.pack.update() runs the event loop in the
+    -- middle of its work, where this rule sees a blank unclaimed session and
+    -- would quit a headless editor from inside the update.
     if #vim.api.nvim_list_uis() == 0 then
       return
     end
 
-    -- Not while Neovim is still starting. The blank buffer it holds before
-    -- the argument list is opened looks exactly like the one `:bd` leaves
-    -- behind, and ending the session there means a file named on the command
-    -- line never gets opened at all. That is not hypothetical either:
-    -- `neovide <file>` quit on the spot, because Neovide runs nvim with
-    -- `--embed` and the wait for the UI to attach gives this check a tick of
-    -- the loop before the file arrives. A terminal opens the file first and
-    -- hides the race. Startup is the banner's case anyway (dashboard.lua's
-    -- VimEnter); this rule is only about what happens afterwards.
+    -- NOTE: not while Neovim is still starting. The blank buffer it holds
+    -- before the argument list is opened looks exactly like the one `:bd`
+    -- leaves, and quitting there means a file named on the command line never
+    -- opens. Under `--embed` (Neovide) the wait for the UI gives this a tick
+    -- before the file arrives. Startup is the dashboard's VimEnter anyway.
     if vim.v.vim_did_enter == 0 then
       return
     end
 
     local dashboard = require("mivn.dashboard")
 
-    -- Already there. Without this the landing buffer re-triggers itself.
+    -- already on the banner, which would otherwise trigger itself again
     if vim.bo[ev.buf].filetype == dashboard.FILETYPE then
       return
     end
@@ -245,11 +213,10 @@ vim.api.nvim_create_autocmd("BufEnter", {
       return
     end
 
-    -- One at a time. `:bd` with the cursor in the tree deletes the tree's
-    -- own buffer and leaves its window holding a blank one, which would
-    -- otherwise open a second banner. Not also skipping when a tree window
-    -- exists: the tree is open in the ordinary case too, and testing for
-    -- it would stop the banner coming back after `:bd` on the last file.
+    -- NOTE: one banner at a time. `:bd` in the tree deletes the tree's own
+    -- buffer and leaves its window holding a blank one, which would open a
+    -- second banner. Skipping whenever a tree window exists would be wrong: the
+    -- tree is open in the ordinary case too.
     for _, win in ipairs(vim.api.nvim_list_wins()) do
       if vim.bo[vim.api.nvim_win_get_buf(win)].filetype == dashboard.FILETYPE then
         return
@@ -266,33 +233,23 @@ vim.api.nvim_create_autocmd("BufEnter", {
         return
       end
 
-      -- quitall, not quit: the tree or a split may still be open, and
-      -- closing one window would leave the session hanging on the rest.
+      -- quitall: the tree or a split may still be open, and :quit closes one
       vim.cmd.quitall()
     end)
   end,
 })
 
--- `:%bd` means "close everything", but its range walks every buffer
--- number, panels included, so it used to take the tree down with the
--- files. The rewrite below (the same CmdlineLeavePre move restart.lua and
--- the tree's :bd guard make) sends it here instead: every listed file
--- buffer goes, the panels stand, and the BufEnter rule above brings the
--- banner back on its own.
---
--- Without the bang, unsaved buffers are kept and counted rather than
--- stopping at the first one the way :%bd would; the bang takes them too.
---- Close every listed file buffer, sparing `keep` when one is named.
+--- Close every listed file buffer, sparing `keep` when one is named, and leave
+--- the panels standing. Without `force`, unsaved buffers are kept and counted
+--- rather than stopping at the first one the way :%bd would.
 local function close_files(force, keep)
   local closed, kept = 0, 0
 
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
     if b ~= keep and vim.api.nvim_buf_is_loaded(b) and vim.bo[b].buflisted and vim.bo[b].buftype == "" then
-      -- Asked about before it is attempted, rather than deleted and caught.
-      -- A pcall keeps the loop going but not quietly: the E89 underneath is
-      -- raised all the same and surfaces at whoever ran the command, so an
-      -- unsaved buffer ended the run with an error next to a message saying
-      -- it had been handled.
+      -- NOTE: asked before it is tried, not tried under a pcall. The E89 a
+      -- modified buffer raises still reaches whoever ran the command, next to a
+      -- message saying it was handled.
       if force or not vim.bo[b].modified then
         vim.api.nvim_buf_delete(b, { force = force })
         closed = closed + 1
@@ -306,11 +263,9 @@ local function close_files(force, keep)
     vim.notify(("%d buffers closed; %d with unsaved changes kept."):format(closed, kept))
   end
 
-  -- The BufEnter rule brings the banner back only when the *current*
-  -- window fell to a blank buffer. Run from a panel (cursor parked in the
-  -- tree), the emptied window is some other one, so it is found by hand:
-  -- measured, not hypothetical. With one buffer spared there is nothing to
-  -- put back, and real_buffers() below says so.
+  -- NOTE: the BufEnter rule brings the banner back only when the current window
+  -- fell to a blank buffer. Run from a panel, the emptied window is another
+  -- one, so it is found here.
   vim.schedule(function()
     local dashboard = require("mivn.dashboard")
     if not dashboard.claimed() or #M.real_buffers() > 0 then
@@ -327,6 +282,8 @@ local function close_files(force, keep)
   end)
 end
 
+-- `:%bd` walks every buffer number, panels included, so the rewrite below sends
+-- it here instead.
 vim.api.nvim_create_user_command("MivnBdAll", function(cmd)
   close_files(cmd.bang)
 end, {
@@ -334,15 +291,12 @@ end, {
   desc = "What :%bd becomes: close the file buffers, leave the panels",
 })
 
--- The one helix has and Vim does not: close everything except what I am
--- looking at. Vim can spell it (`:%bd|e#|bd#`, delete all and re-open the
--- alternate) and that spelling is a trap, since it leans on the alternate
--- file being the one wanted and leaves the jumplist looking odd. This is the
--- same walk as above with one buffer spared.
+-- Close everything except what I am looking at. Vim's own spelling,
+-- `:%bd|e#|bd#`, leans on the alternate file being the one wanted and leaves
+-- the jumplist looking odd.
 --
--- The current buffer and not the current window's: run from the tree the
--- answer would be the tree, which is no file at all, so a panel keeps
--- whatever file was last looked at instead of closing the lot.
+-- Run from a panel, which is no file, the buffer kept is the alternate one, the
+-- file I last looked at.
 vim.api.nvim_create_user_command("MivnBdOthers", function(cmd)
   local here = vim.api.nvim_get_current_buf()
   if vim.bo[here].buftype ~= "" or not vim.bo[here].buflisted then
@@ -355,49 +309,28 @@ end, {
   desc = "Close every file buffer except this one",
 })
 
--- The two above are Mivn-prefixed because a user command has to start with a
--- capital, and `:bda` and `:bdo` are what a hand types. Both spellings are
--- free: Vim's own shortest forms are `bd` for bdelete and `bufd` for bufdo,
--- so neither completes to anything today.
---
--- Rewritten on the way out of the command line rather than abbreviated, the
--- same move the tree's `:bd` guard and restart.lua make. A cnoreabbrev was
--- measured and rejected: its bang trigger was flaky, with `:bd!` right after
--- an expanded `:bd` sailing through unexpanded, while this event fires once
--- per executed command line.
+-- `:bda` and `:bdo`, since a user command has to start with a capital. Both are
+-- free: Vim's own shortest forms are `bd` for bdelete and `bufd` for bufdo.
 local SHORTHAND = {
   bda = "MivnBdAll",
   bdo = "MivnBdOthers",
 }
 
-vim.api.nvim_create_autocmd("CmdlineLeavePre", {
-  group = group,
-  desc = "Rewrite :%bd, :bda and :bdo to close files but not panels",
-  callback = function()
-    if vim.fn.getcmdtype() ~= ":" then
-      return
-    end
+local cmdline = require("mivn.cmdline")
 
-    local line = vim.fn.getcmdline()
+cmdline.rewrite(function(line)
+  local short, bang = line:match("^(bd%l)(!?)$")
+  if SHORTHAND[short] then
+    return SHORTHAND[short] .. bang
+  end
 
-    -- WARN: nothing here may return setcmdline's result. It answers 0 on
-    -- success, every number is true in Lua, and a Neovim autocmd callback
-    -- returning true deletes itself: the first rewrite worked and the next
-    -- one landed on E492, because the handler was no longer there.
-    local short, shortbang = line:match("^(bd%l)(!?)$")
-    if SHORTHAND[short] then
-      vim.fn.setcmdline(SHORTHAND[short] .. shortbang)
-      return
-    end
+  -- the % spelling only; `:1,$bd` and friends run untouched
+  local word, all = line:match("^%%(%l+)(!?)$")
+  if cmdline.spells(word, "bdelete", 2) then
+    return "MivnBdAll" .. all
+  end
 
-    -- The % spelling only, and any prefix of "bdelete" at least two
-    -- letters long. `:1,$bd` and friends run untouched: narrow on purpose,
-    -- the way the tree's :bd guard is.
-    local word, bang = line:match("^%%(%l+)(!?)$")
-    if word and #word >= 2 and ("bdelete"):find(word, 1, true) == 1 then
-      vim.fn.setcmdline("MivnBdAll" .. bang)
-    end
-  end,
-})
+  return nil
+end)
 
 return M

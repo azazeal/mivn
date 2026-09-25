@@ -95,9 +95,9 @@ every open file, holding what a crash would otherwise take. What is not kept
 is the prompt about a swap file nothing is using any more _(mivn)_. An editor
 that was killed rather than closed leaves one behind, and the next time you
 open that file Vim stops to ask what to do about it, when the answer is
-always "it held nothing, drop it". Those are cleared at startup, and only
-those: a swap file with unsaved work in it, or one an editor is still using,
-is left alone and still asks.
+always "it held nothing, drop it". Those are dropped without asking as the
+file opens, and only those: a swap file with unsaved work in it, or one an
+editor is still using, is left alone and still asks.
 
 The screen mivn opens on is an ordinary buffer, which is why the motions work on
 it: `j`, `w` and `G` move a cursor over the banner that is deliberately not
@@ -515,7 +515,9 @@ gone. One rule in both modes is the point.
 
 Alt and an arrow does the same by **subword**, the piece of an identifier a
 camel hump or an underscore marks off _(mivn)_. `parseHTTPUrl` is `parse`,
-`HTTP` and `Url`; `foo_bar` is two; `::` is a piece of its own.
+`HTTP` and `Url`; `foo_bar` is two; `::` is a piece of its own. Punctuation
+the file type's `'iskeyword'` counts as part of a word goes with `_`, so in CSS
+`margin-top` is one word, the same one `w` sees, and two subwords.
 
 All three sizes are parsed in `lua/mivn/words.lua` rather than borrowed from
 Vim's keys, because borrowing leaves a hole: `e` moves to the end of the
@@ -549,7 +551,7 @@ no operator form at all: select with Alt+Shift and operate on that.
 `{count}|` counts its column in characters of text _(mivn)_, not Vim's screen
 cells: a tab is one character and an LSP inlay hint is nothing, so the column
 a compiler prints in file:line:col is the column `40|` reaches, and the same
-count the status line shows. `g|` keeps the screen-cell meaning.
+count the status line shows.
 
 One deviation to know before the table: long lines do not wrap here _(mivn)_.
 Vim wraps by default; with the width markers saying when a line is too long,

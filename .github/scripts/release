@@ -6,35 +6,15 @@
 #
 #   .github/scripts/release patch|minor|major|vX.Y.Z
 #
-# The argument is usually the bump, not the version: the next version is
-# computed from the last release, minor for a monthly batch, patch for a fix
-# between batches. Versions are semver with a leading v, since a tag that is
-# not semver is invisible to anything that compares versions. The confirmation
-# before the tag asks for the computed version, typed back in full, so which
-# version is being cut is never left unread.
+# The argument is usually the bump, and the next version is computed from the
+# last release. A version spelled out has to be one of the three the bumps
+# offer, so a wrong one is refused before any of the work. Before the tag, the
+# version has to be typed back in full.
 #
-# A version can be spelled out instead of a bump, but only when it is one of
-# the three the bumps already offer, so it is a restatement of patch, minor or
-# major and never a number of its own. It is the way in when I sat down
-# meaning to cut a particular version: the confirmation at the end asks for
-# whatever the script computed, and typing that back is no help if it was
-# never the version I came for. Spelled out up front, a wrong one is refused
-# before any of the work.
-#
-# The checkout only supplies git plumbing. The tag is cut at the tip of origin's
-# default branch, a commit everyone else can already fetch, so nothing here
-# switches branches or minds a dirty tree.
-#
-# `git tag -a` is never used here and must never be: -a on the command line
-# overrides tag.forceSignAnnotated, so it writes an unsigned annotated tag and
-# says nothing about it. GitHub does not catch that either, since a tag
-# ruleset's "require signed commits" checks the commit the tag points at, not
-# the tag object. `-s` plus the verify below is the whole guard.
-#
-# Releases are immutable and the "tags never move" ruleset blocks force-pushing
-# any tag, so a release that went out wrong is fixed by cutting the next patch
-# version, never by moving this one. The notes are the one part still editable
-# afterwards, on the release page.
+# The tag goes on the tip of origin's default branch as fetched, so the branch
+# checked out here and its state do not matter. Tags never move, so a release
+# that went out wrong is fixed by the next patch version; only the notes can
+# still be edited, on the release page.
 #
 # Needs an authenticated gh at 2.68.0 or newer and a git configured for signing
 # tags.
@@ -63,8 +43,7 @@ EOF
 }
 
 # fits16 N -> N is a plain decimal (no sign, no leading zero) that fits a
-# signed int16. Every version component that passes through here must; anyone
-# who needs a release past 32767 can afford to amend the script.
+# signed int16, as every version component here must.
 fits16() {
   case $1 in
   '' | *[!0-9]* | 0[0-9]*) return 1 ;;
@@ -81,8 +60,8 @@ v*) want=$1 ;;
 esac
 [ $# -eq 1 ] || usage
 
-# A spelled out version is checked for shape only here. Whether it is one this
-# release may take needs the tags, so that waits until they are fetched.
+# Only the shape is checked here; whether it is a version this release may
+# take waits for the tags.
 if [ -n "$want" ]; then
   case $want in
   *.*.*) ;;
@@ -100,28 +79,22 @@ if [ -n "$want" ]; then
   done
 fi
 
-# Every git command below asks about this script's own repository, not whatever
-# directory I called it from.
 cd "$(dirname "$0")/../.." || die 'could not reach the repository root'
 git rev-parse --is-inside-work-tree >/dev/null 2>&1 || die 'not inside a git repository'
 
-# The editor below is the whole point, and skipping it is silent: git lets the
-# editor be anything, `true` included. So the guard is not the editor, it is
-# the terminal. Right before the tag I type the version back on /dev/tty, which
-# no pipe, heredoc or yes(1) can answer for. Everything a run could never
-# confirm on is probed here, before anything is fetched or generated. All three
-# fds must be terminals, because every prompt lands on stderr; and /dev/tty is
-# probed in a subshell, because a failed redirect on exec, a special builtin,
-# kills POSIX shells on the spot with the message lost.
+# A run that could never confirm on /dev/tty stops here, before anything is
+# fetched. All three fds must be terminals, since every prompt goes to stderr.
+#
+# NOTE: /dev/tty is tried in a subshell. A failed redirect on exec, a special
+# builtin, kills a POSIX shell on the spot and the message is lost.
 if ! { [ -t 0 ] && [ -t 1 ] && [ -t 2 ]; }; then
   die 'there is no terminal, so the notes cannot be reviewed'
 fi
 (exec </dev/tty) 2>/dev/null || die '/dev/tty will not open, so the notes cannot be reviewed'
 
-# gh: present, new enough, and logged in. The floor is what `gh release create
-# --fail-on-no-commits` needs: the flag appeared in 2.68.0, and nothing else
-# used here is newer. Asked now rather than at the release, because by then the
-# tag is pushed and tags never move.
+# gh has to be there, logged in and at 2.68.0 or newer for `gh release create
+# --fail-on-no-commits`. It is asked now, because by the release the tag is
+# already pushed.
 ghver=$(gh --version 2>/dev/null) || die 'gh is not installed'
 ghver=${ghver#gh version }
 ghver=${ghver%% *}
@@ -129,15 +102,12 @@ ghver=${ghver%% *}
   die "gh $ghver is too old: --fail-on-no-commits needs gh 2.68.0 or newer"
 gh auth status >/dev/null 2>&1 || die 'gh is not authenticated; run: gh auth login'
 
-# The editor the notes will be reviewed in, i.e. whatever `git var GIT_EDITOR`
-# resolves out of core.editor, $VISUAL and $EDITOR, so it is the editor every
-# other part of the workflow already opens.
+# The editor git would open, from core.editor, $VISUAL or $EDITOR.
 editor=$(git var GIT_EDITOR) || die 'could not resolve an editor'
 
-# The repository and its default branch, as GitHub sees them, resolved from
-# $REMOTE's url: gh's own default-repo resolution can point at a different
-# repository than $REMOTE does (a fork, say), and then the notes and the
-# release would target one repository while the tag lands on another.
+# NOTE: the repository is resolved from $REMOTE's url and not from gh's own
+# default, which can be another repository (a fork, say). The release would
+# then target one repository while the tag lands on another.
 url=$(git remote get-url "$REMOTE" 2>/dev/null) || die "there is no $REMOTE remote"
 info=$(gh repo view "$url" --json nameWithOwner,defaultBranchRef \
   --jq '.nameWithOwner + " " + .defaultBranchRef.name') ||
@@ -153,23 +123,15 @@ sha=$(git rev-parse --verify --quiet "FETCH_HEAD^{commit}") ||
 short=$(git rev-parse --short "$sha")
 
 # The release this one follows: the highest plain vX.Y.Z the head can reach,
-# or nothing. Pre-releases do not count. A release cut on another machine
-# counts, since the fetch above brought its tag over and it sits on this
-# branch like any other.
-#
-# One reading, used twice: this is both the number that gets bumped and the
-# point the notes start from. Read two ways they can disagree, and the release
-# would then be numbered off one tag and described from another. Ancestry is
-# the reading that holds, because a tag that this branch cannot reach is not a
-# release of it.
+# or nothing. It is both the number that gets bumped and where the notes
+# start, read once so the two cannot disagree.
 previous=$(git tag --list --merged "$sha" --sort=v:refname 'v*' |
   grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' |
   tail -n1)
 
 # bump TAG KIND -> the next tag. The components are checked before the
-# arithmetic, because $(( )) reads a leading zero as octal (silently on 010, a
-# raw shell error on 08), and checked after it, so the result fits like
-# everything else.
+# arithmetic, because $(( )) reads a leading zero as octal, and after it, so
+# the result fits too.
 bump() {
   _v=${1#v}
   _ma=${_v%%.*}
@@ -197,13 +159,10 @@ bump() {
   printf 'v%s.%s.%s\n' "$_ma" "$_mi" "$_pa"
 }
 
-# With no release yet the bump reads off v0.0.0, so the first one is whichever
-# of v0.0.1, v0.1.0 and v1.0.0 was asked for.
 base=${previous:-v0.0.0}
 
 if [ -n "$want" ]; then
-  # All three, because the version spelled out is checked against them and the
-  # refusal names them.
+  # all three, since the refusal names them
   patchv=$(bump "$base" patch)
   minorv=$(bump "$base" minor)
   majorv=$(bump "$base" major)
@@ -216,28 +175,25 @@ if [ -n "$want" ]; then
     ;;
   esac
 else
-  # Only the one asked for. Bumping all three here would let a component at
-  # the int16 ceiling refuse a release that never touches it: v1.32767.0 takes
-  # a patch perfectly well, and it is the minor that has nowhere to go.
+  # NOTE: only the one asked for. Bumping all three would let a component at
+  # the int16 ceiling refuse a release that never touches it: v1.32767.0
+  # takes a patch, and only the minor has nowhere to go.
   next=$(bump "$base" "$kind")
 fi
 
-# Both can still trip: the tag list above is local, so a release cut elsewhere
-# a moment ago shows up only when the remote is asked directly.
+# The tag list above is local, so a release cut elsewhere a moment ago only
+# shows up when the remote is asked.
 if git rev-parse -q --verify "refs/tags/$next" >/dev/null; then
   die "$next already exists locally"
 fi
-# ls-remote says "absent" only with exit code 2. Anything else means the check
-# itself failed, and a failed check must not pass for absence.
+# NOTE: ls-remote says "absent" only with exit code 2. Anything else means the
+# check itself failed, and a failed check must not pass for absence.
 if git ls-remote --exit-code --tags "$REMOTE" "refs/tags/$next" >/dev/null 2>&1; then
   die "$next already exists on $REMOTE"
 elif [ $? -ne 2 ]; then
   die "could not check $REMOTE for $next"
 fi
 
-# The notes are diffed against that release. With none, GitHub picks: left to
-# itself the API has been seen to reach past the last tag and list the whole
-# history again.
 if [ -n "$previous" ] && [ "$(git rev-list --count "$previous..$sha")" -eq 0 ]; then
   die "nothing has landed on $branch since $previous"
 fi
@@ -246,43 +202,32 @@ printf '%s: %s is at %s (%s)\n' "$prog" "$branch" "$short" \
   "$(git log -1 --format=%s "$sha")" >&2
 printf '%s: preparing %s (notes since %s)\n' "$prog" "$next" "${previous:-the first commit}" >&2
 
+# NOTE: the notes start from $previous, named here. Left to choose on its own,
+# the API can reach past the last tag and list the whole history again.
 set -- -f "tag_name=$next" -f "target_commitish=$sha"
 if [ -n "$previous" ]; then
   set -- "$@" -f "previous_tag_name=$previous"
 fi
 
-# The notes come first, because generating them creates nothing: the API reads
-# the pull requests merged since the last release and hands them back. So the
-# review below happens while an abort still costs nothing, with no tag written
-# and nothing pushed.
+# The notes come first, because generating them creates nothing, so the
+# review below happens while an abort still costs nothing.
 #
-# A whole directory for one file, because the name has to end in .md: this is
-# the one file I hand-edit every release, and without the extension the editor
-# reads no filetype off it, so the notes open as plain text with no
-# highlighting, no `gq` and no spell check. A suffix after mktemp's template is
-# not portable, a temporary directory is.
+# NOTE: a whole directory for one file, because the name has to end in .md for
+# the editor to open it as markdown, and a suffix after mktemp's template is
+# not portable.
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 notes=$work/notes.md
 
-# Written to a file rather than piped: sh has no pipefail, so a failing gh
-# would be hidden behind awk succeeding on empty input.
+# NOTE: written to a file rather than piped. sh has no pipefail, so a failing
+# gh would be hidden behind awk succeeding on empty input.
 gh api -X POST "repos/$repo/releases/generate-notes" "$@" --jq .body >"$work/raw" ||
   die 'could not generate release notes'
 
-# Sectioning, i.e. the dependency bumps in a category of their own, is
-# .github/release.yml's job and the API applies it. All that happens here is
-# tidying the source: straight from the API the notes have no blank line after
-# a heading and two before the changelog link. Both render the same, but this
-# file is opened in an editor and read as markdown before it is rendered
-# anywhere, so one blank line goes around a heading, never two in a row, and
-# none is left at the end.
-#
-# The first line goes with it. Having a release.yml at all makes the API stamp
-# an html comment on top, naming the file and the revision it read it at.
-# Nothing renders it on the release page, but the tag carries the notes as
-# plain text, so there it is a line like any other. There is no way to ask the
-# API not to write it.
+# Tidies the notes for reading in the editor: one blank line around a heading,
+# never two in a row, none at the end. It also drops the html comment the API
+# puts on the first line when .github/release.yml exists, which the release
+# page hides but the tag would carry as text.
 awk '
   NR == 1 && /^<!--.*-->$/ { next }
 
@@ -299,18 +244,19 @@ awk '
 
 [ -s "$notes" ] || printf '%s\n' "$next" >"$notes"
 
-# Reviewed in the editor resolved at the top, then confirmed by typing the tag
-# back. Nothing exists until both have happened.
+# Reviewed in the editor, then confirmed by typing the tag back. Nothing
+# exists until both have happened.
 printf '%s: review the notes; an editor error or empty notes cancels\n' "$prog" >&2
 eval "$editor" '"$notes"' || die 'the editor aborted, so nothing was tagged'
 grep -q '[^[:space:]]' "$notes" || die 'the notes are empty, so nothing was tagged'
 
-# The backstop: with the notes still on screen, the version is typed back on
-# the terminal itself, straight from /dev/tty. It asks for the version and not
-# a y, so muscle memory cannot answer it. It also names what this release
-# follows and the commit it lands on, because the lines that said so have
-# scrolled away behind the notes, and those two are what the typed version has
-# to agree with: v0.3.5 is right after v0.3.4 and wrong after v0.4.0.
+# NOTE: the version is read from /dev/tty and not from stdin, so no pipe or
+# yes(1) can answer it. This is the guard on the review, since git lets the
+# editor be anything, `true` included. It asks for the version and not a y,
+# so habit cannot answer it either.
+#
+# The prompt names the previous release and the commit again, since the lines
+# that said so have scrolled away behind the notes.
 if [ -n "$previous" ]; then
   prevnote="previous was $previous"
 else
@@ -322,15 +268,20 @@ IFS= read -r reply </dev/tty || true
 [ "$reply" = "$next" ] || die "that was not $next, so nothing was tagged"
 
 # The notes go in the tag as well as the release, so `git show $next` says what
-# shipped with nothing to fetch. --cleanup=whitespace is what keeps them
-# intact: git tag otherwise strips every line that starts with '#', which is
-# every markdown heading in them. It does that for -F too, with no editor in
-# sight.
+# shipped with nothing to fetch.
+#
+# NOTE: never `git tag -a`. On the command line -a overrides
+# tag.forceSignAnnotated and writes an unsigned tag without a word, and GitHub
+# does not catch it either, since its rulesets check the commit a tag points
+# at and not the tag itself. `-s` and the verify below are the whole guard.
+#
+# NOTE: --cleanup=whitespace keeps the notes whole. Without it git tag drops
+# every line that starts with '#', which is every markdown heading, even with
+# -F.
 git tag -s -F "$notes" --cleanup=whitespace "$next" "$sha"
 
-# Signing failing silently is what the -s above exists to prevent, so the tag
-# is read back before anything leaves the machine. Verifying needs the signing
-# key listed in gpg.ssh.allowedsignersfile.
+# The tag is read back before anything leaves the machine. Verifying needs the
+# signing key listed in gpg.ssh.allowedsignersfile.
 if ! git tag -v "$next" >/dev/null 2>&1; then
   git tag -d "$next" >/dev/null
   die 'the tag did not verify, so nothing was pushed'
@@ -339,11 +290,10 @@ fi
 git push --quiet "$REMOTE" "refs/tags/$next" ||
   die "$next was tagged locally but the push failed; retry with: git push $REMOTE $next"
 
-# The release carries the same notes as the tag. It exists because dependabot
-# pulls release notes into the bump pull requests it opens downstream, and a
-# bare tag gives it nothing to pull. --verify-tag refuses to invent a tag if
-# the push above did not land, and --fail-on-no-commits repeats the rev-list
-# guard on GitHub's side.
+# The release carries the same notes, for dependabot to pull into the bump
+# pull requests it opens downstream. --verify-tag refuses to make a tag if the
+# push above did not land, and --fail-on-no-commits repeats the rev-list check
+# on GitHub's side.
 gh release create "$next" \
   --repo "$repo" \
   --title "$next" \
@@ -353,12 +303,9 @@ gh release create "$next" \
   die "$next is tagged and pushed but the release was not created; retry with:" \
     "gh release create $next --repo $repo --title $next --notes-from-tag --verify-tag"
 
-# The local branch is caught up, which is free since the fetch above already
-# brought the objects over. The branch I am on is caught up with a merge, since
-# git refuses to fetch into a checked out branch, and any other branch takes
-# the refspec. Both are best effort and both refuse to do anything but a plain
-# fast-forward: a dirty tree or a local commit is a good reason for git to say
-# no, and the release is out either way.
+# The local branch is fast-forwarded, best effort, since the release is out
+# either way. The one checked out takes a merge, because git refuses to fetch
+# into it.
 if [ "$(git branch --show-current)" = "$branch" ]; then
   git merge --quiet --ff-only "$sha" 2>/dev/null || true
 else

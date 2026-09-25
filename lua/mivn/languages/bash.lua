@@ -9,8 +9,8 @@ return {
   },
 
   formatters = {
-    -- shfmt reads .editorconfig itself when it is given no formatting flags,
-    -- which is why it gets the filename and nothing else.
+    -- shfmt reads .editorconfig only when it is given no formatting flags, so
+    -- it gets the filename and nothing else.
     sh = { "shfmt", "--filename", format.FILE },
     bash = { "shfmt", "--filename", format.FILE },
   },

@@ -1,18 +1,16 @@
--- The terminal, as a panel that comes and goes: <leader>t` shows and hides one
--- terminal buffer in a split along the bottom. The shell survives hiding,
--- since the toggle only ever touches the window and the buffer stays loaded.
---
--- The key works from Normal mode. Inside the terminal nearly every key goes to
--- the shell, so hiding it from there is Ctrl+\ Ctrl+N first, then the toggle.
+-- The terminal, as a panel that comes and goes: one terminal buffer in a split
+-- along the bottom. The shell survives hiding, since the toggle only ever
+-- touches the window and the buffer stays loaded.
 
 local M = {}
 
 local buf -- the one terminal buffer, kept across toggles
 local panel_win -- the split the toggle last opened, for the cleanup below
 
---- The window in this tab showing the panel's own terminal, if any. Matched
---- on the panel's buffer, never on 'buftype': a :terminal split opened by
---- hand is not the panel, and the toggle must not close it.
+--- The window in this tab showing the panel's own terminal, if any.
+---
+--- NOTE: matched on the panel's buffer, never on 'buftype'. A :terminal split
+--- opened by hand is not the panel, and the toggle must not close it.
 local function terminal_window()
   if not buf then
     return
@@ -25,12 +23,12 @@ local function terminal_window()
   end
 end
 
---- Whether the panel is on screen. Asked by lua/mivn/restart.lua, which has
---- to know what to put back.
+--- Whether the panel is on screen.
 function M.is_open()
   return terminal_window() ~= nil
 end
 
+--- Show the panel, typing into it, or hide it when it is on screen.
 function M.toggle()
   local win = terminal_window()
   if win then
@@ -38,8 +36,7 @@ function M.toggle()
     return
   end
 
-  -- A third of the screen, full width along the bottom, under the tree too:
-  -- `botright` spells that out rather than leaning on 'splitbelow'.
+  -- a third of the screen, full width, under the tree too
   vim.cmd(("botright %dsplit"):format(math.floor(vim.o.lines * 0.3)))
   panel_win = vim.api.nvim_get_current_win()
 
@@ -49,26 +46,22 @@ function M.toggle()
     vim.cmd.terminal()
     buf = vim.api.nvim_get_current_buf()
 
-    -- A panel, not a file, so it stays out of the tab bar.
+    -- a panel, not a file, so it stays out of the tab bar
     vim.bo[buf].buflisted = false
   end
 
-  -- Land typing, the way a terminal should open.
   vim.cmd.startinsert()
 end
 
--- When the shell exits, the panel goes with it.
+-- When the shell exits, the panel goes with it. Scheduled, because the layout
+-- is still settling while TermClose fires.
 --
--- Two shapes, because Neovim closes a cleanly-exited terminal buffer itself
--- before this callback ever runs. When something listed exists to fall back
--- to, it takes the window too and there is nothing left to do. With nothing
--- listed (a session holding only the banner), it leaves the panel's window
--- holding a conjured blank buffer instead, and since the terminal buffer is
--- already gone, that window cannot be found through it: hence panel_win,
--- remembered by the toggle. A shell that exits *nonzero* is the old shape:
--- buffer and window both linger, and the window scan below finds it.
---
--- Scheduled, because the layout is still settling while TermClose fires.
+-- NOTE: there are two shapes to clean up. Neovim deletes a cleanly exited
+-- terminal's buffer itself before this runs; with something listed to fall back
+-- to, the window goes too, but with nothing listed (only the banner) the window
+-- is left holding a new blank buffer, and only panel_win can find it. A shell
+-- that exits nonzero leaves both buffer and window, and the window scan below
+-- finds it.
 vim.api.nvim_create_autocmd("TermClose", {
   group = vim.api.nvim_create_augroup("mivn.terminal", { clear = true }),
   callback = function(ev)
@@ -87,16 +80,15 @@ vim.api.nvim_create_autocmd("TermClose", {
 
     vim.schedule(function()
       for _, win in ipairs(targets) do
-        -- Only a window still holding the dead terminal or a blank orphan is
-        -- the panel's leftover; anything else means it was repurposed.
+        -- only the dead terminal or a blank orphan is the panel's; anything
+        -- else means the window was reused
         if win and vim.api.nvim_win_is_valid(win) then
           local b = vim.api.nvim_win_get_buf(win)
           local leftover = vim.bo[b].buftype == "terminal"
             or (vim.bo[b].buftype == "" and vim.api.nvim_buf_get_name(b) == "" and not vim.bo[b].modified)
 
           if leftover then
-            -- pcall for the it-was-the-last-window edge; the tree owns
-            -- layouts.
+            -- pcall, since it may be the last window
             pcall(vim.api.nvim_win_close, win, false)
           end
         end
@@ -106,14 +98,10 @@ vim.api.nvim_create_autocmd("TermClose", {
         pcall(vim.api.nvim_buf_delete, ev.buf, { force = true })
       end
 
-      -- Deleting the last listed buffer makes Neovim conjure a blank one in
-      -- its place, which nothing shows and which sits in the tab bar as a
-      -- stray unnamed tab. Unlisted, not deleted: deleting the last one
-      -- could just conjure the next.
+      -- deleting the last listed buffer leaves a blank one in the tab bar
       require("mivn.session").reap_blanks("unlist")
     end)
   end,
 })
 
--- toggle is <leader>t`'s, in lua/mivn/keymaps.lua; is_open is restart.lua's.
 return M

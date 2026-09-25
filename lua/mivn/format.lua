@@ -1,34 +1,23 @@
--- Formatting, and what happens when I save.
+-- Formatting, and what happens when I save: organize imports, then format, both
+-- through a language server. A language file that names a formatter of its own
+-- overrides the server rather than backing it up, on save and by hand alike,
+-- since a server having a formatter does not make it the right one.
 --
--- Most of it *is* the language server: organize imports, then format. The
--- exception is a language whose file in this directory names a formatter of
--- its own, and that is an **override**, not a fallback: a server having a
--- formatter does not make it the right one.
---
--- The same two halves are <leader>af and <leader>aF, so a formatting asked
--- for by hand and one that happens on a write are the same code and cannot
--- drift into disagreeing about which tool owns a filetype.
---
--- Each such command must read the file on stdin and write it to stdout. FILE
--- stands for the buffer's path where a tool needs it, usually to find its own
--- config.
+-- Such a command reads the file on stdin and writes it to stdout.
 
 local M = {}
 
---- A sentinel no real argument can collide with, replaced by the buffer's
---- path when the command is built.
+--- A sentinel no real argument can collide with, replaced by the buffer's path
+--- when a formatter's command is built.
 M.FILE = "\0file\0"
 
---- Filetype to the command that formats it, and the servers that must never
---- be asked. Both arrive from the language files through setup() below.
+--- Filled by setup(): filetype to formatter, and the servers never asked to
+--- format.
 local formatters, muted = {}, {}
 
---- The formatter for `filetype`, or nil.
----
---- A dotted file type is "this, then more specific" (`yaml.docker-compose` is
---- yaml first), so the whole name is looked up and then each part in front of
---- a dot, nearest first. Looked up whole alone, a compose file matched nothing
---- and was never formatted (measured 2026-09-03).
+--- The formatter for `filetype`, or nil. A dotted filetype is looked up whole
+--- and then with its last part dropped, one at a time, so `yaml.docker-compose`
+--- falls back to yaml's.
 local function formatter_for(filetype)
   local spec = formatters[filetype]
 
@@ -45,10 +34,31 @@ local function formatter_for(filetype)
   return spec
 end
 
---- Format `buf` with its external formatter. Returns whether one ran.
----
---- Synchronous: these all read stdin, so there is no file on disk to wait
---- for, and the write that follows has to see the result.
+--- Make `buf` read `new`, touching only the lines that differ, so marks,
+--- extmarks and the cursor stay with their text rather than their line number.
+--- Hunks go in from the bottom up, so each one's line numbers still hold when
+--- it lands.
+function M.replace(buf, new)
+  local old = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
+  local hunks = vim.text.diff(table.concat(old, "\n") .. "\n", table.concat(new, "\n") .. "\n", {
+    result_type = "indices",
+  }) --[[@as integer[][] ]]
+
+  for i = #hunks, 1, -1 do
+    local old_start, old_count, new_start, new_count = unpack(hunks[i])
+
+    -- a pure insertion names the line it goes after
+    if old_count == 0 then
+      old_start = old_start + 1
+    end
+
+    local lines = vim.list_slice(new, new_start, new_start + new_count - 1)
+    vim.api.nvim_buf_set_lines(buf, old_start - 1, old_start - 1 + old_count, false, lines)
+  end
+end
+
+--- Format `buf` with its language's own formatter. Returns whether there is
+--- one. Synchronous, since the write that follows has to see the result.
 local function external(buf)
   local spec = formatter_for(vim.bo[buf].filetype)
   if type(spec) == "function" then
@@ -64,12 +74,8 @@ local function external(buf)
     return arg == M.FILE and path or arg
   end, spec)
 
-  -- Run beside the file, not where the editor started. Every one of these
-  -- tools that reads a project's configuration looks for it from its working
-  -- directory upwards (taplo and yamlfmt among them), so a file from another
-  -- checkout was formatted by this checkout's rules; lua/mivn/languages/
-  -- markdown.lua walks for rumdl's by hand for the same reason. A buffer with
-  -- no file behind it keeps the editor's directory.
+  -- beside the file, since taplo, yamlfmt and the like look for their config
+  -- from the working directory up
   local cwd = path ~= "" and vim.fs.dirname(path) or nil
 
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
@@ -81,9 +87,7 @@ local function external(buf)
     })
     :wait(3000)
 
-  -- A formatter that fails was usually handed something it cannot parse, so
-  -- its stdout is empty or half a file; writing that over the buffer would
-  -- destroy the work that caused it.
+  -- a failed run's stdout is empty or half a file, and must not replace mine
   if result.code ~= 0 or (result.stdout or "") == "" then
     local reason = vim.trim(result.stderr or "")
     vim.notify(("%s: %s"):format(spec[1], reason ~= "" and reason or "no output"), vim.log.levels.WARN)
@@ -96,7 +100,7 @@ local function external(buf)
   end
 
   if not vim.deep_equal(new, lines) then
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, new)
+    M.replace(buf, new)
   end
 
   return true
@@ -104,28 +108,24 @@ end
 
 local ORGANIZE_IMPORTS = "source.organizeImports"
 
---- Whether `kind` is the imports action that was asked for, or a refinement
---- of it.
+--- Whether `kind` is the imports action that was asked for, or a refinement of
+--- it (`source.organizeImports.ts`).
 ---
---- The request already names the kind it wants, and this checks the answer
---- again, because a server is free to reply with whatever it likes. marksman
---- answers a source.organizeImports request with its "Create a Table of
---- Contents" action, kind `source`, and applying that on every write grew a
---- table of contents in every markdown file this editor had ever saved, in
---- silence. Kinds are dotted and hierarchical, so a refinement of the kind
---- asked for counts (source.organizeImports.ts) and a parent of it does not.
+--- NOTE: the request names the kind, but a server may answer with anything.
+--- marksman answers with its "Create a Table of Contents" action, kind
+--- `source`, which applied on every write puts a table of contents in every
+--- markdown file I save.
 local function organizes_imports(kind)
   kind = kind or ""
   return kind == ORGANIZE_IMPORTS or kind:sub(1, #ORGANIZE_IMPORTS + 1) == ORGANIZE_IMPORTS .. "."
 end
 
---- The clients attached to `buf`, in a settled order.
+--- The clients attached to `buf`, sorted by id.
 ---
---- More than one server attaches to most files here: gopls and
---- golangci-lint-langserver both claim Go, ruff and ty both claim Python, the
---- two HTML servers both claim HTML. vim.lsp.get_clients() hands them back in
---- whatever order the table iterates, so anything that picks one has to sort
---- first or it picks a different one on different days.
+--- NOTE: most files here have more than one server (gopls and
+--- golangci-lint-langserver, ruff and ty), and vim.lsp.get_clients() returns
+--- them in table order. Anything that picks one has to sort first, or it picks
+--- a different one from one session to the next.
 local function clients_of(buf)
   local clients = vim.lsp.get_clients({ bufnr = buf })
   table.sort(clients, function(a, b)
@@ -137,25 +137,21 @@ end
 
 --- Whether `client` answers codeAction/resolve.
 ---
---- Not client:supports_method, which returns true for any method it has no
---- capability mapped for, and codeAction/resolve is one of those. The
---- capability itself is a boolean or a table, so only the table shape can
---- carry the answer.
+--- NOTE: not client:supports_method(), which says yes to any method it has no
+--- capability mapped for, and this is one of them. Only the table shape of the
+--- capability can carry the answer.
 local function resolves_actions(client)
   local provider = client.server_capabilities.codeActionProvider
 
   return type(provider) == "table" and provider.resolveProvider == true
 end
 
---- The workspace edit `action` carries, asking for it when it carries none.
+--- The workspace edit `action` carries, asking the server for it when it
+--- carries none, or nil.
 ---
---- A server may answer with the action's `data` and no edit at all, which
---- means "ask me again with this and I will compute it". ruff does exactly
---- that, and only when the client says it can cope, which this one does: the
---- edit is in Neovim's resolveSupport list, so ruff takes it out of the first
---- answer. So Python imports were never organised, on save or by hand,
---- silently, since the action was there and the edit inside it was not.
---- gopls hides the same shape by filling the edit in eagerly.
+--- NOTE: a server may answer with the action's `data` and no edit, meaning "ask
+--- me again with this". ruff does, since Neovim says it can resolve the edit,
+--- so without this step Python imports are never organized and nothing says so.
 local function edit_of(client, action, buf)
   if action.edit then
     return action.edit
@@ -172,10 +168,9 @@ end
 
 --- Organize `buf`'s imports with the first attached server that offers it.
 ---
---- The first, and then it stops. Two servers organizing the same file is not
---- something that should happen, and if it did the second one's edit was
---- computed against the document as it stood before the first one's landed,
---- so applying both writes a stale edit over a fresh one.
+--- NOTE: only the first. A second server's edit is computed against the
+--- document from before the first one's lands, so applying both writes a stale
+--- edit over a fresh one.
 local function organize_imports(buf, clients)
   for _, client in ipairs(clients) do
     if client:supports_method("textDocument/codeAction") then
@@ -197,13 +192,12 @@ local function organize_imports(buf, clients)
   end
 end
 
---- The one server that may format `buf`, or nil.
+--- The first of `clients` that may format, or nil.
 ---
---- One, named outright. vim.lsp.buf.format() runs *every* client that
---- matches, applying each one's edits over the last, so handing it a filter
---- that two servers pass formats the file twice against a document only one
---- of them has seen. `format = false` in a language file is how the wrong one
---- steps aside.
+--- NOTE: one server, named by id. vim.lsp.buf.format() runs every client that
+--- passes its filter, each over the last one's edits, so two would format the
+--- file twice against a document only one of them has seen. `format = false` in
+--- a language file keeps a server out.
 local function formatter_of(clients)
   for _, client in ipairs(clients) do
     if not muted[client.name] and client:supports_method("textDocument/formatting") then
@@ -214,11 +208,8 @@ local function formatter_of(clients)
   return nil
 end
 
---- Format `buf` with the server chosen for it, if any.
----
---- Only when one of them can: vim.lsp.buf.format says "no matching language
---- servers" into the message area otherwise, which would be every markdown
---- write, marksman being attached and offering no formatter.
+--- Format `buf` with the server chosen for it, if there is one; without one,
+--- vim.lsp.buf.format() complains on every markdown write.
 local function by_server(buf)
   local chosen = formatter_of(clients_of(buf))
   if chosen then
@@ -226,12 +217,9 @@ local function by_server(buf)
   end
 end
 
---- Format `buf` now: its language's own formatter when there is one, and the
---- one server that may otherwise. <leader>af in lua/mivn/keymaps.lua.
----
---- Not gated on the workspace being trusted, unlike the write below. This one
---- was asked for by hand, and its language-server half cannot run in an
---- untrusted workspace anyway, there being no server attached to ask.
+--- Format `buf` (the current buffer by default) now: with its language's own
+--- formatter when there is one, otherwise with the one server that may. Unlike
+--- a write, this runs in an untrusted workspace too, since I asked.
 function M.buffer(buf)
   buf = buf or vim.api.nvim_get_current_buf()
 
@@ -240,21 +228,19 @@ function M.buffer(buf)
   end
 end
 
---- Organize `buf`'s imports now; <leader>aF in lua/mivn/keymaps.lua.
+--- Organize `buf`'s imports (the current buffer by default) now.
 function M.imports(buf)
   buf = buf or vim.api.nvim_get_current_buf()
 
   organize_imports(buf, clients_of(buf))
 end
 
---- Wire the save chain. `spec` is filetype to command, collected from the
---- language files; `silent` is the set of server names that must never be
---- asked to format, whatever they claim to support.
+--- Wire the save chain. `spec` maps filetype to formatter command; `silent` is
+--- the set of server names never asked to format.
 ---
---- Muting is by name rather than by capability because a capability can be a
---- lie: nvim-lspconfig's yamlls config sets `documentFormattingProvider` back
---- to true in `on_init`, since the server reports false while still
---- formatting.
+--- Muting is by name because a capability can be wrong: nvim-lspconfig's yamlls
+--- turns formatting back on in `on_init`, since the server reports false while
+--- it still formats.
 function M.setup(spec, silent)
   formatters, muted = spec, silent
 
@@ -263,19 +249,14 @@ function M.setup(spec, silent)
   vim.api.nvim_create_autocmd("BufWritePre", {
     group = group,
     callback = function(ev)
-      -- Nothing runs on save in a workspace I have not trusted. The server
-      -- half of this is already covered, since none is even started there,
-      -- and the formatters are named here rather than by the project; the
-      -- rule is the one that stays right the day one of them starts reading
-      -- a project's own configuration for plugins to load.
+      -- nothing runs on save in a workspace I have not trusted
       local trust = require("mivn.trust")
       if not trust.allows(trust.workspace()) then
         return
       end
 
-      -- A language that names a formatter of its own owns the write end to
-      -- end; nothing after this runs for it. Otherwise imports first, since
-      -- that edits the same region the formatter is about to lay out.
+      -- a language's own formatter owns the write; otherwise imports go first,
+      -- since they edit what the formatter is about to lay out
       if external(ev.buf) then
         return
       end

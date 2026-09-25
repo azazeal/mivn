@@ -1,28 +1,19 @@
--- PageUp and PageDown, made to always go somewhere.
---
--- Vim's own pair scrolls the view and lets the cursor follow, which is kept.
--- What is not kept is what they do once there is no page left to scroll.
--- Measured on a 20-line file in a 23-line window: PageUp moves nothing at all,
--- and PageDown reaches the last line but drags the view along, leaving that
--- one line and 22 rows of empty. So when there is a page, scroll it; when
--- there is not, move the cursor to the first or last line and leave the view.
+-- PageUp and PageDown that always go somewhere. With a page to scroll they are
+-- Vim's own. Without one, where Vim's PageUp does nothing and its PageDown
+-- drags the last line to the top, they move the cursor to the first or last
+-- line and leave the view.
 
---- Move the cursor to `line`, keeping the column.
+--- Move the cursor to `line`, keeping the column as far as the line allows.
 ---
---- nvim_win_set_cursor rather than `gg` or `G`: those are jumps, so they would
---- push an entry onto the jumplist that Ctrl+B and Ctrl+F never push, and they
---- answer to 'startofline'. It clamps the column to the target line by itself.
+--- NOTE: not `gg` or `G`, which are jumps that Ctrl+B and Ctrl+F are not, and
+--- which answer to 'startofline'.
 local function goto_line(line)
   vim.api.nvim_win_set_cursor(0, { line, vim.api.nvim_win_get_cursor(0)[2] })
 end
 
---- Whether the completion menu has a match highlighted.
----
---- Vim hands the menu PageUp and PageDown whenever it is open, and with
---- 'autocomplete' that is most of Insert mode, which is how these keys came to
---- do nothing while typing. So the menu only gets them once I have stepped
---- into it, with an arrow or by asking for it with Ctrl+Space, the same rule
---- Enter follows.
+--- Whether the completion menu has a match highlighted. Only then does the menu
+--- get PageUp and PageDown, as with Enter, since with 'autocomplete' it is open
+--- through most of Insert mode.
 local function in_menu()
   if vim.fn.pumvisible() == 0 then
     return false
@@ -31,11 +22,8 @@ local function in_menu()
   return vim.fn.complete_info({ "selected" }).selected ~= -1
 end
 
---- A page of the menu, clamped to its ends.
----
---- Vim's menu is a ring with "what I typed" as one more entry on it, so a page
---- past the end lands on nothing selected, which would silently drop me out of
---- the menu and leave the next Enter breaking the line.
+--- Move the highlight a page through the menu, clamped to its ends: past them
+--- Vim's ring lands on "what I typed", which drops me out of the menu.
 local function page_menu(step)
   local pum = vim.fn.pum_getpos() -- `height` is the page, `size` the whole list
   local at = vim.fn.complete_info({ "selected" }).selected
@@ -47,8 +35,7 @@ local function page_menu(step)
     to = math.max(at - pum.height, 0)
   end
 
-  -- `false` for insert: the highlight moves and the line is left alone, which
-  -- is what keeps Enter free until I commit.
+  -- highlight only, so the line stays as I typed it
   vim.api.nvim_select_popupmenu_item(to, false, false, {})
 end
 
@@ -60,24 +47,19 @@ local function page(step)
       return page_menu(step)
     end
 
-    -- A menu I have not stepped into is in the way rather than in use, so it
-    -- goes, back to what I typed. Item -1 with `finish` is the API spelling
-    -- of Ctrl+E, and it must be the API: Vim applies it as this function
-    -- returns, while a fed Ctrl+E runs later still, and ending completion
-    -- after the cursor has already moved below rewrites text around wherever
-    -- the cursor landed.
+    -- NOTE: a menu I have not stepped into is in the way, so it goes, back to
+    -- what I typed. It has to be the API (item -1 with `finish` is Ctrl+E),
+    -- which Vim applies as this returns; a fed Ctrl+E runs after the cursor has
+    -- moved below and rewrites the text wherever it landed.
     local dismissed = vim.fn.pumvisible() == 1
     if dismissed then
       vim.api.nvim_select_popupmenu_item(-1, false, true, {})
     end
 
-    -- Whether the cursor is still more than a page from the edge it heads for.
-    -- "Can the view still scroll" is not the question: with a short file
-    -- wholly on screen Ctrl+B does scroll, and leaves the cursor put.
-    --
-    -- The page is the window height, in screen rows rather than buffer lines,
-    -- so wrapped lines make this an over-estimate. It only errs toward taking
-    -- the edge, which is where the key was going anyway.
+    -- NOTE: the question is whether the cursor is more than a page from the
+    -- edge, not whether the view can scroll, since Ctrl+B scrolls a short file
+    -- that is wholly on screen and leaves the cursor put. Wrapped lines make
+    -- the page too big, which only errs toward the edge.
     local from = vim.api.nvim_win_get_cursor(0)[1]
     local last = vim.api.nvim_buf_line_count(0)
     local reach = vim.api.nvim_win_get_height(0) * vim.v.count1
@@ -90,13 +72,10 @@ local function page(step)
     end
 
     if room then
-      -- A count belongs to the scroll. It can only be typed outside Insert
-      -- mode, so feeding the digits back is safe wherever it is not 1.
+      -- a count can only be typed outside Insert, so feeding it back is safe
       local count = vim.v.count1 > 1 and tostring(vim.v.count1) or ""
 
-      -- In Insert mode Ctrl+F and Ctrl+B are not scrolls: Ctrl+F reindents
-      -- the line where 'indentkeys' says so, an edit out of nowhere. Ctrl+O
-      -- runs the pair as the Normal-mode command it is meant as.
+      -- in Insert, Ctrl+F reindents the line ('indentkeys'), hence Ctrl+O
       local keys = count .. scroll
       if vim.api.nvim_get_mode().mode:sub(1, 1) == "i" then
         keys = "<C-o>" .. keys
@@ -108,8 +87,7 @@ local function page(step)
 
     local to = step > 0 and last or 1
 
-    -- Scheduled past the dismissal above; moving the cursor first would put
-    -- the completion's "what I typed" back in the wrong place.
+    -- after the dismissal lands, or what I typed goes back in the wrong place
     if dismissed then
       vim.schedule(function()
         goto_line(to)
@@ -121,14 +99,12 @@ local function page(step)
   end
 end
 
---- The shifted pair, selecting what the unshifted one flies over. Two things
---- keep it from simply running page() inside a selection. 'keymodel' takes
---- the raw shifted key and would run Vim's own page motion, the one whose
---- edge behavior this module exists to fix, so the selection has to be
---- opened here for the clamped version to apply at all. And "stopsel" ends a
---- selection on Ctrl+F itself, measured on stock nvim, so the scroll branch
---- would cut the selection short from inside it; the cursor moves by the
---- page instead, and the view chases it.
+--- The shifted pair: the same distance, selecting what it crosses.
+---
+--- NOTE: not page() inside a selection. 'keymodel' would run Vim's own page key
+--- for the shifted one, so the selection is opened here, and its "stopsel" ends
+--- a selection on Ctrl+F, so the cursor moves by a page and the view follows
+--- rather than scrolling first.
 local function select_page(step)
   return function()
     if vim.api.nvim_get_mode().mode == "n" then
@@ -147,8 +123,6 @@ local function select_page(step)
   end
 end
 
--- Which keys these are, and which modes they answer in, is
--- lua/mivn/keymaps.lua's; nothing else reads them.
 return {
   down = page(1),
   up = page(-1),

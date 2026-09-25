@@ -1,27 +1,16 @@
--- The landing buffer.
---
--- A banner, a tagline and a byline, centered in an empty window. Hand-rolled
--- rather than a dashboard plugin: those are widget engines for
--- recents/projects/sessions lists, and none of that is wanted here.
---
--- A fallback, never a destination: it shows when mivn opens with nothing to
--- edit, and again when the last real buffer is closed. This module only
--- draws it; when it comes back and when closing the last file ends the
--- session instead is lua/mivn/session.lua's call.
+-- The landing buffer: a banner, a tagline and a byline, centered in an empty
+-- window. It shows when mivn opens with nothing to edit; this module only
+-- draws it, and when it comes back later is lua/mivn/session.lua's call.
 
 local M = {}
 
 local FILETYPE = "mivn-dashboard"
-M.FILETYPE = FILETYPE -- session.lua tells the banner apart by it
+M.FILETYPE = FILETYPE -- how other modules tell the banner apart
 local ns = vim.api.nvim_create_namespace("mivn.dashboard")
 
--- Nothing here to put a cursor on. The window still has one and the motions
--- still move it, it is simply not drawn; see lua/mivn/panel.lua, which owns
--- that because 'guicursor' is global.
 require("mivn.panel").hide_cursor_in(FILETYPE)
 
--- mivn in ANSI-shadow block letters. Every row is the same display width, so
--- the block can be centered with one uniform pad and keep its columns aligned.
+-- mivn in ANSI-shadow block letters.
 local art = {
   "███╗   ███╗██╗██╗   ██╗███╗   ██╗",
   "████╗ ████║██║██║   ██║████╗  ██║",
@@ -31,14 +20,11 @@ local art = {
   "╚═╝     ╚═╝╚═╝  ╚═══╝  ╚═╝  ╚═══╝",
 }
 
--- One MivnDashboardFire group per row, defined in colors/basalt.lua.
-
 local tagline = "modal · tree-sitter · lsp · my leader maze"
 local byline_prefix = "by "
 local byline_name = "@azazeal"
 
--- Keys to press anywhere, not rows to select: the ways out of an empty editor,
--- plus the habit that makes the rest of the grammar answer for itself.
+-- Keys to press anywhere, not rows to select.
 local hints = {
   "<Space>f find file   <Space>: commands   :Tutor",
   "hold any key for a moment to see what can follow it",
@@ -50,16 +36,13 @@ local function center(text, width)
   return string.rep(" ", pad) .. text
 end
 
---- Build the buffer's lines plus the highlights to lay over them.
----
---- Returns the lines and a list of {row, hl_group}. Highlights cover whole
---- lines, so there is no column arithmetic over the multi-byte block
---- characters, except on the byline where the name is colored separately.
+--- The lines for a `width` by `height` window, and the highlights to lay over
+--- them: one group per highlighted row, over the whole line, and on the
+--- byline the spans of the version and the name.
 local function build(width, height)
   local lines, marks = {}, {}
 
-  -- One pad for the whole block: centering rows individually would shear the
-  -- letters apart.
+  -- one pad for the whole block, since centering each row shears the letters
   local art_width = 0
   for _, row in ipairs(art) do
     art_width = math.max(art_width, vim.fn.strdisplaywidth(row))
@@ -74,11 +57,7 @@ local function build(width, height)
   body[#body + 1] = { text = center(tagline, width), hl = "MivnDashboardTagline" }
   body[#body + 1] = { text = "" }
 
-  -- The release rides in front of the byline rather than on a line of its own:
-  -- it is what this copy is, said next to whose it is, and it costs no row.
-  -- The name stays last on the row, which is what the highlight below counts
-  -- backwards from. A checkout with no release to name drops it and the row
-  -- reads as it always did.
+  -- the release goes in front, since render() finds the name at the row's end
   local running = require("mivn.update").running()
   local byline = byline_prefix .. byline_name
   if running then
@@ -89,16 +68,11 @@ local function build(width, height)
   local row = { text = centered, hl = "MivnDashboardByline", name = true }
 
   if running then
-    -- center() only ever pads the left, so the difference is exactly where the
-    -- text starts, and the version starts with it.
+    -- center() pads only the left, so the difference is where the text starts
     local at = #centered - #byline
     row.version = { from = at, to = at + #running }
 
-    -- How far past the release this checkout is gets its own color, the count
-    -- alone and not the + in front of it, which stays grey with the version it
-    -- belongs to. Sitting on a release there is no suffix at all, so a suffix
-    -- is the one thing on the row worth noticing, and it should not have to be
-    -- read to be seen.
+    -- the count past the release gets its own color, the + in front does not
     local plus = running:find("+", 1, true)
     if plus then
       row.ahead = { from = at + plus, to = at + #running }
@@ -113,9 +87,6 @@ local function build(width, height)
     body[#body + 1] = { text = center(hint, width), hl = "MivnDashboardTagline" }
   end
 
-  -- The one line here that asks for anything, and only when there is
-  -- something to ask for; lua/mivn/update.lua answers nil the rest of the
-  -- time, which is nearly always.
   local update = require("mivn.update").status()
   if update then
     body[#body + 1] = { text = "" }
@@ -125,7 +96,6 @@ local function build(width, height)
     }
   end
 
-  -- Vertical centering: blank rows above the block so it sits in the middle.
   local top = math.max(0, math.floor((height - #body) / 2))
   for _ = 1, top do
     lines[#lines + 1] = ""
@@ -167,8 +137,6 @@ function M.render(buf, win)
       hl_group = mark.hl,
     })
 
-    -- The release rides on the same row, at the front of it, with the distance
-    -- past it laid over the top of that again.
     if mark.version then
       vim.api.nvim_buf_set_extmark(buf, ns, mark.row, mark.version.from, {
         end_col = mark.version.to,
@@ -183,7 +151,6 @@ function M.render(buf, win)
       })
     end
 
-    -- The name rides on the byline's row, highlighted over the top of it.
     if mark.name then
       local start = #line - #byline_name
       vim.api.nvim_buf_set_extmark(buf, ns, mark.row, start, {
@@ -194,21 +161,12 @@ function M.render(buf, win)
   end
 end
 
---- The Normal-mode keys that would otherwise fail on this buffer.
+--- The Normal-mode keys that change text, each of which would raise E21 on
+--- this 'nomodifiable' buffer. Motions are left alone. Taking `d` and `c`
+--- hides which-key's panel for them here, which is fine with nothing to act on.
 ---
---- All of them want to change text and the buffer is 'nomodifiable', so each
---- would raise E21 on the first screen of the session. Motions are left alone:
---- they move an invisible cursor and nothing happens.
----
---- `d` and `c` are operator prefixes, so this shadows which-key's panel for
---- them in this one buffer. Accepted, since there is nothing to operate on.
----
---- `<Insert>` is spelled out because it is a name and not a character:
---- lua/mivn/keymaps.lua makes it the way in and out of typing, so it opens
---- Insert here exactly the way `i` does and failed exactly the way `i` would
---- have. It is also the one key taken in Visual, where it opens Insert as
---- well. The letters are not: there `i` and `a` pick out a text object and
---- `o` moves to the other end, and none of that touches the text.
+--- `<Insert>` is also taken in Visual, where it opens Insert too. The letters
+--- are not: there `i`, `a` and `o` only pick out or move, and change nothing.
 local EDIT_KEYS = { "<Insert>" }
 
 for key in ("iIaAoOxXpPrRsScCdD"):gmatch(".") do
@@ -219,10 +177,9 @@ local function nothing_to_edit()
   vim.notify("Nothing to edit here. <Space>f opens a file.")
 end
 
---- Whether the banner has claimed this session: it opened at startup, or I
---- summoned it with :MivnDashboard. A session it never claimed is an editor
---- session (`git commit`, `nvim file.txt`), and those end when the last file
---- closes instead of falling back here; session.lua reads the flag and acts.
+--- Whether the banner has claimed this session: it opened at startup, or
+--- :MivnDashboard opened it. A session it never claimed (`git commit`,
+--- `nvim file.txt`) ends when its last file closes instead of coming back here.
 local claimed = false
 
 function M.claimed()
@@ -256,10 +213,10 @@ function M.open()
 
   vim.api.nvim_win_set_buf(0, buf)
 
-  -- `vim.wo[win][0]` and not `vim.wo[win]`: the second index scopes these to
-  -- this buffer's stay in this window. A plain window-local set outlives the
-  -- buffer, so every file opened here afterwards would inherit a window with
-  -- no line numbers and no sign column.
+  -- NOTE: `vim.wo[win][0]` and not `vim.wo[win]`. The second index scopes these
+  -- to this buffer's stay in this window; a plain window-local set outlives
+  -- the buffer, so every file opened here afterwards would have no line
+  -- numbers and no sign column.
   local win = vim.api.nvim_get_current_win()
   vim.wo[win][0].number = false
   vim.wo[win][0].relativenumber = false
@@ -270,21 +227,17 @@ function M.open()
   vim.wo[win][0].wrap = false
   vim.wo[win][0].fillchars = "eob: "
 
-  -- Any blank listed buffer nothing shows goes, usually the startup [No Name]
-  -- one, which would otherwise sit in the tab bar as a tab that opens nothing.
-  -- Deleting is safe here because this buffer exists, so Neovim has no reason
-  -- to conjure a blank one in its place.
+  -- blanks go, or the startup [No Name] sits in the tab bar opening nothing
   require("mivn.session").reap_blanks("delete", buf)
 
   M.render(buf, win)
 
-  -- Re-centered whenever the geometry changes, windows coming and going
-  -- included: the tree opens beside this buffer a tick after startup, which
-  -- used to leave the banner centered for the full editor width. Scheduled,
-  -- because WinNew fires while the new window's columns are still being dealt.
+  -- NOTE: the render waits for the next tick because WinNew fires before the
+  -- new window's width is settled, so a render at the event centers the banner
+  -- for the layout that is going away.
   local function redraw()
     if not vim.api.nvim_buf_is_valid(buf) then
-      return true -- the banner is gone, and the autocmd goes with it
+      return true -- the banner is gone, so the autocmd goes too
     end
 
     vim.schedule(function()
@@ -306,8 +259,7 @@ function M.open()
     callback = redraw,
   })
 
-  -- The update check answers a couple of seconds after startup, well after
-  -- this buffer was drawn, so its line has to arrive on its own.
+  -- the update check answers seconds after the banner is drawn
   vim.api.nvim_create_autocmd("User", {
     group = group,
     pattern = "MivnUpdate",
@@ -317,29 +269,24 @@ function M.open()
   return buf
 end
 
--- At startup, when there is nothing to edit. `mivn <dir>` hands Neovim a
--- directory, which would otherwise open a file listing; the banner shows
--- instead. Coming back later, after the last file closes, is session.lua's
--- decision, not this module's.
+-- At startup, when there is nothing to edit. `mivn <dir>` counts: the banner
+-- shows instead of the directory's file listing.
 vim.api.nvim_create_autocmd("VimEnter", {
   group = vim.api.nvim_create_augroup("mivn.dashboard", { clear = true }),
-  -- nested, because M.open swaps the window's buffer, and without it that
-  -- swap fires no BufWinEnter: whatever hooked the startup buffer (the width
-  -- markers, window-local as matches are) would silently stay behind on the
-  -- banner.
+  -- NOTE: nested, because M.open swaps the window's buffer and without it the
+  -- swap fires no BufWinEnter, so whatever reacts to a buffer entering a
+  -- window never sees the banner arrive.
   nested = true,
   callback = function()
     if not require("mivn.session").empty_start() then
       return
     end
-    -- Something else already claimed the window (a session, a piped stdin).
+    -- something else already claimed the window (a session, a piped stdin)
     if vim.api.nvim_buf_get_name(0) ~= "" and vim.fn.argc() == 0 then
       return
     end
 
-    -- Opening a directory leaves Neovim holding a listing buffer for it. The
-    -- landing buffer replaces that rather than sitting on top, since otherwise
-    -- closing the banner drops me back into the listing.
+    -- replace a directory's listing buffer, or closing the banner lands in it
     local startup = vim.api.nvim_get_current_buf()
     M.open()
     if vim.api.nvim_buf_is_valid(startup) and startup ~= vim.api.nvim_get_current_buf() then

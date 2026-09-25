@@ -1,21 +1,8 @@
--- My plugins, managed by vim.pack (built into Neovim 0.12, no bootstrap
--- needed). Every plugin is pinned to a commit right here, with the nearest
--- release tag and the commit date beside it, so this file says exactly what
--- should be installed; nvim-pack-lock.json is a cache of the same and never
--- disagrees.
---
--- What is on disk can, since vim.pack installs a plugin at its pin and never
--- looks at the clone again: a pin moved by a pull leaves the old checkout
--- running until `:lua vim.pack.update(nil, { target = "lockfile" })` checks
--- the new one out, and a plugin dropped from this list stays on disk until
--- `:lua vim.pack.del({ "name" })`. `:checkhealth mivn` names both.
---
--- Moving a pin forward is .github/scripts/repin's job. The weekly workflow
--- runs `repin pick 14`, which takes every plugin to the newest release that
--- has been out for two weeks, and opens a PR with the result. By hand it is
--- `repin strip`, then `:lua vim.pack.update()`, then `repin write`, which
--- shows me the changelogs and waits for nothing. Details and trade-offs live
--- with each plugin's setup in lua/mivn/.
+-- My plugins, managed by vim.pack. Each is pinned to a commit right here, with
+-- the nearest release tag and the commit date in its comment, so this file says
+-- what should be installed and nvim-pack-lock.json is a cache of it.
+-- .github/scripts/repin moves the pins. What is on disk can lag behind them,
+-- which `:checkhealth mivn` reports.
 vim.pack.add({
   -- The basics: syntax, language servers, the file tree.
 
@@ -48,18 +35,26 @@ vim.pack.add({
   { src = "https://github.com/echasnovski/mini.pairs", version = "4a014143fcb4e9df26198ccb3ecff3b9e77a048c" },
 })
 
--- vim.pack.update, with SSH kept out of it. A global gitconfig can rewrite
--- https URLs to ssh (url.<base>.insteadOf), and then the plugins above,
--- https as their URLs read, fetch over SSH, and on a machine whose agent
--- holds no key the update hangs on a passphrase prompt nothing draws.
--- GIT_CONFIG_GLOBAL=/dev/null drops the rewrite for the update's git
--- subprocesses alone: set before the call, restored once the work is done.
--- "Done" is after the call for a forced update, but at the review buffer's
--- deletion otherwise: these are blobless clones, so the checkout that the
--- buffer's :write starts still fetches blobs, and quitting the buffer is
--- the cancel. Not process-wide, ever: :terminal must keep the user's real
--- git config. TODO.md's dashboard entry records the fuller story.
+-- vim.pack.update with GIT_CONFIG_GLOBAL=/dev/null, which keeps git off ssh;
+-- git() in lua/mivn/update.lua says why.
+--
+-- NOTE: when the call opens a review, the variable goes back only once the
+-- review goes: these are blobless clones, so the checkout its :write starts
+-- still fetches. Until then it is the whole editor's, a :terminal included.
 local pack_update = vim.pack.update
+
+--- The review buffers vim.pack.update has open, as a set.
+local function reviews()
+  local found = {}
+
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_get_name(buf):find("nvim-pack://confirm", 1, true) then
+      found[buf] = true
+    end
+  end
+
+  return found
+end
 
 ---@diagnostic disable-next-line: duplicate-set-field it is the point
 vim.pack.update = function(...)
@@ -70,13 +65,14 @@ vim.pack.update = function(...)
     vim.env.GIT_CONFIG_GLOBAL = saved
   end
 
+  local before = reviews()
   local ok, err = pcall(pack_update, ...)
 
+  -- this call's own review, not one an earlier update left open
   local review
-  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_get_name(buf):find("nvim-pack://confirm", 1, true) then
+  for buf in pairs(reviews()) do
+    if not before[buf] then
       review = buf
-      break
     end
   end
 

@@ -1,16 +1,10 @@
--- CSS: the VS Code server, which is the one Zed and VS Code itself run.
+-- CSS: the VS Code server, for .css, .scss and .less. It comes in the same
+-- npm package as the html and json servers.
 --
--- It covers .css, .scss and .less, all three from the one binary, and it
--- arrives with the html and json servers in the same npm package that
--- lua/mivn/languages/html.lua and json.lua already draw from.
+-- The plain command and no probe, for the reasons json.lua gives.
 --
--- The plain command, for the reason json.lua gives: nvim-lspconfig ships a
--- `cmd` function that prefers the project's own node_modules. No probe, for
--- the reason it gives too.
---
--- .sass, the indented syntax, is not covered and cannot be here: this server
--- does not speak it, and tree-sitter has no grammar for it either, so those
--- files get regex highlighting and nothing more.
+-- .sass, the indented syntax, gets regex highlighting and nothing more:
+-- neither this server nor tree-sitter has anything for it.
 
 return {
   servers = {

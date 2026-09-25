@@ -1,24 +1,13 @@
--- Select mode's tint.
+-- Select mode's tint. Neovim paints Visual and Select with the one `Visual`
+-- group, but in Select the next letter I type replaces what is picked out, so
+-- the selection tells them apart by color, as the status line does.
 --
--- Neovim paints Visual and Select with the one `Visual` group, and the two
--- are different modes: in Visual the keys are commands, in Select the next
--- letter I type replaces what is picked out. The status line has always told
--- them apart by color, so the selection itself does too.
---
--- It is a module of its own because the group is global: pointing `Visual`
--- somewhere else would repaint every window, including the ones not in Select
--- at all. 'winhighlight' is a window option, so the window in Select is the
--- only one that changes, and it changes back on the way out. Only one window
--- can be in Select at a time, which is why one saved value is enough.
---
--- The caret is the same problem one level down. 'guicursor' has no Select
--- mode to name: the list it takes is `n v ve o i r c ci cr sm t a`, and
--- asking for `s` is E546, so Select is drawn with whatever Visual's entry
--- says. An override for as long as Select lasts is the answer, and
--- lua/mivn/caret.lua is what applies it: the option is global and two modules
--- want it, so neither of them touches it directly.
+-- `Visual` is global, so the swap goes through 'winhighlight' and only the
+-- window in Select changes. Only one window can be in Select at a time, which
+-- is why one saved value is enough.
 
 local caret = require("mivn.caret")
+local selection = require("mivn.selection")
 
 local group = vim.api.nvim_create_augroup("mivn.select", { clear = true })
 
@@ -26,20 +15,15 @@ local group = vim.api.nvim_create_augroup("mivn.select", { clear = true })
 --- whenever Select is not the mode.
 local restore = nil
 
---- The caret while Select lasts. Named here rather than in 'guicursor',
---- which has no Select mode to hang it off; colors/basalt.lua defines it.
+--- The caret while Select lasts. 'guicursor' has no Select mode (asking for
+--- `s` is E546) and draws Select with Visual's entry, so it is an override.
 local CURSOR = "MivnCursorSelect"
-
---- Whether `mode`, the second half of a ModeChanged match, is a Select one.
---- Charwise, linewise and blockwise, the last being a raw CTRL-S byte.
-local function selecting(mode)
-  return mode:find("^[sS\19]") ~= nil
-end
 
 vim.api.nvim_create_autocmd("ModeChanged", {
   group = group,
   callback = function(ev)
-    if selecting(ev.match:match(":(.*)$") or "") then
+    -- the first letter of the mode just entered
+    if selection.selecting((ev.match:match(":(.)") or "")) then
       if restore then
         return
       end

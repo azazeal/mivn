@@ -38,19 +38,17 @@ fi
 [ -r "$1" ] || die "cannot read $1"
 command -v magick >/dev/null || die "ImageMagick 7 is not installed (magick)"
 
-# Both paths are resolved against the caller's directory, not the repository
-# root, so a relative capture means what it looks like it means. The default
-# output is the one file this exists to write.
+# Both paths are resolved before the cd below, so a relative one means the
+# caller's directory.
 SRC=$(realpath -- "$1")
 OUT=$([ $# -eq 2 ] && realpath -m -- "$2" || printf '%s\n' "$root/assets/screenshot.png")
 
 cd "$root"
 
-# WARN: measured for one capture, not general. They cut the window manager's
-# focus border off the edges it painted on, and one empty screen row off the
-# top, which is the row that otherwise reads as a black gap under the title
-# bar. Another capture needs them measured again: sample pixels in from each
-# edge until the colour stops changing.
+# The crop fits one capture: it cuts the window manager's focus border off
+# the edges it painted on, and one empty screen row off the top, which would
+# read as a black gap under the title bar. Another capture needs it measured
+# again, by sampling pixels in from each edge until the colour stops changing.
 CROP_X=${CROP_X:-0}
 CROP_Y=${CROP_Y:-32}
 CROP_W=${CROP_W:-1992}
@@ -90,7 +88,6 @@ cy=$((BAR_H / 2))
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 
-# The capture, with the window manager's border and the empty row cut off.
 magick "$SRC" -crop "${CROP_W}x${CROP_H}+${CROP_X}+${CROP_Y}" +repage "$work/body.png"
 
 # The title bar and its three lights.
@@ -99,8 +96,8 @@ draw+=" fill $DOT2 circle $((DOT_X + DOT_GAP)),$cy $((DOT_X + DOT_GAP + r)),$cy"
 draw+=" fill $DOT3 circle $((DOT_X + DOT_GAP * 2)),$cy $((DOT_X + DOT_GAP * 2 + r)),$cy"
 magick -size "${W}x${BAR_H}" "xc:$BAR_BG" -draw "$draw" "$work/bar.png"
 
-# Stacked, clipped to the rounded rectangle, then the hairline inset on the
-# edge so it does not fight the corners.
+# Stacked and clipped to the rounded rectangle; the hairline sits half a pixel
+# in, so it does not fight the corners.
 magick "$work/bar.png" "$work/body.png" -append "$work/win.png"
 
 magick -size "${W}x${H}" xc:none \
@@ -116,10 +113,10 @@ magick "$work/win.png" "$work/mask.png" \
 # One shadow per call: offset the window's silhouette, blur it, then use it as
 # the alpha of a black plate scaled down to the opacity wanted.
 #
-# WARN: the mask has to be built on black rather than on nothing. -alpha
-# extract returns an opaque grayscale image, so compositing it over a
-# transparent canvas pastes a hard rectangle instead of a silhouette, and the
-# shadow comes out as a slab across half the page.
+# NOTE: the mask has to be built on black rather than on nothing. -alpha
+# extract returns an opaque grayscale image, so over a transparent canvas it
+# pastes a hard rectangle instead of a silhouette, and the shadow comes out as
+# a slab across half the page.
 shadow() { # sigma dy alpha out
   magick -size "${CW}x${CH}" xc:black \
     \( "$work/window.png" -alpha extract \) \
@@ -140,8 +137,8 @@ magick -size "${CW}x${CH}" xc:none \
   "$work/window.png" -geometry "+${PAD}+${PAD}" -composite \
   "$work/final.png"
 
-# pngquant only saves space: on a shot of this size it was 75KB against 327KB
-# at an RMSE of 0.1%, which leaves no banding in the shadow.
+# pngquant only saves space: about a quarter of the size at an RMSE of 0.1%,
+# with no banding in the shadow.
 if command -v pngquant >/dev/null; then
   pngquant --quality 90-100 --speed 1 --strip --force --output "$OUT" -- "$work/final.png"
 else

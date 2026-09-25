@@ -1,17 +1,12 @@
 -- Files Neovim has no way to display: PDFs, images, audio, video, fonts.
--- Opening one offers to hand it to the system's opener (vim.ui.open, the
--- same call `gx` makes) instead of filling a buffer with binary soup. The
--- hook is BufReadCmd, which fires in place of the read, so a yes never
--- loads the file at all; the cost is that a declined read is this module's
--- to perform.
+-- Opening one offers to hand it to the system's opener (vim.ui.open, the same
+-- call `gx` makes) instead of filling a buffer with binary soup. The hook is
+-- BufReadCmd, which fires in place of the read, so a yes never loads the file
+-- at all, and a declined read is this module's to perform.
 --
--- Most formats zipPlugin already browses (epub, jars and the rest of the
--- zip family) are left to it: those have a default, this covers the ones
--- with none. The deliberate overlaps, claimed here because this autocmd
--- registers first and wins the tie (verified): docx, xlsx and pptx, which
--- read better in an office suite than as a zip listing, and otf, which
--- zipPlugin takes for OpenDocument formula templates while every .otf
--- here is an OpenType font.
+-- The zip family zipPlugin already browses is left to it, except docx, xlsx and
+-- pptx, which read better in an office suite, and otf, which zipPlugin takes
+-- for an OpenDocument template. This autocmd registers first, so it wins those.
 
 local EXTENSIONS = {
   "avi",
@@ -55,8 +50,8 @@ end
 
 --- Wipe the buffer the autocmd is editing, once the read event is over.
 ---
---- Deleting it out from under the edit crashes the redraw. After the event,
---- the window has moved on to whatever buffer is next in line.
+--- NOTE: not during the event. Deleting it out from under the edit crashes the
+--- redraw; after it, the window has moved on to the next buffer.
 local function drop(buf)
   vim.schedule(function()
     if vim.api.nvim_buf_is_valid(buf) then
@@ -72,16 +67,15 @@ vim.api.nvim_create_autocmd("BufReadCmd", {
   callback = function(ev)
     local path = vim.api.nvim_buf_get_name(ev.buf)
 
-    -- A name with no file behind it is a new file: nothing to open outside,
-    -- nothing to read here. Leave the buffer empty, as a plain edit would.
+    -- a new file: nothing to open or read, so the buffer stays empty
     if not vim.uv.fs_stat(path) then
       return
     end
 
-    -- Only ask when someone is there to answer: with no UI attached,
+    -- NOTE: only ask when someone is there to answer. With no UI attached,
     -- confirm() quietly returns its default button, and a headless script
-    -- touching a PDF would pop a viewer onto the desktop. Measured, not
-    -- hypothetical. No UI reads as No, the raw view every other file gets.
+    -- touching a PDF would pop a viewer onto the desktop. No UI reads as No,
+    -- the raw view every other file gets.
     local choice = 2
 
     if #vim.api.nvim_list_uis() > 0 then
@@ -99,32 +93,30 @@ vim.api.nvim_create_autocmd("BufReadCmd", {
         return
       end
 
-      -- No opener took it; fall through to the raw view, which beats an
-      -- empty buffer shadowing a real file.
+      -- no opener took it: the raw view beats an empty buffer over a real file
       vim.notify(err, vim.log.levels.ERROR)
     elseif choice ~= 2 and not vim.b[ev.buf].mivn_raw then
-      -- Cancel, which is also what Escape answers (0, no button at all):
-      -- neither the app nor the raw view, so the open never happened. The
-      -- buffer goes with it, because an empty buffer named after a real
-      -- file is that file truncated on the next `:w`. Cancelling a reload
-      -- of a raw view falls through instead: it arrives here emptied, and
-      -- the read below puts back exactly what was on screen.
+      -- NOTE: Cancel, or Escape (0), and the open never happened. The buffer
+      -- goes with it, because an empty buffer named after a real file is that
+      -- file truncated on the next `:w`. A cancelled reload of a raw view
+      -- arrives here emptied, so it falls through, and the read below puts back
+      -- what was on screen.
       drop(ev.buf)
       return
     end
 
-    -- Declined: do what the read would have done. The wipe first, because a
-    -- reload (:e!) comes through here too and the read only appends. ++edit
-    -- keeps the stock fileformat and encoding detection, the deleted line is
-    -- the empty one the wiped buffer keeps on top, and BufReadPost hands the
-    -- buffer to filetype detection and everything else that expects a normal
-    -- load. Modelines are skipped; binary soup gets no say.
+    -- NOTE: declined, so do what the read would have done. The wipe comes
+    -- first, because a reload (:e!) comes through here too and :read only
+    -- appends. ++edit keeps the stock fileformat and encoding detection, the
+    -- deleted line is the empty one a wiped buffer keeps, and BufReadPost hands
+    -- the buffer to filetype detection and the rest. Modelines are skipped;
+    -- binary soup gets no say.
     vim.cmd("silent keepalt %delete _")
     vim.cmd("silent keepalt read ++edit " .. vim.fn.fnameescape(path))
     vim.cmd("silent 1delete _")
     vim.bo[ev.buf].modified = false
 
-    -- What a later cancel reads to tell a reload from a first open.
+    -- how a later cancel tells a reload from a first open
     vim.b[ev.buf].mivn_raw = true
 
     vim.api.nvim_exec_autocmds("BufReadPost", { pattern = path, modeline = false })

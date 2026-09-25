@@ -1,12 +1,8 @@
-# Weekly upkeep, off the push path.
+# Weekly upkeep, off the push path: move the plugin pins, and open a PR when
+# they moved.
 #
-# Two jobs: boot the config against Neovim's latest release, so a new Neovim
-# breaking the config shows up on a schedule rather than on my next push, and
-# run vim.pack.update, opening a PR when it moves the lock file.
-#
-# One known limit: a PR opened with the default GITHUB_TOKEN does not trigger
-# the ci workflow on its own. Close and reopen the PR to get a run, or push
-# anything to its branch.
+# A PR opened with the default GITHUB_TOKEN does not trigger ci.yml. Close and
+# reopen it, or push to its branch, to get a run.
 name: Weekly
 
 on:
@@ -18,35 +14,6 @@ permissions:
   contents: read
 
 jobs:
-  # Not plain "Boot": that is ci.yml's required check, and check names are a
-  # repo-wide namespace, so a same-named job here could satisfy the ruleset
-  # from the wrong workflow.
-  boot-stable:
-    name: Boot (stable)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - name: Checkout the code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-
-      - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1.6.1
-        with:
-          neovim: true
-          version: stable
-
-      # Headless Neovim prints a config error and still carries on to exit 0,
-      # so the output is what gets asserted, never the exit code.
-      - name: Boot the config headless
-        run: |
-          mkdir -p ~/.config
-          ln -sfn "$PWD" ~/.config/nvim
-
-          out=$(nvim --headless "+lua io.write('boot clean')" +qa 2>&1)
-          printf '%s\n' "$out"
-
-          grep -q 'boot clean' <<< "$out"
-          if grep -Eqi 'error|E[0-9]{3}' <<< "$out"; then exit 1; fi
-
   plugin-updates:
     name: Check for updates
     runs-on: ubuntu-latest
@@ -63,20 +30,16 @@ jobs:
           neovim: true
           version: stable
 
-      # repin pick moves every pin to the newest release that has been out for
-      # at least 14 days, or the newest commit that old for the plugins that
-      # follow a branch, so nothing cut yesterday lands here. It reads the
-      # clones to do that, which is what the plain boot is for: vim.pack
-      # installs every plugin at the pin plugins.lua already carries. The
-      # update after the pick checks the picks out and rewrites the lock as
-      # the cache of them. The PR carries plugins.lua and the lock file.
+      # The plain boot installs every plugin at its current pin, since repin
+      # pick reads the clones. The update after the pick checks the picks out
+      # and rewrites the lock.
       - name: Update the plugins
         run: |
           mkdir -p ~/.config
           ln -sfn "$PWD" ~/.config/nvim
 
           nvim --headless +qa
-          ./.github/scripts/repin pick 14
+          NVIM_APPNAME=nvim ./.github/scripts/repin pick 14
           nvim --headless "+lua vim.pack.update(nil, { force = true })" +qa
           git diff --stat
 
@@ -84,11 +47,9 @@ jobs:
         with:
           branch: plugin-updates
           # What .github/release.yml sorts on, so this lands under
-          # "Dependency updates" in the release notes rather than among the
-          # changes I wrote. Dependabot labels its own PRs with it already.
+          # "Dependency updates" in the release notes.
           labels: dependencies
-          # Commits through the API instead of the git CLI, which makes them
-          # GitHub-signed; the "signed commits everywhere" ruleset rejects
+          # Commits through the API, so GitHub signs them; a ruleset rejects
           # unsigned pushes on every branch, this one included.
           sign-commits: true
           commit-message: "plugins: updated pinned revisions"

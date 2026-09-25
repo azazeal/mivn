@@ -8,24 +8,12 @@
 #   panels --write                run the save chain (BufWritePre)
 #
 # Any of them takes --pty first, which runs the editor on a pty with a real
-# UI instead of headlessly. That is the only way to reach anything that draws:
-# without a UI nothing is ever painted, so a headless row can say ok about
-# code that was never asked to do its half of the work.
+# UI. Without one nothing is drawn, so a headless ok says nothing about code
+# that draws.
 #
-# Why this exists. Twice now a key has been added that assumes a file behind
-# the buffer, and twice the banner was where it fell over: `:ls` there is
-# empty by construction, and `<Space>tr` raised out of mini.diff. Both were
-# found by hand, after the fact. `nvim --headless "+lua io.write('ok')"` says
-# nothing about either, because it only proves the config loads.
-#
-# WARN: an error raised inside a mapping callback does not reach `pcall`, it
-# is reported. So this clears the message history, does the thing, and then
-# greps the messages. A `pcall` around `nvim_feedkeys` reports success on a
-# mapping that just threw, which is the trap this script exists to avoid.
-#
-# The dashboard does not open on its own without a UI, so it is summoned. The
-# ui2 pager cannot be reached at all headlessly: its windows are built lazily
-# and there is no UI to build them for, so nothing here covers it.
+# It guards against a key that assumes a file behind the buffer and falls
+# over on the banner, which a boot check cannot see. The ui2 pager is not
+# among the panels: headless, its windows are never built.
 #
 # The editor is the working copy, through NVIM_APPNAME=mivn, unless the
 # environment already names one; CI has only ~/.config/nvim and says so.
@@ -55,8 +43,8 @@ case $kind in
   *) die "usage: panels [--pty] --key <keys> | --cmd <command> | --write" ;;
 esac
 
-# The suffix matters: `-S` decides how to read a file by its extension, so
-# without it nvim sources this as Vimscript and hangs on the first line.
+# NOTE: the suffix is what makes `-S` source this as Lua. Without it nvim
+# reads the file as Vimscript and hangs on the first line.
 probe=$(mktemp --suffix=.lua) || die "could not make a scratch file"
 trap 'rm -f "$probe"' EXIT
 
@@ -86,10 +74,9 @@ local open = {
 
 -- Which buffer the keys have to land in, and the window to put them in.
 --
--- WARN: opening a panel is not the same as being in it. <leader>tt opens the
--- tree beside the cursor and leaves focus where it is, on purpose, so until
--- this check existed every `tree` row was really the startup buffer being
--- fine: `i` in the tree had been raising E21 for months while this said ok.
+-- NOTE: opening a panel is not the same as being in it. The tree opens beside
+-- the cursor and leaves focus where it is, so without focus() every `tree`
+-- row would be the startup buffer saying ok.
 local holds = {
   dashboard = function(buf) return vim.bo[buf].filetype == "mivn-dashboard" end,
   tree = function(buf) return vim.bo[buf].filetype == "NvimTree" end,
@@ -108,25 +95,27 @@ local function focus()
   return false
 end
 
---- Everything this script came to do, run once the editor has settled.
+--- Opens the panel, does the thing and says what it raised, once the editor
+--- has settled.
 ---
---- WARN: none of it may run while the editor is still starting up, which is
---- where `-S` puts it. With a UI attached, a blank buffer and no banner yet
---- is the state lua/mivn/session.lua reads as "the last file is gone" and
---- quits on, so the probe took the editor down before it had tried anything.
+--- NOTE: none of it may run while the editor is still starting up, which is
+--- where `-S` puts it. With a UI, a blank buffer before the banner is up
+--- reads to lua/mivn/session.lua as the last file closing, and the editor
+--- quits before anything was tried.
 local function probe()
   vim.wait(600)
   open[where]()
   vim.wait(400)
 
-  -- Nothing to say about a panel that never opened, and saying "ok" about it
-  -- would be worse than saying nothing.
   if not focus() then
     say(("  %-10s MISSING the panel never opened, so nothing was tried\n"):format(where))
     vim.cmd("qa!")
     return
   end
 
+  -- NOTE: an error raised inside a mapping callback does not reach `pcall`;
+  -- it is reported, and `pcall` around nvim_feedkeys says it went fine. So
+  -- the message history is cleared first and read afterwards.
   vim.cmd("messages clear")
 
   if kind == "--key" then
@@ -139,16 +128,12 @@ local function probe()
 
   vim.wait(600)
 
-  -- Nothing draws until it is asked to, and what draws is half of what a key
-  -- does. No-op without a UI, which is why --pty exists.
+  -- what draws is half of what a key does; a no-op without a UI
   pcall(vim.cmd, "redraw")
   vim.wait(200)
 
-  -- Only what a reader would call a failure. A notify at WARN is this config
-  -- declining on purpose, which is the outcome being tested for.
-  -- E1568 is the terminal not answering what its background color is, which
-  -- is the pty and not this config. Left in, it would fail every panel of a
-  -- --pty run at once.
+  -- only what reads as a failure: a notify at WARN is mivn declining on
+  -- purpose, and E1568 is the pty not saying what its background is
   local said = vim.fn.execute("messages"):gsub("E1568:[^\n]*", "")
   local bad = said:match("E%d+:[^\n]*")
     or said:match("Error in decoration provider[^\n]*")
@@ -169,9 +154,8 @@ LUA
 status=0
 for panel in dashboard tree terminal file; do
   if [ -n "$pty" ]; then
-    # `script` is what hands the editor a pty; setsid keeps it off this
-    # shell's terminal. The verdict comes back through the file, since the
-    # pty itself carries the editor's screen and not much else.
+    # `script` hands the editor a pty, and setsid keeps it off this shell's
+    # terminal.
     verdict=$(mktemp) || die "could not make a scratch file"
     timeout 40 setsid script -qec \
       "env TERM=xterm-256color MIVN_KIND='$kind' MIVN_SUBJECT='$subject' MIVN_PANEL='$panel' MIVN_OUT='$verdict' nvim -S '$probe'" \

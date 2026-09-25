@@ -30,15 +30,9 @@ Context you must respect on top of that:
 
 Style:
 
-- Comments here are prose, and there are many of them. This codebase
-  deliberately documents the why: the trade-off taken, the trap being
-  avoided, the setting responsible when something misbehaves, and the date
-  something was measured. Match that register: full sentences, wrapped hard
-  at 80 columns, plain words, no em dashes. Read the file you are editing
-  and match its density; a bare uncommented block is as out of place here as
-  a narrated obvious one.
-- Each module in lua/mivn/ opens with a header comment saying what it owns
-  and why it exists. Keep that true for anything you add.
+- Comments follow .claude/CLAUDE.md: only what the code cannot say, a trap
+  as a `NOTE:` that says why, and no dates or history. When in doubt, leave
+  the comment out; a reader can ask, and a stale comment cannot be asked.
 - Generous whitespace: blank lines between logical sections. Early returns
   over nested if-else. Small focused units. Local by default; expose nothing
   that is not consumed.

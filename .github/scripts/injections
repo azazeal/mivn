@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+#
+# Parses Go with the injection query in queries/go/ and says which strings it
+# hands to the SQL parser.
+#
+#   injections            every case
+#   injections <pattern>  the cases whose name matches the Lua pattern
+#
+# Wants nvim on $PATH, and the go and sql grammars installed where the config
+# puts them (:MivnInstallGrammars). Prints one row per case, ok or FAIL with
+# what was expected and what came out, and exits non-zero on any FAIL.
+#
+# Headless, since this is the parser and nothing is drawn. The cases are in
+# .github/checks/injections.lua. The editor is the working copy, through
+# NVIM_APPNAME=mivn, unless the environment already names one.
+
+set -euo pipefail
+cd "$(dirname "$0")/../.."
+
+export NVIM_APPNAME="${NVIM_APPNAME:-mivn}"
+
+MIVN_ONLY="${1:-}" timeout 60 nvim --headless \
+  "+lua dofile('.github/checks/injections.lua').run(vim.env.MIVN_ONLY or '')" \
+  2>&1

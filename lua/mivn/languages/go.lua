@@ -1,31 +1,21 @@
 -- Go: gopls for the language, golangci-lint beside it for the linters, and
 -- gci after the write to group the imports.
 --
--- The import groups come from $GOIMPORTPREFIXES, a name of my own that the
--- Go tool knows nothing about: a comma-separated list of the module prefixes
--- that count as ours, so they land in a block of their own between the third
--- party and this module's. It is set per organisation, a directory above each
--- checkout, by whatever prepares the environment, which is why nothing about
--- it appears here.
--- Unset is fine: gci still splits standard from third party from local.
+-- The import groups come from $GOIMPORTPREFIXES, a name of my own: a
+-- comma-separated list of the module prefixes that count as ours, which land
+-- in a block of their own between third party and this module's. It is set
+-- per organisation by whatever prepares the environment. Unset is fine: gci
+-- still splits standard from third party from local.
 --
--- $GOIMPORTNOGCI turns that second pass off and leaves the imports as gopls
--- grouped them. It is there for a gci older than the standard library in use:
--- gci carries its own list of what the standard library holds, written when it
--- was released, so a package added after that is read as third party and moved
--- out of the standard block on every save. Measured 2026-08-27, gci v0.14.0
--- does that to `uuid`, which go1.27 added, and building it with go1.27 does not
--- help since the list travels with the release rather than with the toolchain.
---
--- The variable is a yes or a no and not a value that only has to be there, so
--- it can stay exported and be flipped: `0`, `no`, `off`, `false` and an empty
--- value leave the pass on, anything else turns it off. It is read per save, so
--- `:let $GOIMPORTNOGCI = 1` takes hold in a running editor, and `= 0` brings
--- the pass back once a gci that knows the package is out.
+-- $GOIMPORTNOGCI, a yes or a no, turns the gci pass off and leaves the
+-- imports as gopls grouped them. It is for a gci older than the Go in use:
+-- gci carries its own list of the standard library, fixed at its release, so
+-- a newer package is moved out of the standard block on every save. gci
+-- v0.14.0 does that to `uuid`, added in go1.27, whatever Go builds it.
 
 --- $GOIMPORTPREFIXES as a list, in the order it was written, without
---- duplicates or empties. gci hands the same section twice by emptying the
---- import block and exiting 0, so the dedupe is not cosmetic.
+--- duplicates or empties. The dedupe matters: handed the same section twice,
+--- gci empties the import block and exits 0.
 local function prefixes()
   local seen, list = {}, {}
 
@@ -41,24 +31,8 @@ end
 
 local import_prefixes = prefixes()
 
---- gopls' command, built on first use.
----
---- `-remote` puts the work in a daemon and leaves the process Neovim talks to
---- as a thin client, so every window on the same toolchain parses a project
---- once instead of once each. The daemon outlives the window that started it
---- by a minute and drops that window's state as the window goes.
----
---- The name after `auto;` decides who shares with whom, and it carries the Go
---- version because a single daemon would otherwise serve everything with
---- whichever toolchain reached it first, leaving every project on another
---- version read against the wrong standard library
---- (https://github.com/golang/go/issues/50991). The fallback keeps a broken
---- `go` out of a name other windows share rather than letting it land there.
----
---- A cmd function rather than a list, so `go env` is asked at the first
---- client start rather than on the way to the dashboard. Neovim calls this
---- once per client and wants the RPC object back; what it has to reproduce is
---- copied from Neovim's own default (`vim.lsp.client`).
+-- `go env GOVERSION`, asked once. "unknown" when `go` cannot say, which is a
+-- name no working toolchain's daemon has.
 local version
 local function go_version()
   if version == nil then
@@ -75,6 +49,19 @@ local function go_version()
   return version
 end
 
+--- gopls' command, as a function so that `go env` is asked at the first
+--- client start rather than at startup. Neovim calls it once per client and
+--- wants the RPC object back. The options are Neovim 0.12.5's own, except
+--- that `cwd` falls back to `root_dir`.
+---
+--- `-remote` puts the work in a daemon shared by every window on the same
+--- toolchain, so a project is parsed once rather than once per window. The
+--- daemon outlives its last window by a minute.
+---
+--- NOTE: the daemon's name after `auto;` carries the Go version. One daemon
+--- for all would serve everything with whichever toolchain reached it first,
+--- and read every other project against the wrong standard library
+--- (https://github.com/golang/go/issues/50991).
 local function gopls_cmd(dispatchers, config)
   local cmd = { "gopls", ("-remote=auto;%s"):format(go_version()) }
 
@@ -85,43 +72,32 @@ local function gopls_cmd(dispatchers, config)
   })
 end
 
---- Re-split a saved Go file's imports with gci, in place.
----
---- Runs after the write, not before, because gci is pointed at the file on
---- disk. Spliced back with nvim_buf_set_lines rather than reloaded, so the
---- change joins the undo history instead of clearing it.
-
--- gci's import blocks, in output order: standard library, everything else,
--- then a block per prefix. This module's own packages, `localmodule`, are
--- appended per file below, since only some files have such a thing. gopls
--- runs first, gci owns the end.
+-- gci's import blocks, in order: standard library, everything else, then a
+-- block per prefix. `localmodule`, this module's own packages, is added per
+-- file, since not every file is in a module.
 local sections = { "standard", "default" }
 for _, prefix in ipairs(import_prefixes) do
   sections[#sections + 1] = ("Prefix(%s)"):format(prefix)
 end
 
--- The workspace those sections were built for: pinned at startup, so a
--- mid-session :cd cannot bring another checkout under this one's blocks. Resolved through symlinks
--- because the relpath check below is textual, and a symlinked cwd against a
--- resolved file path would read as "outside".
+-- The workspace those sections were built for, pinned at startup so a later
+-- :cd cannot put another checkout under this one's blocks. Resolved through
+-- symlinks because the check against it compares text, and a symlinked cwd
+-- would read every file as outside.
 local workspace = vim.uv.fs_realpath(vim.fn.getcwd()) or vim.fn.getcwd()
 
 --- Where to run gci for `path`, and what to tell it, so that `localmodule`
 --- resolves to the module the file is actually in. nil when it is in none.
 ---
---- gci reads that from its working directory and nowhere else: `go.work`
---- there, or the go.mod that `$GOMOD` names, or `./go.mod`, and it never walks
---- up (v0.14, pkg/section/local_module.go). Neovim starts a subprocess in the
---- directory the session started in, so opening the editor inside a package,
---- or at the root of a repository whose modules sit a level down, made gci
---- exit 1 with "could not find module path" on every save. That failure was
---- silent, so the import blocks simply stopped happening (measured
---- 2026-08-16). Hence the walk, which is the editor's to do.
+--- gci finds the module from its working directory alone: `go.work` there,
+--- the go.mod `$GOMOD` names, or `./go.mod`, and it never walks up (v0.14).
+--- A subprocess starts where the session did, so without this walk gci exits
+--- 1 with "could not find module path" whenever the editor was started
+--- anywhere but a module root.
 ---
---- go.work wins over go.mod, and is looked for from the file rather than from
---- the module root: a workspace makes every module it names local, and it sits
---- above the modules it uses, so the nearest one up is the answer for all of
---- them.
+--- go.work wins over go.mod and is looked for from the file: a workspace
+--- makes every module it names local, and it sits above them, so the nearest
+--- one up answers for all of them.
 local function go_context(path)
   local dir = vim.fs.dirname(path)
 
@@ -132,35 +108,40 @@ local function go_context(path)
 
   local mod = vim.fs.find("go.mod", { path = dir, upward = true, type = "file" })[1]
   if mod then
-    -- $GOMOD is the one hook gci honors, so the run stays in the file's own
-    -- directory and the module is named outright.
+    -- $GOMOD is the one hook gci honors, so the module is named outright
     return { cwd = dir, env = { GOMOD = mod } }
   end
 
   return nil
 end
 
---- The ways of saying no, for a switch that is a yes or a no rather than a
---- value. Everything else is a yes, since a variable set to a word nobody
---- reads as no was set to turn something off.
+-- The ways of saying no to a yes-or-no switch. Anything else is a yes: a
+-- variable set to a word nobody reads as no was set to turn something off.
 local NO = { [""] = true, ["0"] = true, ["false"] = true, no = true, off = true }
 
---- Whether the gci pass is switched off, from $GOIMPORTNOGCI.
----
---- Asked per save rather than at load, so the answer can change in a running
---- editor: `:let $GOIMPORTNOGCI = 1` while the gci on PATH is the wrong one,
---- `= 0` once it is not.
+--- Whether $GOIMPORTNOGCI turns the gci pass off. Asked per save, so
+--- `:let $GOIMPORTNOGCI = 1` takes hold in a running editor.
 local function gci_off()
   return not NO[vim.trim((vim.env.GOIMPORTNOGCI or ""):lower())]
 end
 
---- Said once each, when a Go file from outside this workspace is saved, and
---- when gci itself refuses.
+-- Each warning is said once per session.
 local warned_outside = false
 local warned_failure = false
 
+--- Re-split a saved Go file's imports with gci, in place.
+---
+--- Runs after the write, because gci is pointed at the file on disk. The
+--- result is spliced into the buffer rather than reloaded, so it joins the
+--- undo history instead of clearing it.
 local function gci_format(buf)
   if gci_off() then
+    return
+  end
+
+  -- the same trust gate as the rest of the save chain
+  local trust = require("mivn.trust")
+  if not trust.allows(trust.workspace()) then
     return
   end
 
@@ -170,17 +151,10 @@ local function gci_format(buf)
 
   local path = vim.api.nvim_buf_get_name(buf)
 
-  -- One Neovim is one workspace, and the sections above were built for this
-  -- one. A file from another checkout, reached by a picker rather than by
-  -- opening an editor there, would be regrouped against the wrong prefixes:
-  -- measured 2026-08-15, a file belonging to one checkout, saved from a
-  -- session started in another, is regrouped against the starting session's
-  -- prefixes and lands with the wrong "ours" block: silent churn in a
-  -- repository that never asked for it. The language servers are unaffected,
-  -- since each roots itself from the file.
-  --
-  -- So nothing happens instead, and it says so once. gopls has already
-  -- formatted and organised the imports by then; only the grouping is
+  -- NOTE: one session is one workspace, and the sections were built for it.
+  -- A file from another checkout would get this one's "ours" block, which is
+  -- churn in a repository that never asked for it, so it is skipped with a
+  -- warning. gopls has already organised its imports; only the grouping is
   -- missing.
   if vim.fs.relpath(workspace, vim.uv.fs_realpath(path) or path) == nil then
     if not warned_outside then
@@ -203,8 +177,8 @@ local function gci_format(buf)
     cmd[#cmd + 1] = section
   end
 
-  -- Only when there is a module to be local to. Asking for the section
-  -- without one is not a no-op: gci refuses the whole file.
+  -- NOTE: only when there is a module to be local to. Asking for
+  -- `localmodule` without one is not a no-op: gci refuses the whole file.
   if context then
     cmd[#cmd + 1] = "-s"
     cmd[#cmd + 1] = "localmodule"
@@ -212,10 +186,9 @@ local function gci_format(buf)
 
   cmd[#cmd + 1] = path
 
-  -- The buffer matches the disk right now, just after the write. If it does
-  -- not by the time gci's result comes back, I typed in the window in
-  -- between, and splicing the file over the buffer would throw those
-  -- keystrokes away; the changedtick is the guard against exactly that.
+  -- NOTE: the buffer matches the disk now, just after the write. If it no
+  -- longer does when gci answers, I typed in between, and splicing the file
+  -- in would throw those keystrokes away. The changedtick guards that.
   local tick = vim.api.nvim_buf_get_changedtick(buf)
 
   vim.system(cmd, {
@@ -223,9 +196,7 @@ local function gci_format(buf)
     cwd = context and context.cwd or nil,
     env = context and context.env or nil,
   }, function(result)
-    -- Said once, and not swallowed: gci writes the file itself, so a failure
-    -- leaves the imports as gopls grouped them with nothing on screen to say
-    -- the second pass never ran.
+    -- said, since a failed pass leaves nothing on screen otherwise
     if result.code ~= 0 then
       if not warned_failure then
         warned_failure = true
@@ -257,15 +228,15 @@ local function gci_format(buf)
       end
 
       if not vim.deep_equal(new, vim.api.nvim_buf_get_lines(buf, 0, -1, false)) then
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, new)
+        require("mivn.format").replace(buf, new)
         vim.bo[buf].modified = false
       end
     end)
   end)
 end
 
--- gopls has already run gofmt and organised the imports by the time this
--- fires; gci only re-splits them into the blocks above.
+-- gopls has run gofmt and organised the imports by the time this fires; gci
+-- only re-splits them into the blocks above.
 vim.api.nvim_create_autocmd("BufWritePost", {
   group = vim.api.nvim_create_augroup("mivn.languages.go", { clear = true }),
   pattern = "*.go",
@@ -274,10 +245,88 @@ vim.api.nvim_create_autocmd("BufWritePost", {
   end,
 })
 
+--- The Go language version named anywhere in `text`, patch dropped, or nil.
+--- Both `go version` and gopls answer with a `go1.26.5` somewhere in a line.
+local function go_language_version(text)
+  local found = (text or ""):match("go(%d+%.%d+)")
+  return found and vim.version.parse(found, { strict = false }) or nil
+end
+
+--- Reports to :checkhealth whether gopls can read the toolchain it is
+--- pointed at.
+---
+--- gopls type-checks with the go/types compiled into it, so the Go that built
+--- it caps the language version, whatever the project asks for. A gopls
+--- behind its toolchain reports errors on code that builds and says nothing
+--- about why: built with go1.24, it calls `new(42)` "42 is not a type" in a
+--- go 1.26 module. gopls itself only warns about a Go that is too old.
+---
+--- The other direction is fine, since go/types applies the version in
+--- go.mod, so only the minors are compared.
+local function check_gopls_toolchain()
+  local health = vim.health
+
+  if vim.fn.exepath("gopls") == "" or vim.fn.exepath("go") == "" then
+    return
+  end
+
+  --- What `cmd` printed, or nil unless it ran and succeeded.
+  local function output(cmd)
+    local ok, result = pcall(function()
+      return vim.system(cmd, { text = true }):wait(5000)
+    end)
+
+    return ok and result.code == 0 and result.stdout or nil
+  end
+
+  -- gopls reports the Go it was built with; the workspace's is the `go` on PATH
+  local reported = output({ "gopls", "version", "-json" })
+  local decoded = reported and select(2, pcall(vim.json.decode, reported))
+
+  local built = type(decoded) == "table" and go_language_version(decoded.GoVersion)
+  local using = go_language_version(output({ "go", "version" }))
+
+  if not built or not using then
+    return
+  end
+
+  if vim.version.lt(built, using) then
+    health.warn(
+      ("gopls was built with Go %d.%d and this workspace runs %d.%d"):format(
+        built.major,
+        built.minor,
+        using.major,
+        using.minor
+      ),
+      "It cannot type-check the newer language, and the errors it invents blame your code. Rebuild it against this toolchain."
+    )
+  else
+    health.info(
+      ("gopls was built with Go %d.%d, and this workspace runs %d.%d"):format(
+        built.major,
+        built.minor,
+        using.major,
+        using.minor
+      )
+    )
+  end
+end
+
+--- What :checkhealth mivn says under "go": whether gopls can read this
+--- toolchain, and whether the gci pass can run. gci is optional, since gopls
+--- already formats and organises the imports.
+local function health()
+  check_gopls_toolchain()
+
+  if gci_off() then
+    vim.health.info("gci: off (turned off by $GOIMPORTNOGCI)")
+  else
+    require("mivn.health").binary("gci", "gci")
+  end
+end
+
 return {
-  --- Whether the gci pass is off, so that :checkhealth mivn says off for the
-  --- same reason it does not run.
-  gci_off = gci_off,
+  health = health,
 
   servers = {
     gopls = {
@@ -286,20 +335,17 @@ return {
       probe = { "version" },
 
       config = {
-        -- GOMEMLIMIT is a ceiling the collector aims for, not a wall: it works
-        -- harder as the heap climbs towards it instead of the process
-        -- growing. It covers the daemon whole, i.e. every window sharing it,
-        -- so it may need raising rather than lowering if things start to
-        -- drag.
+        -- GOMEMLIMIT is a target for the collector, not a wall: it works
+        -- harder as the heap nears it. It covers the whole daemon, i.e. every
+        -- window sharing it, so if things drag it may need raising rather
+        -- than lowering.
         cmd_env = { GOMEMLIMIT = "2GiB" },
 
         settings = {
           gopls = {
-            -- Quoted because `local` is a Lua keyword and cannot be a bare
-            -- key. It groups our prefixes into one block ahead of the
-            -- module's own; gci re-splits the file afterwards and owns the
-            -- final layout, so this mostly matters when gci is not
-            -- installed.
+            -- Our prefixes, in one block ahead of the module's own. gci
+            -- re-splits the file afterwards, so this matters mostly when gci
+            -- is not installed.
             ["local"] = table.concat(import_prefixes, ","),
 
             -- golangci-lint runs staticcheck already, and two copies of the
@@ -307,16 +353,14 @@ return {
             staticcheck = false,
 
             analyses = {
-              -- Structs whose fields would take less memory in another order,
-              -- with the order to use. Off in gopls and off in golangci-lint,
-              -- where it would fail a build over a layout that is fine; here
-              -- it is a thing to notice while I am already in the file and to
-              -- act on when the struct is one I care about the size of.
-              -- <leader>aa on the line offers the reordering as an edit.
+              -- Structs whose fields would take less memory in another order.
+              -- Off in golangci-lint, where it would fail a build over a
+              -- layout that is fine; here it is something to notice while I
+              -- am in the file, with the reordering as a code action.
               fieldalignment = true,
             },
 
-            -- The codelenses are the ones I use.
+            -- The lenses I use.
             codelenses = {
               generate = true,
               regenerate_cgo = true,
@@ -327,14 +371,9 @@ return {
               vulncheck = true,
             },
 
-            -- All eight kinds. They read as facts the compiler already knew
-            -- and I did not have to; how loud they are is the LspInlayHint
-            -- highlight group's business, in colors/basalt.lua.
-            --
-            -- ignoredError is the odd one out and the one worth the most: it
-            -- marks a statement whose error result goes nowhere, which is the
-            -- one thing in this list the compiler knows and says nothing
-            -- about.
+            -- All eight kinds: facts the compiler knew that I do not have to.
+            -- ignoredError is worth the most: it marks a statement whose error
+            -- goes nowhere, which the compiler knows and never says.
             hints = {
               assignVariableTypes = true,
               compositeLiteralFields = true,
@@ -346,21 +385,16 @@ return {
               rangeVariableTypes = true,
             },
 
-            -- The same trade lua/mivn/languages/rust.lua takes and explains:
-            -- gopls puts a pkg.go.dev URL behind every symbol in a hover, and
-            -- Neovim conceals the URL while still measuring the line with it,
-            -- so the float comes out far wider than the words in it.
+            -- Off for the reason rust.lua gives for its hover links.
             linksInHover = false,
 
-            -- What colors a package qualifier in call position: tree-sitter
-            -- cannot tell `pkg.Exec(...)` from a variable. gopls stopped
-            -- advertising semantic tokens in v0.22, so they have to be asked
-            -- for. nvim-lspconfig asks too; this says it anyway rather than
-            -- resting on a default that lives in someone else's file.
-            --
-            -- These are drawn above tree-sitter, so the one token that has to
-            -- be given up is the string: colors/basalt.lua clears it, or it
-            -- would paint over the SQL in queries/go/injections.scm.
+            -- What colors a package qualifier in call position, since
+            -- tree-sitter cannot tell `pkg.Exec(...)` from a variable. gopls
+            -- stopped advertising semantic tokens in v0.22, so they have to
+            -- be asked for; nvim-lspconfig asks too, but that default lives
+            -- in someone else's file. colors/basalt.lua clears the string
+            -- token, which would paint over the SQL queries/go/injections.scm
+            -- injects.
             semanticTokens = true,
           },
         },
@@ -372,17 +406,11 @@ return {
       probe = false,
 
       config = {
-        -- nvim-lspconfig puts .golangci.yml at the head of this list, and a
-        -- marker list is read in order rather than nearest-first, so a single
-        -- shared config above a tree of checkouts roots every file in them at
-        -- that directory. Mine sits in ~, which rooted this server at ~ for
-        -- every Go file with no nearer config.
-        --
-        -- Nothing is lost by dropping it. The language server finds the module
-        -- from the file it was asked about and runs golangci-lint there,
-        -- ignoring this root entirely, and golangci-lint walks up from that
-        -- module on its own to find the config. A root is a workspace, and the
-        -- workspace is the module.
+        -- NOTE: no .golangci.yml, which nvim-lspconfig puts first. Markers
+        -- are read in order, not nearest first, so one shared config above
+        -- many checkouts (mine sits in ~) would root every Go file under it
+        -- there. Nothing is lost: the server runs golangci-lint in the file's
+        -- module, and golangci-lint walks up from there to find its config.
         root_markers = { "go.work", "go.mod", ".git" },
       },
     },

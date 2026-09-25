@@ -11,12 +11,10 @@
 # all this reads. The editor is the working copy, through NVIM_APPNAME=mivn,
 # unless the environment already names one.
 #
-# The two rules. An unshifted special key bound in Normal or Insert is bound
+# The two rules: an unshifted special key bound in Normal or Insert is bound
 # in all four of Normal, Insert, Visual and Select, or is listed in this file
-# with the reason it is not: 'keymodel' runs Vim's own key over a selection
-# and never a mapping of mine, so a key left out of Visual or Select lands
-# somewhere else there (lua/mivn/keymaps.lua says why). And every leader key
-# is named in README.md and in DEFAULTS.md, spelled <Space>x or <leader>x.
+# with the reason it is not; and every leader key is named in README.md and in
+# DEFAULTS.md, spelled <Space>x or <leader>x.
 
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -35,10 +33,9 @@ probe=$(mktemp --suffix=.lua) || {
 trap 'rm -f "$probe"' EXIT
 
 cat > "$probe" <<'LUA'
--- Loaded before init.lua, so that every vim.keymap.set and vim.keymap.del
--- keymaps.lua makes is seen. Only that file's calls are kept: a mapping made
--- while some buffer exists belongs to its module, and this is about the keys
--- that are on for the whole session.
+-- Loaded before init.lua, so that every vim.keymap.set and vim.keymap.del is
+-- seen. Only lua/mivn/keymaps.lua's calls are kept, since the rules are about
+-- the keys that are on for the whole session.
 
 local set, del = vim.keymap.set, vim.keymap.del
 local MODES = { "n", "i", "x", "s", "o", "c", "t" }
