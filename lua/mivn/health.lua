@@ -1,15 +1,12 @@
--- :checkhealth mivn: does the language-server setup actually work, and is
--- what is on disk what plugins.lua says?
+-- `:checkhealth mivn`: whether the language servers and formatters actually
+-- run, whether the plugins on disk are the ones plugins.lua pins, and where the
+-- workspace stands on trust.
 --
--- The trap this exists for: executable() answers "is there a file", not
--- "does it run". A rustup shim with no component behind it is an executable
--- that recurses until rustup gives up, so the server table said on while
--- nothing worked. Each installed binary is run once here, with a version
--- flag and a timeout, and what it answers is what gets reported.
---
--- Nothing here installs anything, so a server that is off is a tool missing
--- from the environment the editor was launched with rather than anything
--- this config can fix.
+-- executable() only says a file is there, not that it runs: a rustup shim with
+-- no component behind it is executable and fails every time. So each binary
+-- found is run once, with a version flag and a timeout or long enough to see it
+-- stay up, and its answer is what gets reported. Nothing here installs
+-- anything.
 
 local M = {}
 
@@ -27,11 +24,8 @@ local function first_line(...)
   return ""
 end
 
---- The line of a failed start that says what went wrong.
----
---- The first line is usually scaffolding: node opens with the file and line of
---- its own loader, and the sentence worth reading is four lines down. So the
---- first line naming a fault wins, and the plain first line is the fallback.
+--- The line of a failed start that says what went wrong: the first naming an
+--- error, since node opens with its own loader's file and line, else the first.
 local function first_fault(...)
   for _, text in ipairs({ ... }) do
     for line in (text or ""):gmatch("[^\r\n]+") do
@@ -45,17 +39,10 @@ local function first_fault(...)
   return first_line(...)
 end
 
---- The command Neovim would actually start `name` with.
----
---- It has to be that one and not the bare binary, because the arguments
---- decide the answer: `expert` exits 2 without a transport flag, so starting
---- it on its own would condemn a server that works. mivn names `cmd` for some
---- servers and leaves the rest to nvim-lspconfig, and vim.lsp.config is where
---- the two meet.
----
---- nvim-lspconfig ships a function for some of them, to prefer a copy the
---- project carries. Those are left alone: the binary already found on PATH is
---- what this is asking about.
+--- The command Neovim would start `name` with, with `path` as the binary. The
+--- arguments matter: `expert` exits 2 without a transport flag. A `cmd` that is
+--- a function (nvim-lspconfig's way to prefer a project's own copy) gives just
+--- `path`, since that is the binary being asked about.
 local function launch_argv(name, path)
   local configured = vim.lsp.config[name]
   local cmd = configured and configured.cmd
@@ -72,28 +59,19 @@ local function launch_argv(name, path)
   return argv
 end
 
---- How long a server with no version flag has to stay up to count as working.
----
---- The failure this catches is immediate. A launcher whose package shipped
---- without the code behind it dies in about 50 milliseconds, measured, so half
---- a second is ten times the room it needs.
+--- How long, in milliseconds, a server with no version flag has to stay up to
+--- count as working. A launcher missing the code behind it dies in about 50.
 local LIVENESS = 500
 
---- Start every server that has no version flag, all at once, so the half
---- second each one has to prove itself is paid once and not once per server:
---- six of them held one after the other made this check take 4.4 seconds,
---- and together they take one (measured 2026-09-03). Each is looked at
---- again in check_liveness, in its turn, with however much of its half
---- second is left.
----
---- Returns the servers started, and the directory they were started in: the
---- caller removes it once every one of them has been looked at.
+--- Start every server that has no version flag, all at once, so the wait for
+--- them is paid once and not once per server. Returns them by name, and the
+--- directory they run in, which the caller removes once check_liveness has seen
+--- every one.
 local function start_all(servers)
   local started = {}
 
-  -- Somewhere of their own to start in, not the directory the editor is in:
-  -- expert writes an `.expert/` log directory wherever it starts, which is
-  -- how one turned up in this repository (measured 2026-09-03).
+  -- NOTE: not the editor's directory, since expert writes an `.expert/` log
+  -- directory wherever it starts.
   local scratch = vim.fn.tempname()
   vim.fn.mkdir(scratch, "p")
 
@@ -101,6 +79,8 @@ local function start_all(servers)
     local path = entry.probe == false and vim.fn.exepath(entry.binary) or ""
 
     if path ~= "" then
+      -- NOTE: stdin is a pipe held open, since a working server that reads
+      -- end-of-file exits, which looks just like the failure being looked for.
       local ok, proc = pcall(vim.system, launch_argv(name, path), { text = true, stdin = true, cwd = scratch })
       started[name] = { ok = ok, proc = proc, at = vim.uv.hrtime() }
     end
@@ -109,20 +89,8 @@ local function start_all(servers)
   return started, scratch
 end
 
---- A server that answers no version flag, checked by starting it the way the
---- editor would and seeing whether it is still there a moment later.
----
---- "Found at <path>" was the old answer and it was worth very little. exepath
---- says a file exists; it does not say the file runs. Measured 2026-08-23,
---- when every published version of @zed-industries/vscode-langservers-extracted
---- carried launchers requiring a `lib/` the tarball did not hold: jsonls,
---- cssls and html were all reported found while none of the three could start,
---- and the first anyone knew of it was a server exiting 1 on opening a file.
----
---- Timing out is the healthy answer here, since a server with nothing to read
---- should sit and wait rather than return. stdin is a pipe held open for that
---- reason: closed, a working server would see end-of-file and exit for a good
---- reason, which is the same shape as the failure being looked for.
+--- Report a server started by start_all(): healthy when it is still up after
+--- LIVENESS, since a server with nothing to read should sit and wait.
 local function check_liveness(label, binary, path, started)
   local health = vim.health
 
@@ -131,16 +99,12 @@ local function check_liveness(label, binary, path, started)
     return
   end
 
-  -- What is left of its half second; at least a moment, so that a server
-  -- already past it is still asked rather than assumed. A server killed for
-  -- outliving the wait is reaped a moment after, and wait() hands back
-  -- nothing until it is, so the second wait is for that alone: it returns
-  -- at once when the answer is already in.
+  -- NOTE: the second wait is not redundant. A server killed for outliving the
+  -- first is reaped a moment later, and wait() returns nil until it is.
   local elapsed = (vim.uv.hrtime() - started.at) / 1e6
   local result = started.proc:wait(math.max(1, math.floor(LIVENESS - elapsed))) or started.proc:wait(1000)
 
-  -- 124 is what wait() reports when it runs out of patience and kills, which
-  -- is to say the server was still running.
+  -- 124 is wait() timing out and killing it, i.e. the server was still up
   if result.code == 124 then
     health.info(("%s: starts and keeps running (%s)"):format(label, path))
     return
@@ -157,13 +121,11 @@ local function check_liveness(label, binary, path, started)
   )
 end
 
---- Probe one binary; report through vim.health.
+--- Probe one binary and report it as a row named `label`.
 ---
---- The healthy rows go through info, not ok, on purpose: vim.health.ok
---- hard-codes "✅ OK" in front of the message, so every row would read
---- "OK name" when the section is a table scanned by name. Info rows keep
---- the name first; the loud levels, prefix and all, are kept for rows
---- that are actually trouble.
+--- NOTE: healthy rows go through info, not ok. vim.health.ok puts "✅ OK" in
+--- front of the message, so a section read by name would start every row with
+--- "OK".
 local function check_binary(label, binary, probe, started)
   local health = vim.health
 
@@ -207,9 +169,9 @@ local function check_binary(label, binary, probe, started)
   health.info(("%s: %s"):format(label, first_line(result.stdout, result.stderr, path)))
 end
 
---- Probe `binary` for its version and report it as a row named `label`, the
---- way every server and formatter row is. `probe` is the arguments to ask
---- with, `--version` when nil. For a language file's `health`.
+--- Probe `binary` and report it as a row named `label`, the way every server
+--- and formatter row is. `probe` is the arguments to ask with, `--version` when
+--- nil.
 function M.binary(label, binary, probe)
   check_binary(label, binary, probe, {})
 end
@@ -242,22 +204,20 @@ local function check_servers(lsp)
     check_binary(name, entry.binary, entry.probe, started)
   end
 
-  -- Every server started above has been waited on by now, so nothing writes
-  -- there any more; removed here since a session can run this many times.
+  -- every server above has been waited on, so nothing writes there any more
   vim.fn.delete(scratch, "rf")
 end
 
---- What is on disk against what plugins.lua pins. vim.pack installs a plugin
---- at its pin and never looks at the clone again, so a pin moved by a pull
---- leaves the old checkout running, and a plugin dropped from plugins.lua
---- stays on disk. Neither says anything on its own.
+--- What is on disk against what plugins.lua pins. vim.pack installs a plugin at
+--- its pin and never looks at the clone again, so a pin moved by a pull leaves
+--- the old checkout running and a plugin dropped from the list stays on disk,
+--- and neither says so on its own.
 local function check_plugins()
   local health = vim.health
 
   health.start("plugins")
 
-  -- `info = false` keeps vim.pack from asking every clone for its tags and
-  -- branches, which nothing here reads.
+  -- `info = false` skips asking every clone for tags and branches, unused here
   local plugins = vim.pack.get(nil, { info = false })
   local behind, orphans = {}, {}
 
@@ -302,8 +262,8 @@ local function check_plugins()
   end
 end
 
---- Silent by construction: a grammar without its queries highlights nothing
---- and reads as the colorscheme having forgotten the language.
+--- Grammars that lost their queries, which fails in silence: the language turns
+--- on and colors nothing.
 local function check_grammars()
   local health = vim.health
   local grammars = require("mivn.treesitter")
@@ -335,8 +295,7 @@ local function check_trust()
 
   health.start("workspace trust")
 
-  -- The directory :MivnTrust would act on, so what this reports and what
-  -- that changes cannot be two different places.
+  -- the directory :MivnTrust acts on, so the two cannot disagree
   local here = trust.here()
   local state, decided_by = trust.status(here)
   if state == "allowed" then

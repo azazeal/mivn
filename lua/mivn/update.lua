@@ -1,39 +1,35 @@
--- Whether a newer mivn is out.
+-- Whether a newer mivn is out, and `:MivnUpdate` to take it.
 --
 -- The config directory is a git clone, so "newer" means a release tag the
--- remote has and this checkout does not. The whole check is one `git
--- ls-remote` against the repository's public https URL: it fetches nothing,
--- writes nothing into the repository, and takes the network at most once a
--- day, with the answer kept in a small file under stdpath("state").
+-- remote has and this checkout does not. The check is one `git ls-remote`
+-- against the repository's public https URL, at most once a day, with the
+-- answer kept under stdpath("state"); it fetches nothing and writes nothing
+-- into the repository.
 --
--- Releases, not commits, on purpose. A commit on main means I pushed
--- something, which on my own config is most of the time; a tag means I decided
--- it was good, which is the only thing worth interrupting anyone about. It
--- also keeps this quiet on the machine I write mivn on, where HEAD is usually
--- ahead of the newest tag.
+-- Releases and not commits, since a tag is me deciding a version is good. It
+-- also keeps this quiet where I write mivn, as HEAD there is usually past the
+-- newest tag.
 --
--- It must never touch an ssh key. A global gitconfig can rewrite the https
--- URL to ssh (url.<base>.insteadOf), and a background git on a machine whose
--- agent holds no key then hangs on a passphrase prompt nothing is drawing. So
--- GIT_CONFIG_GLOBAL=/dev/null drops the rewrite for these subprocesses alone,
--- and GIT_TERMINAL_PROMPT=0 turns any prompt that still finds a way through
--- into a failure instead of a hang. Never set either for the whole process:
--- :terminal must keep my real git config.
---
--- Nothing updates itself. The notice is the feature, and :MivnUpdate is me
--- saying yes to it: a move onto the release the notice named, refused outright
--- if this checkout has anything of its own in it, and never a restart. Neovim
--- is running the Lua it loaded at startup, so moving the files under a live
--- session changes nothing that is read again until :restart, and the pins in
--- plugins.lua move without the plugins moving with them. Both of those are for
--- me to do, once I am ready.
+-- Nothing updates itself: `:MivnUpdate` is me saying yes to the notice. It
+-- moves onto the release the notice named, refuses if this checkout has
+-- anything of its own, and never restarts. Neovim runs the Lua it loaded at
+-- startup, so the new files count from `:restart`, and moved plugin pins from
+-- `vim.pack.update()`; both are mine to run.
 
 local M = {}
 
 local CACHE = vim.fs.joinpath(vim.fn.stdpath("state"), "update.json")
 local TTL = 24 * 60 * 60
 
---- git, with the environment that keeps it off ssh and off any prompt.
+--- git, kept off ssh and off any prompt.
+---
+--- NOTE: a global gitconfig can rewrite an https URL to ssh
+--- (url.<base>.insteadOf), and a git in the background on a machine whose agent
+--- holds no key then hangs on a passphrase prompt nothing is drawing.
+--- GIT_CONFIG_GLOBAL=/dev/null drops the rewrite for this subprocess alone, and
+--- GIT_TERMINAL_PROMPT=0 turns any prompt that still gets through into a
+--- failure. Neither may be set for the whole process, since `:terminal` has to
+--- keep my real git config.
 local function git(args, on_exit)
   return vim.system(args, {
     text = true,
@@ -52,14 +48,12 @@ local function ask(args)
   return value ~= "" and value or nil
 end
 
---- git inside the config directory, for the questions with local answers, and
---- only when that directory is a checkout in its own right.
+--- git's trimmed answer inside the config directory, or nil when git fails,
+--- says nothing, or the directory is not a checkout of its own.
 ---
---- The guard is the point: git searches upwards from -C, so a config directory
---- that merely sits inside some other repository (a dotfiles repo holding all
---- of ~/.config, say) answers every question below with that repository's tags
---- and origin. A `.git` of its own is what a checkout has and such a directory
---- does not, and asking the disk costs no subprocess on the way to the banner.
+--- NOTE: the `.git` check is the point. git searches upwards from -C, so a
+--- config directory inside some other repository (a dotfiles repo holding all
+--- of ~/.config, say) would answer with that repository's tags and origin.
 local rooted
 local function here(args)
   if rooted == nil then
@@ -74,10 +68,8 @@ local function here(args)
 end
 
 --- `git describe --tags` for HEAD, asked once: `v0.2.1` on a release and
---- `v0.2.1-7-gabc1234` past one. nil when it is not a clone or has no tags.
----
---- `false` is the "asked once, got nothing" marker; nil alone would ask git
---- again on every dashboard render.
+--- `v0.2.1-7-gabc1234` past one, nil when it is not a clone or has no tags.
+--- `false` in the memo is "asked, got nothing", so a miss is not asked again.
 local described
 local function describe()
   if described == nil then
@@ -93,23 +85,17 @@ local function version()
   return tag and (tag:gsub("%-%d+%-g%x+$", "")) or nil
 end
 
---- The release this checkout is on, as something to show a person.
----
---- The tag alone when HEAD sits exactly on one, and the pin format the rest of
---- the repo already uses past it (v0.2.1+7, written by .github/scripts/repin),
---- so a checkout ahead of a release never claims to be that release. Nothing
---- about the working tree: I dirty this config all day and do not need a
---- banner telling me so.
+--- The release this checkout is on, for showing: `v0.2.1` on the tag and
+--- `v0.2.1+7` past it (the shape of the pins in plugins.lua), so a checkout
+--- ahead of a release never claims to be it. nil when there is no tag. The
+--- working tree is left out, since I dirty this config all day.
 function M.running()
   local tag = describe()
   return tag and (tag:gsub("%-(%d+)%-g%x+$", "+%1")) or nil
 end
 
---- The public https URL for origin, whatever form origin is written in.
----
---- ssh://git@github.com/o/r.git, git@github.com:o/r.git and the https URL all
---- name the same repository, and only the last of the three can be read
---- without a key.
+--- The public https URL for origin, which can be read without a key whether
+--- origin is written as ssh or https. nil when origin is not on GitHub.
 local function url()
   local remote = here({ "remote", "get-url", "origin" })
   if not remote then
@@ -124,12 +110,9 @@ local function url()
   return ("https://github.com/%s"):format((path:gsub("%.git$", "")))
 end
 
---- The newest of `names`, as a "v1.2.3" string.
----
---- Prereleases are skipped: I do not want to be told about an rc, and I do not
---- want to be moved onto one either. The remote's tags and this checkout's own
---- go through here alike, so both ends of the comparison agree on what the
---- newest release is.
+--- The newest release among `names`, as "v1.2.3", or nil when there is none.
+--- Prereleases do not count. The remote's tags and the local ones both go
+--- through here, so the two ends of a comparison agree on what a release is.
 local function newest(names)
   local best
 
@@ -143,11 +126,8 @@ local function newest(names)
   return best and ("v%s"):format(tostring(best)) or nil
 end
 
---- The tag names in ls-remote output.
----
---- Annotated tags come back twice, the second as refs/tags/<name>^{} for the
---- commit they point at; the suffix comes off and the duplicate loses to
---- itself.
+--- The tag names in ls-remote output. An annotated tag comes back twice, once
+--- more as `<name>^{}`; without the suffix the copy changes nothing.
 local function advertised(stdout)
   local names = {}
 
@@ -202,8 +182,7 @@ function M.report()
   }
 end
 
---- The report, but only when there is something newer to say. nil otherwise,
---- which is what every caller draws nothing for.
+--- The report when a newer release is out, nil otherwise.
 function M.status()
   local report = M.report()
   if not (report.current and report.latest) then
@@ -217,13 +196,11 @@ function M.status()
   return report
 end
 
---- Ask the remote, unless the last answer is still fresh.
----
---- Silent about failures on purpose: no network, no route, a repository that
---- moved. None of that is worth a message while I am trying to edit, and the
---- next session asks again.
 local asking = false
 
+--- Ask the remote in the background, unless the last answer is still fresh, and
+--- fire `User MivnUpdate` once it answers. A failure says nothing, since the
+--- next session asks again.
 function M.check()
   if asking then
     return
@@ -252,19 +229,18 @@ function M.check()
       cached = { checked = os.time(), latest = latest }
       write(cached)
 
-      -- Whoever is drawing the answer redraws it; this module knows about no
-      -- window of its own.
+      -- whoever draws the answer redraws on this
       vim.api.nvim_exec_autocmds("User", { pattern = "MivnUpdate", modeline = false })
     end)
   end)
 end
 
---- git in the config directory, keeping my own git config.
+--- git in the config directory with my own git config, so with origin's real
+--- URL and my keys.
 ---
---- The opposite of the check above, and deliberately: this one is allowed to
---- use origin's real URL and my keys, because taking a release is exactly what
---- they are for. BatchMode is what stops a machine with no key loaded from
---- hanging on a passphrase prompt in a window with no way to answer it.
+--- NOTE: not git() above. Taking a release is what my keys are for, so the
+--- global config stays, and BatchMode is what stops a machine with no key
+--- loaded from hanging on a passphrase prompt nothing can answer.
 local function take(args, on_exit)
   return vim.system(vim.list_extend({ "git", "-C", vim.fn.stdpath("config") }, args), {
     text = true,
@@ -277,27 +253,16 @@ local function trouble(out)
   return vim.trim(out.stderr ~= "" and out.stderr or out.stdout)
 end
 
---- Take the release the notice is about.
+--- Take the release the notice is about: the newest release tag, and not the
+--- branch, which moves on with every merge.
 ---
---- A move onto the newest release tag, and not a pull of the branch: the
---- branch moves on with every merge, so pulling it lands on whatever main
---- happens to be today, which is not the version the banner named and is not
---- a version I decided anything about.
----
---- Two shapes, because a checkout can be on a branch or not. On a branch the
---- move is a fast-forward. Detached is where a clone of a release tag lands,
---- and is a fine way to run this, so there the move is a checkout of the new
---- tag and HEAD stays detached. Neither shape is allowed to drop work: a
---- dirty tree stops before the fetch, and a HEAD the release does not already
---- carry stops after it.
----
---- The fetch happens before the question, because what is worth asking about
---- is what the release actually carries: how many commits, and whether the
---- plugins move with it. Fetching alone changes nothing here, so an answer of
---- no leaves this checkout exactly as it was.
+--- On a branch the move is a fast-forward. Detached, which is where a clone of
+--- a release tag lands, it is a checkout of the new tag. Neither may drop work:
+--- a dirty tree stops before the fetch, and a HEAD the release does not carry
+--- stops after it. The fetch comes before the question, so the question can say
+--- what the release carries, and an answer of no changes nothing.
 local function pull()
-  -- An origin is all this needs, unlike the check, which has to build a URL it
-  -- can read without a key.
+  -- origin as it is; only the check needs a URL that works without a key
   if not here({ "remote", "get-url", "origin" }) then
     vim.notify("This config has no git remote to take anything from.", vim.log.levels.WARN)
     return
@@ -308,7 +273,7 @@ local function pull()
     return
   end
 
-  -- nil when HEAD is detached, which is what picks the move made below.
+  -- nil when HEAD is detached, which picks the move below
   local branch = here({ "symbolic-ref", "-q", "HEAD" })
 
   vim.notify("Fetching...")
@@ -326,21 +291,16 @@ local function pull()
         return
       end
 
-      -- Everything from here is local and immediate, so it runs in line rather
-      -- than nesting another callback under this one.
-      --
-      -- A release this checkout already has, or sits past, is nothing to ask
-      -- about: a move onto it would be a no-op that still exits 0.
+      -- on the release or past it, so a move would do nothing
       if take({ "merge-base", "--is-ancestor", target, "HEAD" }):wait(5000).code == 0 then
         vim.notify(("Already on %s, or past it."):format(target))
         return
       end
 
-      -- WARN: the other direction is what keeps a detached checkout's own
-      -- commits. `merge --ff-only` refuses on its own, but only after the
-      -- question has been asked and answered; `checkout` does not refuse at
-      -- all, and would walk off the commits leaving nothing but the reflog to
-      -- find them by. So the release has to already carry every commit here.
+      -- NOTE: this check is what keeps a detached checkout's own commits.
+      -- `merge --ff-only` refuses on its own, but only after the question has
+      -- been answered; `checkout` does not refuse at all, and would leave the
+      -- commits to the reflog. So the release has to carry every commit here.
       if take({ "merge-base", "--is-ancestor", "HEAD", target }):wait(5000).code ~= 0 then
         vim.notify("Your config has commits of its own, so nothing was taken.", vim.log.levels.WARN)
         return
@@ -362,10 +322,7 @@ local function pull()
           return
         end
 
-        -- On a branch the branch itself has to move, which is what the merge
-        -- is for. Detached there is nothing to move, so the tag is checked
-        -- out and HEAD is left detached on it, the same state the checkout
-        -- was already in.
+        -- a branch moves with the release, a detached HEAD stays detached
         local move = branch and { "merge", "--ff-only", target } or { "checkout", "--detach", target }
 
         local moved = take(move):wait(30000)
@@ -374,7 +331,7 @@ local function pull()
           return
         end
 
-        -- The release moved, so the memo has to go; the banner asks again.
+        -- HEAD moved, so describe() has to ask again
         described = nil
         vim.api.nvim_exec_autocmds("User", { pattern = "MivnUpdate", modeline = false })
 
@@ -393,9 +350,8 @@ vim.api.nvim_create_user_command("MivnUpdate", pull, {
   desc = "Pull the newest mivn, if this config has no changes of its own",
 })
 
--- Once a session, a couple of seconds in, so a start that is already busy
--- cloning plugins is not also spawning this. Not headless: a boot in CI has
--- no one to tell, and the check would only be network the run does not need.
+-- Checked once a session, two seconds in, so a start busy cloning plugins is
+-- not also spawning this. Never headless, where there is no one to tell.
 vim.api.nvim_create_autocmd("VimEnter", {
   group = vim.api.nvim_create_augroup("mivn.update", { clear = true }),
   callback = function()

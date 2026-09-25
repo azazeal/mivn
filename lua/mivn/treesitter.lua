@@ -1,15 +1,14 @@
--- Tree-sitter: highlighting, folds, and language injection.
+-- Tree-sitter: highlighting, folds and injections, and the file types that need
+-- a word to reach the right grammar.
 --
--- Neovim parses with tree-sitter itself; nvim-treesitter only supplies the
--- grammars and their query files. Grammars are compiled C, so they are not
--- installed automatically: run `:MivnInstallGrammars` once, with a C compiler
--- present. Anything without a grammar falls back to regex highlighting.
+-- nvim-treesitter only supplies the grammars and their queries; Neovim does the
+-- parsing. Grammars are compiled C and are not installed on their own:
+-- `:MivnInstallGrammars` builds them, with a C compiler present. A language
+-- with no grammar falls back to Vim's own syntax highlighting.
 
 local ts = require("nvim-treesitter")
 
---- Where the parsers and their query files are put. Named once and exported
---- below, because `:checkhealth mivn` has to look inside it and a second
---- spelling of this path is a second thing to keep in step.
+--- Where the parsers and their query files are put.
 local INSTALL_DIR = vim.fs.joinpath(vim.fn.stdpath("data"), "site")
 
 ts.setup({
@@ -23,11 +22,9 @@ function M.installed()
   return ts.get_installed()
 end
 
---- The installed grammars whose queries are gone: the parser loads and every
---- capture comes back empty, so the language turns on and colours nothing.
----
---- The queries are a symlink into the plugin's own runtime directory, so a
---- plugin that moves leaves the link pointing at nothing. nvim-treesitter's
+--- The installed grammars whose queries are gone, so the language turns on and
+--- colors nothing. The queries are a symlink into the plugin's own directory,
+--- which a moved plugin leaves pointing at nothing, and nvim-treesitter's
 --- update does not notice, since it only compares parser revisions.
 function M.broken()
   return vim.tbl_filter(function(lang)
@@ -95,8 +92,8 @@ local grammars = {
   "zig",
 }
 
--- The missing grammars and the broken ones, both forced. A plain install
--- skips any language whose parser is on disk, which is the broken one.
+-- NOTE: forced, since a plain install skips any language whose parser is on
+-- disk, and a broken grammar still has its parser.
 vim.api.nvim_create_user_command("MivnInstallGrammars", function()
   local installed = ts.get_installed()
   local wanted = M.broken()
@@ -119,27 +116,13 @@ vim.api.nvim_create_user_command("MivnUpdateGrammars", function()
   ts.update()
 end, { desc = "Update every installed tree-sitter grammar" })
 
---- Go templates, over whatever they are templates of -------------------------
-
 -- `jsonc` has no grammar of its own and the json parser accepts the comments.
 vim.treesitter.language.register("json", "jsonc")
 
--- Files that are JSON with comments in them but are not called `.jsonc`.
---
--- The file type is what decides how the file is formatted: `jsonc` has no
--- formatter of its own, so it goes to the language server, which keeps the
--- comments, while `json` goes to jq, which cannot parse one. So a file
--- carrying comments under the wrong name is not formatted at all, and says so
--- on every save.
---
--- Neovim already names most of them (`:h ft-jsonc`, and `[jt]sconfig*.json`,
--- `.babelrc`, `.eslintrc`, `.jshintrc`, `.luaurc`, `bun.lock` among them).
--- These are the ones it misses. The first four are on Zed's list for the same
--- language and the rest are documented by the tools that read them.
---
--- The `.vscode` pattern is the gap worth having: Neovim reads the *user*
--- settings under `Code/User/` as jsonc and a project's own `.vscode` as plain
--- json, and a project's is the one I open.
+-- JSON with comments that Neovim does not already call `jsonc` (`:h ft-jsonc`),
+-- a project's own `.vscode` files among them. The name decides the formatter:
+-- `jsonc` goes to the language server, which keeps comments, and `json` to jq,
+-- which cannot parse them.
 vim.filetype.add({
   filename = {
     ["devcontainer.json"] = "jsonc",
@@ -158,11 +141,9 @@ vim.filetype.add({
 -- A Tiltfile is Starlark, and there is no grammar under its own name.
 vim.treesitter.language.register("starlark", "tiltfile")
 
--- Compose files earn a filetype of their own, because that is the name the
--- Docker language server claims them by (lua/mivn/languages/dockerfile.lua);
--- nothing else produces it, so it is declared here. The yaml grammar keeps highlighting
--- them: the dotted name means "yaml, then more specific", and the register
--- call is what tells tree-sitter that.
+-- Compose files get `yaml.docker-compose`, the file type the Docker language
+-- server claims them by, which nothing else sets. The register keeps the yaml
+-- grammar on them, since tree-sitter does not read the dotted name as yaml.
 vim.treesitter.language.register("yaml", "yaml.docker-compose")
 
 vim.filetype.add({
@@ -174,6 +155,8 @@ vim.filetype.add({
   },
 })
 
+--- Go templates, over whatever they are templates of -------------------------
+
 --- The language a template is a template *of*, or nil when the name does not
 --- say, the file type has no grammar, or that grammar is not installed.
 ---
@@ -183,32 +166,26 @@ local function inner_lang(path, buf)
   local name = vim.fs.basename(path)
   local stem = name:match("^(.*)%.tmpl$") or name:match("^(.*)%.tpl$") or name
 
-  -- The basename alone: matched against the whole path, a file under
-  -- `.chezmoitemplates` would come back as a template again.
+  -- the basename alone, or a file under `.chezmoitemplates` is a template again
   local ft = vim.filetype.match({ filename = stem, buf = buf })
   local lang = ft and vim.treesitter.language.get_lang(ft)
 
-  -- `foo.tmpl.tmpl` would inject the template language into itself, and each
-  -- round has text nodes of its own to inject into again.
+  -- `foo.tmpl.tmpl` would inject gotmpl into itself, round after round
   if not lang or lang == "gotmpl" then
     return nil
   end
 
-  -- The grammar it names may not be one this config carries. language.add()
-  -- answers that with nil and a message rather than an error, so the return
-  -- value is what has to be checked.
+  -- language.add() answers a grammar this config lacks with nil, not an error
   return vim.treesitter.language.add(lang) and lang or nil
 end
 
 --- Claim the buffer as a Go template, and leave the language it is a template
 --- of on the buffer as `b:mivn_template_lang`, or false when there is none.
 ---
---- The second half is why this is a function rather than a file type name.
---- vim.filetype.match() answers "what would this file be without the template
---- around it", but only from here: several of its detectors return nothing
---- once a file type has been decided for this read (`:h did_filetype()`), and
---- by the time a FileType autocmd runs one has. Detection is still in progress
---- here and the buffer already holds the file, so a shebang still counts.
+--- NOTE: the second half has to happen here, during detection, and not in a
+--- FileType autocmd. By then a file type is set for this read, and several of
+--- vim.filetype.match()'s detectors answer nothing once one is
+--- (`:h did_filetype()`).
 local function detect_template(path, buf)
   if buf then
     vim.b[buf].mivn_template_lang = inner_lang(path, buf) or false
@@ -217,15 +194,10 @@ local function detect_template(path, buf)
   return "gotmpl"
 end
 
--- A `.tmpl` file is two languages at once: Go's text/template outside, and the
--- language of the file it produces between the actions. Neovim's own detection
--- calls it `template`, a file type with an unrelated syntax file behind it,
--- and reads `.tpl` as Smarty; `gotmpl` is what the grammar is called.
---
--- chezmoi also reads everything under a `.chezmoitemplates` directory as a
--- template whatever it is called, so those files have no `.tmpl` to go on and
--- would open as the plain language with every action an error. The priority is
--- what puts the pattern ahead of the extension.
+-- `.tmpl` and `.tpl` are Go templates, where Neovim's own detection reads them
+-- as its unrelated `template` type and as Smarty. So is everything under a
+-- `.chezmoitemplates` directory, as chezmoi reads it, whatever it is called;
+-- the priority puts that pattern ahead of the extension.
 vim.filetype.add({
   extension = {
     tmpl = detect_template,
@@ -237,17 +209,11 @@ vim.filetype.add({
   },
 })
 
---- Parse `buf` as a Go template with the language named by the rest of its
---- name highlighted in between the actions.
----
---- The file arrives as a run of `text` fragments with holes where the actions
---- were. `injection.combined` is what makes that work: the fragments are
---- parsed as one document rather than one each, so a `{{ if }}` in the middle
---- of an object does not end the object.
----
---- The query has to be built per buffer, since it names the language this file
---- is a template of. So this creates the parser and the autocmd below finds it
---- already made.
+--- Parse `buf` as a Go template, with the language it is a template of injected
+--- between the actions. `injection.combined` parses the `text` fragments as one
+--- document, so a `{{ if }}` inside an object does not end the object. The
+--- query names that language, so it is built per buffer and the parser made
+--- here, before vim.treesitter.start() asks for one.
 local function parse_as_template(buf)
   local lang = vim.b[buf].mivn_template_lang
   if not lang then
@@ -263,13 +229,10 @@ local function parse_as_template(buf)
   pcall(vim.treesitter.get_parser, buf, "gotmpl", { injections = { gotmpl = injection } })
 end
 
--- Highlighting is per-buffer and opt-in, so it is started as files open. A
--- missing grammar is the normal case on a fresh checkout, not an error, but
--- it is no longer swallowed whole: Vim's own syntax highlighting stands in,
--- and a warning names the missing grammar and the command that builds it.
---
--- Indentation is left to Neovim's built-in ftplugins: tree-sitter's indent is
--- still rougher than the hand-written rules for several of these languages.
+-- Highlighting is per buffer and opt-in, so it starts as files open. A missing
+-- grammar is normal on a fresh checkout: Vim's syntax highlighting stands in,
+-- and a warning names the grammar once per session. Indentation stays with
+-- Neovim's ftplugins, still better than tree-sitter's for several of these.
 local missing_warned = {}
 
 vim.api.nvim_create_autocmd("FileType", {
@@ -285,11 +248,7 @@ vim.api.nvim_create_autocmd("FileType", {
     end
 
     if not pcall(vim.treesitter.start, ev.buf, lang) then
-      -- Failing silently here cost real time twice: a fresh clone has no
-      -- compiled grammars (they live in the data directory, not this repo),
-      -- and everything just stays plain with no hint why. Say it, once per
-      -- language per session, and only for grammars the config actually
-      -- wants; a stray filetype outside the list is not a problem to report.
+      -- only grammars on the list; a stray file type is not a problem
       if vim.tbl_contains(grammars, lang) and not missing_warned[lang] then
         missing_warned[lang] = true
         vim.notify(
@@ -304,8 +263,7 @@ vim.api.nvim_create_autocmd("FileType", {
       return
     end
 
-    -- Folds follow the syntax tree. 'foldenable' stays off, so they exist to
-    -- be opened with `za` but nothing starts collapsed.
+    -- folds follow the syntax tree; 'foldenable' is off, so none start closed
     vim.wo[0][0].foldmethod = "expr"
     vim.wo[0][0].foldexpr = "v:lua.vim.treesitter.foldexpr()"
   end,

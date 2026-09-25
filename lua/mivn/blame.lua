@@ -1,30 +1,12 @@
 -- Who wrote the line I am on, said once, in the status line.
 --
--- The line I am on, and no other. This is Zed's shape: its `inline_blame`
--- annotates the cursor's line alone, and the view of a whole file at once is a
--- separate thing over in the gutter with avatars and short hashes, rather than
--- the same text repeated down the right-hand side. Annotating every line was
--- tried here first and it reads badly. The same name comes back every few
--- lines, a blank line belongs to whichever commit added the section above it
--- so the name lands out at column zero beside nothing, and a file with unsaved
--- work in it breaks into a fresh run after every line I have touched.
---
--- The status line rather than the end of the line, which is Zed's other
--- location for the same text and the one that suits this editor. It never sits
--- on top of code, never depends on how long a line is, and is always in the
--- same place, so the eye learns where to look once. What it gives up is
--- nearness to the line it describes, and that is a trade worth making when the
--- line in question is the one the cursor is already on.
---
--- lua/mivn/statusline.lua owns the slot and the color. This file only answers
--- the question, so that the line, which is rebuilt many times a second, does
--- nothing but read a string.
+-- The cursor's line and no other, and in the status line rather than at the end
+-- of the code line; DEFAULTS.md has the trade. This module only answers the
+-- question, so the status line, rebuilt many times a second, does nothing but
+-- read a string.
 --
 -- Lines with nothing committed behind them say nothing, and neither do blank
--- ones. The gutter already marks what I have changed and <leader>tr already
--- shows what it was, so a line I am in the middle of writing simply goes quiet.
---
--- What gets blamed is the buffer and not the file on disk, so an unsaved
+-- ones. What gets blamed is the buffer and not the file on disk, so an unsaved
 -- change is part of the question rather than something the answer disagrees
 -- with. git is asked once per buffer and the answer kept, since moving the
 -- cursor must not spawn a subprocess; typing asks again once the text settles.
@@ -36,14 +18,15 @@ local GROUP = vim.api.nvim_create_augroup("mivn.blame", { clear = true })
 --- The zero hash `git blame` gives a line that is not committed yet.
 local UNCOMMITTED = "^0+$"
 
---- How long the text has to sit still before it is worth asking git again.
+--- How long, in milliseconds, the text has to sit still before it is worth
+--- asking git again.
 local SETTLE = 750
 
---- On or off, for the whole session. On is the resting state.
+--- On or off, for the whole session.
 local enabled = false
 
---- The last answer per buffer: one entry per line, plus what the buffer looked
---- like when it was true, so a stale answer can be recognised as one.
+--- The last answer per buffer: one entry per line, and the line count it was
+--- true for, so a stale answer can be told apart.
 local answers = {}
 
 --- The buffers git has been asked about, so that coming back to one does not
@@ -79,13 +62,8 @@ local function ago(when)
   return plural(math.floor(since / YEAR), "year")
 end
 
---- Who to name for a line: the part of the author's address before the `@`.
----
---- git has no username of its own, so this is the nearest thing it knows and
---- it is the handle the same person goes by everywhere else. It is also much
---- the shorter half, a handle against a full name, on a line that has other
---- things to say. The full name is what is left when an address is missing,
---- which happens on a commit made without one.
+--- Who to name for a line: the part of the author's address before the `@`, or
+--- the full name when the commit has no address.
 local function whom(name, mail)
   local address = mail and mail:match("^<(.*)>$") or mail
   local handle = address and address:match("^([^@]+)@")
@@ -93,9 +71,9 @@ local function whom(name, mail)
   return handle or name
 end
 
---- One entry per line of the file, in order, from `git blame --porcelain`:
---- the commit that line came from, as `{ sha, author, when }`, shared by every
---- line of the same commit.
+--- One entry per line of the file, in order, from `git blame --porcelain`: the
+--- commit that line came from, as `{ sha, author, when }`, shared by every line
+--- of the same commit.
 ---
 --- The porcelain format is a header naming the commit, the commit's fields the
 --- first time it is seen, then the line's own text behind a tab.
@@ -137,16 +115,15 @@ local function blameable(buf)
   return file ~= "" and vim.uv.fs_stat(file) ~= nil
 end
 
---- Who wrote the line the cursor is on, as `panos · 3 months ago`, or the
---- empty string when there is nobody to name.
+--- Who wrote the line the cursor is on, as `panos · 3 months ago`, or the empty
+--- string when there is nobody to name.
 ---
---- The answer is dropped rather than reported once the buffer has gained or
---- lost lines, because one blamed line is one buffer line only for as long as
---- that holds, and naming the wrong person is worse than naming nobody. Typing
---- puts a fresh answer back within SETTLE.
+--- The answer is dropped once the buffer gains or loses lines, since naming the
+--- wrong person is worse than naming nobody; typing brings a fresh one within
+--- SETTLE.
 ---
---- Cheap on purpose: the status line calls this on every redraw, so it is a
---- table lookup and a concatenation and never any work.
+--- NOTE: the status line calls this on every redraw, so it has to stay a lookup
+--- and never ask git itself.
 function M.line()
   if not enabled then
     return ""
@@ -175,11 +152,7 @@ function M.line()
   return line.author .. " · " .. ago(line.when)
 end
 
---- Ask git who wrote this buffer, and keep the answer.
----
---- Nothing waits for it. `git blame` on a long file in a big repository takes
---- real time, and an editor that stops while it thinks is worse than an answer
---- a moment late.
+--- Ask git who wrote this buffer, in the background, and keep the answer.
 local function ask(buf)
   if not blameable(buf) then
     return
@@ -188,19 +161,15 @@ local function ask(buf)
   local file = vim.api.nvim_buf_get_name(buf)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 
-  -- `--contents -` blames what I am looking at rather than what is on disk,
-  -- which is what keeps the answer line for line with the buffer while it is
-  -- dirty. The path still has to be named, since it is what git looks the
-  -- history up by.
   asked[buf] = true
 
+  -- `--contents -` blames the buffer as it is, not the file on disk
   vim.system({ "git", "blame", "--porcelain", "--contents", "-", "--", file }, {
     text = true,
     stdin = table.concat(lines, "\n") .. "\n",
     cwd = vim.fs.dirname(file),
     timeout = 10000,
-    -- No index refresh, since this only reads, and no prompt if something
-    -- upstream of me decides to ask for one.
+    -- no index refresh, since this only reads, and never a prompt
     env = { GIT_OPTIONAL_LOCKS = "0", GIT_TERMINAL_PROMPT = "0" },
   }, function(out)
     if out.code ~= 0 then
@@ -208,24 +177,22 @@ local function ask(buf)
     end
 
     vim.schedule(function()
-      -- The answer can outlive both the mode and the buffer that asked.
+      -- the answer can outlive both the mode and the buffer that asked
       if not enabled or not vim.api.nvim_buf_is_valid(buf) then
         return
       end
 
       answers[buf] = { lines = parse(out.stdout), count = #lines }
 
-      -- The status line is not redrawn by anything this module does, so it
-      -- has to be told the answer has landed. Guarded because redrawing is
-      -- refused outright from inside the command-line window.
+      -- pcall, since the command-line window refuses a redraw
       pcall(vim.cmd.redrawstatus)
     end)
   end)
 end
 
---- Ask again once the typing stops. Debounced through 'changedtick' rather
---- than a timer per buffer: every change schedules a look, and only the one
---- still matching the tick it was scheduled under does any work.
+--- Ask again once the typing stops. Every change schedules a look, and only the
+--- one whose 'changedtick' still matches does any work, so there is no timer to
+--- keep per buffer.
 local function ask_when_settled(buf)
   local tick = vim.b[buf].changedtick
 
@@ -241,9 +208,8 @@ local function enable()
 
   ask(vim.api.nvim_get_current_buf())
 
-  -- Only a buffer that comes on screen is asked about, since only the line
-  -- under the cursor is ever shown. A buffer loaded behind my back, a rename
-  -- touching twenty files say, costs nothing.
+  -- only a buffer that comes on screen, so one loaded behind my back (a rename
+  -- touching twenty files) costs nothing
   vim.api.nvim_create_autocmd("BufEnter", {
     group = GROUP,
     callback = function(event)
@@ -253,7 +219,7 @@ local function enable()
     end,
   })
 
-  -- Writing asks again, so the answer follows a commit made from the terminal.
+  -- writing asks again, so the answer follows a commit made in the terminal
   vim.api.nvim_create_autocmd("BufWritePost", {
     group = GROUP,
     callback = function(event)
@@ -286,16 +252,13 @@ local function disable()
   pcall(vim.cmd.redrawstatus)
 end
 
---- Whether the blame is on, for the summary <leader>t? prints.
+--- Whether the blame is on.
 function M.on()
   return enabled
 end
 
---- Show who wrote the line under the cursor, or stop.
----
---- It says which way it went: the line I am on may well have no answer to
---- show (an unsaved file, a line I just typed), so the text arriving or not
---- is no answer about the flag.
+--- Turn the blame on or off, and say which: the line I am on may have nothing
+--- to show either way.
 function M.toggle()
   if enabled then
     disable()
@@ -306,10 +269,8 @@ function M.toggle()
   vim.notify(("Blame: %s"):format(enabled and "on" or "off"))
 end
 
--- On as soon as this module is loaded, which is while init.lua is still
--- running: the buffer sweep finds nothing to do that early and the autocmds
--- are what catch the file being opened. Both halves are needed anyway, since
--- the key can turn this off and on again at any point after.
+-- On from the start. This runs while init.lua is still loading, before any file
+-- is open, so the autocmds are what catch the first one.
 enable()
 
 return M
