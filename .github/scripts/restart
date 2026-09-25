@@ -9,29 +9,11 @@
 # one row per case, ok or FAIL with what was expected and what happened, and
 # exits non-zero on any FAIL.
 #
-# :restart cannot be reached by running it. lua/mivn/restart.lua rewrites the
-# command line from a CmdlineLeavePre autocmd, which only fires on a line that
-# was typed, so nvim_exec2 walks straight past the whole module. Every key
-# here goes in through nvim_input over a socket instead, and that same socket
-# is what answers afterwards: a restarted server listens on the address it was
-# handed, so the connection reaches the editor that came back.
-#
-# Why this exists. :restart shipped taking its `plain` argument from the table
-# a user command hands its callback, which is true for every table, so the
-# session and the panels were dropped by the one spelling that came for them
-# and unsaved work raised a Lua traceback. Nothing in the tree pressed the
-# key: `keys` reads which modes a mapping is bound in, `motions` reads where
-# the caret landed, and `panels` runs one thing against the buffers with no
-# file behind them. None of them asks what a restart put back.
-#
-# The three spellings are each tried on a buffer with nothing to save and on
-# one with unsaved work. What comes back is the pid, so a restart that never
-# happened is not read as one, the terminal and the second file, which say
-# whether the session was carried, and the messages, which say whether a
-# refusal arrived as an error a reader can act on or as a traceback.
-#
-# The cases are in .github/checks/restart.lua; .github/checks/harness.sh has
-# the rest.
+# Each of :restart, ZR and 1ZR is tried with nothing to save and with unsaved
+# work. A case reads the pid, whether the terminal and the second file came
+# back, and whether a refusal came as an error or as a traceback, so it
+# catches a restart that drops the session or the panels. The cases are in
+# .github/checks/restart.lua.
 
 name=restart
 # shellcheck source=SCRIPTDIR/../checks/harness.sh
@@ -46,10 +28,10 @@ printf 'witness\n' > "$witness"
 editor_env="MIVN_ANCHOR='$anchor' MIVN_WITNESS='$witness'"
 start "$anchor"
 
-# A restart drops the connection for as long as the new server takes to come
-# up and source the session. Waiting on the pid rather than on a clock keeps
-# the run as quick as the machine is, and a case that expects no restart still
-# has to settle, so it is given the same first breath.
+# Waits until the editor answers again, with a pid other than $1, or with any
+# pid when $1 is `any`, and fails when it never does. A restart drops the
+# connection until the new server is up and has sourced the session; it
+# listens on the same address, so the same socket reaches it.
 settle() {
   sleep 1
 
@@ -72,13 +54,15 @@ for i in $(matching); do
   was=$(nv "luaeval('M.setup(_A)', $i)")
   sleep 0.3
 
+  # NOTE: the keys go in through nvim_input and never nvim_exec2. mivn
+  # rewrites a typed :restart in a CmdlineLeavePre autocmd, which only fires
+  # on a line that was typed, so nvim_exec2 would walk past all of it.
   for j in $(seq 1 "$(nv "luaeval('M.keys(_A)', $i)")"); do
     nv "luaeval('M.press(_A[1], _A[2])', [$i, $j])" > /dev/null
     sleep 0.12
   done
 
-  # An editor that never answers again is a restart that took the session
-  # down with it, which is a failure and not a reason to hang.
+  # An editor that never answers again is a failure, not a reason to hang.
   if ! settle any; then
     report "  FAIL  case $i: the editor stopped answering after the keys"
     continue

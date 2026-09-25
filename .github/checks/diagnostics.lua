@@ -2,9 +2,8 @@ local H = dofile(debug.getinfo(1, "S").source:match("^@(.*/)") .. "harness.lua")
 
 local M = H.new()
 
---- Mine, so nothing in here waits on a language server. What a server
---- publishes and what this sets go through the same handler and the same
---- `format`.
+--- My own namespace, so no case waits on a language server. What a server
+--- publishes goes through the same handler and the same `format`.
 local NS = vim.api.nvim_create_namespace("mivn.check.diagnostics")
 
 --- The rule the handler draws in front of every line of a message: the elbow
@@ -21,8 +20,8 @@ local LINES = {
 }
 
 --- A gopls type mismatch, near enough: 300-odd characters of ASCII with one
---- space between every pair of words, so the rows put back together with a
---- space between them are the message again.
+--- space between words, so the rows joined with a space are the message
+--- again.
 local LONG = "cannot use handler (variable of type func(w http.ResponseWriter, r *http.Request) error)"
   .. " as http.Handler value in argument to mux.Handle: func(w http.ResponseWriter, r *http.Request)"
   .. " error does not implement http.Handler (missing method ServeHTTP), and the same is true of"
@@ -239,15 +238,12 @@ end
 --- What the handler was handed is what the editor drew, and none of it
 --- reaches the window's last column.
 ---
---- WARN: the first half is the one that matters and it has to be read off the
---- screen. The extmark holds the whole row whether or not it fitted, so a
---- message cut at the right edge still reads back in full from there, and
---- asking the extmark how wide the window was would be asking the same
---- arithmetic that put the breaks in. Only the editor knows what got drawn.
----
---- The second half is not enough on its own either: a cut that happens to
---- land on one of the message's own spaces leaves the last column blank, and
---- the row still lost its tail.
+--- NOTE: the first half has to be read off the screen with screenstring().
+--- The extmark holds the whole row whether or not it fitted, and asking it
+--- how wide the window was would ask the same arithmetic that put the breaks
+--- in. The second half is not enough alone: a cut that lands on one of the
+--- message's own spaces leaves the last column blank, and the row still lost
+--- its tail.
 local function fits(rows, lnum)
   local wrong = {}
   local win = info()
@@ -259,10 +255,8 @@ local function fits(rows, lnum)
   for i, row in ipairs(rows) do
     local cells = {}
 
-    -- The block starts under the line the diagnostic is on and the gutter is
-    -- blank beside it, so the row is what stands between `textoff` and the
-    -- right edge. A double-width character answers once and then with an
-    -- empty string, which puts it back together as it was.
+    -- the cells between `textoff` and the right edge; a double-width
+    -- character answers once and then with ""
     for col = win.wincol + win.textoff, win.wincol + win.width - 1 do
       cells[#cells + 1] = vim.fn.screenstring(win.winrow + lnum + i, col)
     end
@@ -358,8 +352,7 @@ function M.setup(i)
   vim.diagnostic.set(NS, vim.api.nvim_get_current_buf(), diagnostics)
 end
 
---- Whether this case resizes the window after the diagnostics are published,
---- which is the state the wrap cannot see coming.
+--- 1 when case `i` resizes the window after the diagnostics are drawn, else 0.
 function M.resizes(i)
   return M.cases[i].resize and 1 or 0
 end

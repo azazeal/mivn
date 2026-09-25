@@ -10,29 +10,15 @@
 # one row per case, ok or FAIL with what came out wrong, and exits non-zero on
 # any FAIL.
 #
-# What each case checks is the block lua/mivn/lsp.lua wraps: that a short
-# message is still one row with its elbow, that a long one is broken on its
-# spaces and rejoins to the text that went in, that nothing drawn reaches the
-# last column of the window, and that a message capped at a third of the
-# window ends with the ellipsis that points at `Ctrl+W d`.
+# Each case checks the block lua/mivn/lsp.lua wraps: a short message stays one
+# row with its elbow, a long one breaks on its spaces and rejoins to the text
+# that went in, nothing drawn reaches the window's last column, and a message
+# capped at a third of the window ends in an ellipsis. The wrap has to count
+# cells and not bytes, and getting that wrong only shows on a line that is not
+# ASCII.
 #
-# Why this exists. Neovim's handler draws the block with
-# `virt_lines_overflow = 'scroll'`, which only truncates, so mivn wraps the
-# message itself before handing it over. That arithmetic is in cells and not
-# in bytes, and the difference only shows on a line that is not ASCII: a Greek
-# message wraps about a third too early and a Japanese one runs off the edge,
-# and both of them look fine in English.
-#
-# WARN: whether a row fits is read off the screen with screenstring() and not
-# off the extmark. Asking the extmark how wide it is would be asking the same
-# arithmetic that put the breaks in, and the two agreeing about a window's
-# width is exactly the bug worth catching.
-#
-# The diagnostics are injected with vim.diagnostic.set, so no language server
-# is needed and CI checks the same thing this machine does.
-#
-# The cases are in .github/checks/diagnostics.lua; .github/checks/harness.sh
-# has the rest.
+# The diagnostics go in through vim.diagnostic.set, so no language server is
+# needed. The cases are in .github/checks/diagnostics.lua.
 
 name=diagnostics
 # shellcheck source=SCRIPTDIR/../checks/harness.sh
@@ -51,9 +37,8 @@ for i in $(matching); do
   nv "luaeval('M.setup(_A)', $i)" > /dev/null
   sleep 0.4
 
-  # The resize goes in as its own call, after the diagnostics are already
-  # published, because that is the state the wrap cannot see coming: the
-  # widths it used are the ones the window had a moment ago.
+  # The resize is its own call, once the diagnostics are drawn: the case is
+  # about a wrap made for the width the window had before.
   if [ "$(nv "luaeval('M.resizes(_A)', $i)")" = 1 ]; then
     nv "luaeval('M.resize(_A)', $i)" > /dev/null
     sleep 0.4

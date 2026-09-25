@@ -192,9 +192,8 @@ function M.setup(i)
       fill()
     end
 
-    -- Opened and closed rather than toggled: mivn opens the tree itself once
-    -- the editor is up, so a toggle here would put every case in the state
-    -- the case before it was not in.
+    -- NOTE: opened or closed, never toggled. mivn opens the tree itself at
+    -- startup, so a toggle would close it for a case that wants it open.
     local tree = require("nvim-tree.api").tree
 
     if c.tree then
@@ -213,7 +212,7 @@ function M.clicks(i)
   return #(M.cases[i].clicks or {})
 end
 
---- Click number `n`, and what buffer the editor was left in.
+--- Presses click `n` of case `i`, and answers the column it pressed.
 function M.click(i, n)
   local col = M.cases[i].clicks[n]
 

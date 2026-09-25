@@ -45,9 +45,9 @@ case("a counted ZR leaves the session behind", { "1ZR" }, false, {
 --- The same three, with unsaved work ----------------------------------------
 --
 -- :restart quits, and quitting refuses while a buffer has unsaved work. What
--- matters is that the refusal reads as an error and not as a traceback
--- through this module, and that the panels are where they were left, since
--- the session spellings step them out of the way before they ask.
+-- matters is that the refusal reads as an error and not as a traceback, and
+-- that the panels are where they were left, since the session spellings step
+-- them out of the way before they ask.
 
 case(":restart refuses on unsaved work", { ":restart<CR>" }, true, {
   restarted = false,
@@ -88,12 +88,12 @@ local function screen()
   return terminals, witness
 end
 
---- Put the editor back the way every case starts, and answer with the pid it
---- is about to be restarted from.
+--- Puts the editor back the way every case starts, and answers with the pid
+--- it is about to be restarted from.
 ---
---- WARN: the tree is left alone. It opens on its own at startup, so it comes
---- back either way and says nothing about the session; the terminal does not,
---- which is why it is the panel this reads.
+--- The tree is left alone: it opens on its own at startup, so it comes back
+--- either way and says nothing about the session. The terminal is the panel
+--- that does.
 function M.setup(i)
   vim.api.nvim_feedkeys(vim.keycode("<Esc><C-\\><C-n>"), "nx", false)
   vim.cmd("stopinsert")
@@ -139,8 +139,7 @@ function M.verdict(i, was)
   local c = M.cases[i]
   local terminals, witness = screen()
 
-  -- E1568 is the terminal declining to say what its background colour is,
-  -- which is the pty and not this config.
+  -- E1568 is the pty not saying what its background colour is
   local said = vim.fn.execute("messages"):gsub("E1568:[^\n]*", "")
 
   local got = {
@@ -153,8 +152,8 @@ function M.verdict(i, was)
 
   local wrong = H.differences(got, vim.tbl_extend("error", { traceback = false }, c.expect))
 
-  -- Two terminals is a panel that was put back on top of one that never left,
-  -- which the count above reads as a plain miss.
+  -- two terminals is one put back over one that never left, which
+  -- `terminal` above reads as a plain miss
   if terminals > 1 then
     wrong[#wrong + 1] = ("terminal: %d of them, so one was opened over another"):format(terminals)
   end

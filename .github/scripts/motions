@@ -9,19 +9,10 @@
 # one row per case, ok or FAIL with what was expected and what happened, and
 # exits non-zero on any FAIL.
 #
-# The editor runs on a pty with a socket, and every key goes in through
-# nvim_input over that socket, one call per key: the same queue a terminal
-# fills, in the same order. Headless feedkeys is not that queue, and it has
-# said yes to a broken version of these keys and no to a working one, which is
-# why this is not a headless script.
-#
-# The cases are the keys lua/mivn/words.lua and lua/mivn/keymaps.lua own: the
-# word, subword and WORD ends over ASCII, Greek, accented, Japanese and an
-# emoji cluster, and every unshifted key pressed with something picked out,
-# in Visual and in Select, which has to land where it lands without one.
-#
-# The cases are in .github/checks/motions.lua; .github/checks/harness.sh has
-# the rest.
+# The cases are the word, subword and WORD ends over ASCII, Greek, accented,
+# Japanese and emoji text, and every unshifted key pressed over a selection in
+# Visual and in Select, which has to land where it lands without one. They are
+# in .github/checks/motions.lua.
 
 name=motions
 # shellcheck source=SCRIPTDIR/../checks/harness.sh
@@ -38,8 +29,10 @@ for i in $(matching); do
   keys=$(nv "luaeval('M.setup(_A)', $i)")
   sleep 0.1
 
-  # One call per key, with a gap, which is a hand typing. The burst case is
-  # one key holding several, which is a paste or a key held down.
+  # NOTE: every key goes in through nvim_input over the socket, one call per
+  # key with a gap, which is the queue a terminal fills, in the same order.
+  # Headless feedkeys is another queue, and it can pass a broken key or fail
+  # a working one. The burst case puts several keys in one call, like a paste.
   for j in $(seq 1 "$keys"); do
     nv "luaeval('M.press(_A[1], _A[2])', [$i, $j])" > /dev/null
     sleep 0.12

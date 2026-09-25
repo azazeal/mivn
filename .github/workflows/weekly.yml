@@ -1,9 +1,8 @@
 # Weekly upkeep, off the push path: move the plugin pins, and open a PR when
-# they moved. ci.yml runs its own checks on the same schedule.
+# they moved.
 #
-# One known limit: a PR opened with the default GITHUB_TOKEN does not trigger
-# the ci workflow on its own. Close and reopen the PR to get a run, or push
-# anything to its branch.
+# A PR opened with the default GITHUB_TOKEN does not trigger ci.yml. Close and
+# reopen it, or push to its branch, to get a run.
 name: Weekly
 
 on:
@@ -31,13 +30,9 @@ jobs:
           neovim: true
           version: stable
 
-      # repin pick moves every pin to the newest release that has been out for
-      # at least 14 days, or the newest commit that old for the plugins that
-      # follow a branch, so nothing cut yesterday lands here. It reads the
-      # clones to do that, which is what the plain boot is for: vim.pack
-      # installs every plugin at the pin plugins.lua already carries. The
-      # update after the pick checks the picks out and rewrites the lock as
-      # the cache of them. The PR carries plugins.lua and the lock file.
+      # The plain boot installs every plugin at its current pin, since repin
+      # pick reads the clones. The update after the pick checks the picks out
+      # and rewrites the lock.
       - name: Update the plugins
         run: |
           mkdir -p ~/.config
@@ -52,11 +47,9 @@ jobs:
         with:
           branch: plugin-updates
           # What .github/release.yml sorts on, so this lands under
-          # "Dependency updates" in the release notes rather than among the
-          # changes I wrote. Dependabot labels its own PRs with it already.
+          # "Dependency updates" in the release notes.
           labels: dependencies
-          # Commits through the API instead of the git CLI, which makes them
-          # GitHub-signed; the "signed commits everywhere" ruleset rejects
+          # Commits through the API, so GitHub signs them; a ruleset rejects
           # unsigned pushes on every branch, this one included.
           sign-commits: true
           commit-message: "plugins: updated pinned revisions"

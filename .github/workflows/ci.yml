@@ -34,9 +34,8 @@ jobs:
         with:
           args: -color
 
-      # The version my machine runs, not latest: a stylua release that
-      # changes its mind about a line would otherwise fail every push until
-      # the formatting caught up with a tool nothing here had chosen.
+      # The version I run, not latest, so a new stylua that formats a line
+      # differently does not fail every push.
       - name: Lint Lua
         uses: JohnnyMorganz/stylua-action@76fd70c03e6340ceaf673366712db9b20560b402 # v5.0.0
         with:
@@ -57,15 +56,15 @@ jobs:
       - name: Checkout the code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      # Stable everywhere, no pin: my machine follows Neovim releases through
-      # brew, so the config only ever has to work on the latest release.
+      # Stable and not pinned: the config only has to work on the latest
+      # Neovim release.
       - uses: rhysd/action-setup-vim@febef33995d6649302e9d88dda81e071b68f16a7 # v1.6.1
         with:
           neovim: true
           version: stable
 
-      # Headless Neovim prints a config error and still carries on to exit 0,
-      # so the output is what gets asserted, never the exit code.
+      # NOTE: headless Neovim prints a config error and still exits 0, so the
+      # output is what gets checked, never the exit code.
       - name: Boot the config headless
         run: |
           mkdir -p ~/.config
@@ -77,9 +76,8 @@ jobs:
           grep -q 'boot clean' <<< "$out"
           if grep -Eqi 'error|E[0-9]{3}' <<< "$out"; then exit 1; fi
 
-      # The scripts run the working copy as `mivn`; here the checkout is the
-      # one config there is, under Neovim's own name, and the boot above has
-      # already cloned its plugins.
+      # Here the checkout is ~/.config/nvim, so the scripts are told
+      # NVIM_APPNAME=nvim. The boot above has already cloned the plugins.
       - name: Check the keys against the docs and each other
         run: NVIM_APPNAME=nvim ./.github/scripts/keys --check
 

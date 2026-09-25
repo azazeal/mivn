@@ -3,32 +3,18 @@
 # Draws the tab bar on a real editor and says where it put things.
 #
 #   tabline            every case
-#   tabline <pattern>  the cases whose name contains it
+#   tabline <pattern>  the cases whose name matches the Lua pattern
 #
 # Wants nvim on $PATH, and a pty, which `script` (util-linux) provides.
 # Prints one row per case, ok or FAIL with what was expected and what
 # happened, and exits non-zero on any FAIL.
 #
-# What each case checks is the columns above the file tree: that the strip
-# starts with the project's name, that the buffers start one column past the
-# tree whatever else is going on, and that a click up there lands where it
-# looks like it lands.
-#
-# Why this exists. mini.tabline fits its string to the whole screen rather
-# than to what is left of it, so with enough buffers open the padded line was
-# wider than the screen, and a tabline with no `%<` is cut at its start: the
-# padding went first and the tabs slid over the tree. They were live up there
-# too, so clicking what looked like the tree switched buffers. Nothing asked
-# the tab bar what it drew until this, and it only goes wrong past a buffer
-# count, which is why looking at it once said it was fine.
-#
-# WARN: the clicks go in over the socket, one call each, because injected
-# mouse input is only read once the editor is back in its own loop. Sent from
-# inside a callback, with `vim.wait` or `nvim_feedkeys` between, every click
-# in here was swallowed and the case passed while nothing had been pressed.
-#
-# The cases are in .github/checks/tabline.lua; .github/checks/harness.sh has
-# the rest.
+# Each case checks the columns above the file tree: that the strip starts with
+# the project's name, that the buffers start one column past the tree however
+# many there are, and that a click up there lands where it looks like it
+# lands. The bar only goes wrong past a number of buffers, when it is wider
+# than the screen and slides over the tree. The cases are in
+# .github/checks/tabline.lua.
 
 name=tabline
 # shellcheck source=SCRIPTDIR/../checks/harness.sh
@@ -40,8 +26,7 @@ list=$(matching)
 stop
 
 for i in $list; do
-  # One editor per case. None of them undoes what it opened, so a shared one
-  # would have the cases deciding each other's starting state.
+  # One editor per case, since none of them undoes what it opened.
   sleep 0.3
   start
   load
@@ -49,6 +34,10 @@ for i in $list; do
   nv "luaeval('M.setup(_A)', $i)" > /dev/null
   sleep 0.5
 
+  # NOTE: the clicks go in over the socket, one call each, because injected
+  # mouse input is only read once the editor is back in its own loop. Sent
+  # from inside a callback, a click is dropped and the case passes with
+  # nothing pressed.
   for n in $(seq 1 "$(nv "luaeval('M.clicks(_A)', $i)")"); do
     nv "luaeval('M.click(_A[1], _A[2])', [$i, $n])" > /dev/null
     sleep 0.3

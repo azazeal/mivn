@@ -14,28 +14,21 @@
 #   repin write   Pin every entry to the revision in nvim-pack-lock.json and
 #                 refresh its comment with the nearest tag and commit date.
 #
-# The weekly workflow moves the pins with pick, then one update to check the
-# picks out and rewrite the lock as their cache:
+# The weekly workflow runs pick, then an update that checks the picks out and
+# rewrites the lock:
 #
 #   repin pick 14
 #   nvim --headless "+lua vim.pack.update(nil, { force = true })" +qa
 #
-# By hand, to read the changelogs before taking anything, strip and write go
-# around an interactive update instead. That route takes whatever is newest,
-# waiting for nothing, which is fine when a person is reading the diff.
+# By hand, to read the changelogs first, strip and write go around an
+# interactive update, which takes whatever is newest:
 #
 #   repin strip
 #   :lua vim.pack.update()
 #   repin write
 #
-# The wait pick enforces is the point of it. A release cut yesterday has had
-# no time for its "this broke everything" issue to be filed, and no plugin
-# here is urgent enough that I want to be the one finding out.
-#
-# Each entry's own comment sits on the
-# line directly above it and ends in a parenthesized pin description; that
-# closing parenthesis is how this script tells an entry comment from a group
-# comment, so keep it there.
+# pick waits so that a broken release has had time to be reported before I
+# take it.
 
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -48,12 +41,9 @@ PLUGINS=lua/mivn/plugins.lua
 LOCK=nvim-pack-lock.json
 DATA="${XDG_DATA_HOME:-$HOME/.local/share}/$NVIM_APPNAME/site/pack/core/opt"
 
-# What a plugin follows between pins. The default is releases: a semver
-# range makes vim.pack.update() take the plugin to its newest tag, and the
-# written pin is that tag's commit, so the entry comments read as clean
-# versions. A branch is the exception, for repos whose tags do not describe
-# what we run: nvim-treesitter tags its legacy master while the config
-# rides the main rewrite.
+# What a plugin follows between pins: `range`, its releases, by default, or
+# `branch <name>` for a repo whose tags do not describe what I run.
+# nvim-treesitter tags its old master while I run the main rewrite.
 follows() {
   case "$1" in
   nvim-treesitter) echo "branch main" ;;
@@ -61,14 +51,11 @@ follows() {
   esac
 }
 
-# The pin description for a plugin at the revision it is locked to: the
-# nearest tag plus how far past it, and the commit date. Falls back to the
-# short revision when the clone (or any tag) is missing.
-#
-# Versions only, the same rule pick applies. Left to itself describe names
-# the nearest tag of any kind, and the moving aliases some repos carry beside
-# the real one (which-key's stable, nvim-tree's v1 and v1.18) read as the
-# version when they are nothing of the sort.
+# The pin description for a plugin at a revision: the nearest version tag
+# plus how far past it, and the commit date. Without a tag it is the date
+# alone, and without the clone the short revision. Only version tags count,
+# as in pick: a moving alias such as which-key's `stable` or nvim-tree's `v1`
+# is not a version.
 describe() {
   local name="$1" rev="$2" dir="$DATA/$1" tag date
 
@@ -77,7 +64,7 @@ describe() {
     date=$(git -C "$dir" show -s --format=%cs "$rev" 2>/dev/null || true)
   fi
 
-  # v0.18.0-4-g626b8a5 reads better as v0.18.0+4.
+  # v0.18.0-4-g626b8a5 becomes v0.18.0+4
   tag=$(sed -E 's/-([0-9]+)-g[0-9a-f]+$/+\1/' <<<"${tag:-}")
 
   if [[ -n ${tag:-} && -n ${date:-} ]]; then
@@ -90,12 +77,12 @@ describe() {
 }
 
 # The revision a plugin should move to: the newest thing that has been out for
-# at least `days` days, or `current` when nothing is old enough yet.
+# at least `days` days, or `current` when nothing is old enough yet or when
+# that would move it backwards.
 #
-# The fetch drops the global git config, because that config can rewrite the
-# https plugin URLs to ssh (url.<base>.insteadOf), and on a machine whose agent
-# holds no key the fetch then hangs on a passphrase prompt. Local git calls
-# keep the real config; only the one that talks to a remote loses it.
+# NOTE: the fetch runs without the global git config, which can rewrite the
+# https URLs to ssh (url.<base>.insteadOf) and then hang on a passphrase
+# prompt when the agent holds no key.
 pick() {
   local name="$1" days="$2" current="$3" dir="$DATA/$1" follow cutoff tag when chosen
 
@@ -112,9 +99,7 @@ pick() {
   else
     cutoff=$(($(date +%s) - days * 86400))
 
-    # Newest version first, and versions only: this skips prereleases
-    # (v1.2.3-rc1) and the moving aliases some repos carry beside the real tag
-    # (which-key has stable, nvim-tree has v1 and v1.18 next to v1.18.0).
+    # newest first, and plain versions only: no prereleases, no moving aliases
     while read -r tag when; do
       [[ $tag =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
       ((when <= cutoff)) || continue
@@ -124,9 +109,7 @@ pick() {
     done < <(git -C "$dir" tag --sort=-version:refname --format='%(refname:short) %(creatordate:unix)')
   fi
 
-  # Never backwards. A pin can already sit past the wait, left there by a run
-  # from before this waiting existed or by an update taken by hand, and a wait
-  # is a reason to hold still, never a reason to hand a version back.
+  # never backwards: a pin taken by hand can already be newer than the wait
   if [[ -z ${chosen:-} ]] || git -C "$dir" merge-base --is-ancestor "$chosen" "$current"; then
     echo "$current"
     return
@@ -161,9 +144,12 @@ flush() {
   pending_comment=""
 }
 
+# NOTE: an entry's comment is the one line directly above it, and it ends in
+# its pin in parentheses. pick and write replace the parenthesized part the
+# line ends in, or add one when there is none, so a group comment put
+# directly above an entry would take the pin.
 while IFS= read -r line; do
-  # Hold each comment line back until the next line says whether it is the
-  # comment of the entry below it.
+  # hold a comment back until the next line says whether an entry owns it
   if [[ $line =~ ^([[:space:]]*)--[[:space:]] ]]; then
     flush
     pending_comment="$line"

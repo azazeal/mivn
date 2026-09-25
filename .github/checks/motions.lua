@@ -190,8 +190,8 @@ case("select, a wrap backwards keeps the caret end", 1, 11, { "i", "<S-Left>", "
   anchor = { 1, 12 },
   cursor = { 1, 9 },
 })
--- The Esc at the end is the case's own: a register prefix left waiting takes
--- the next case's first key as the register's name. It ends Visual as well.
+-- The Esc at the end is the case's own: a register prefix left waiting would
+-- take the next case's first key as its name.
 case("visual, a quote is a register prefix", 1, 8, { "<S-Right>", "<S-Right>", "<S-Right>", '"', "<Esc>" }, {
   mode = "n",
   line = "    abc def_ghi jkl",
@@ -302,8 +302,7 @@ local ISKEYWORD = vim.bo.iskeyword
 function M.setup(i)
   local c = M.cases[i]
 
-  -- Esc first, for a case that left a key half typed: a register prefix
-  -- still waiting for its name would take the next key as that name.
+  -- esc first, for a case that left a key half typed
   vim.api.nvim_feedkeys(vim.keycode("<Esc><C-\\><C-n>"), "nx", false)
   vim.cmd("stopinsert")
 
