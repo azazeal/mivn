@@ -6,8 +6,8 @@
 vim.pack.add({
   -- The basics: syntax, language servers, the file tree.
 
-  -- grammars (v0.9.3+858, 2026-09-12)
-  { src = "https://github.com/nvim-treesitter/nvim-treesitter", version = "9a168f6357ed21c3a636e1727bc7d382abc451b8" },
+  -- grammars (v0.9.3+859, 2026-09-19)
+  { src = "https://github.com/nvim-treesitter/nvim-treesitter", version = "f603a2f4da48728f80257fb5fbb90145fd1dc173" },
   -- per-server configs, not a client (v2.11.0, 2026-07-21)
   { src = "https://github.com/neovim/nvim-lspconfig", version = "b89138d9af0a96e6048e202a15765fc6b6416bd4" },
   -- the file tree (v1.18.0, 2026-07-01)
