@@ -36,9 +36,9 @@
       "version": "'7e8584a06b86902c64227e4abd0c39ae74061101'"
     },
     "nvim-lspconfig": {
-      "rev": "b89138d9af0a96e6048e202a15765fc6b6416bd4",
+      "rev": "4d363f93c3581b9212a24f7a830d7590b3f050af",
       "src": "https://github.com/neovim/nvim-lspconfig",
-      "version": "'b89138d9af0a96e6048e202a15765fc6b6416bd4'"
+      "version": "'4d363f93c3581b9212a24f7a830d7590b3f050af'"
     },
     "nvim-tree.lua": {
       "rev": "531b807b8f0d6f75016a0ee1e0cd5ce2086e9d95",
@@ -46,9 +46,9 @@
       "version": "'531b807b8f0d6f75016a0ee1e0cd5ce2086e9d95'"
     },
     "nvim-treesitter": {
-      "rev": "f603a2f4da48728f80257fb5fbb90145fd1dc173",
+      "rev": "728e031f6b11d03d1f0708b7dc4fb0f1d9c8a137",
       "src": "https://github.com/nvim-treesitter/nvim-treesitter",
-      "version": "'f603a2f4da48728f80257fb5fbb90145fd1dc173'"
+      "version": "'728e031f6b11d03d1f0708b7dc4fb0f1d9c8a137'"
     },
     "which-key.nvim": {
       "rev": "fcbf4eea17cb299c02557d576f0d568878e354a4",
