@@ -29,6 +29,11 @@ jobs:
         with:
           neovim: true
           version: stable
+        # TODO: drop this once the action copies instead of renaming. It unpacks
+        # Neovim under $TMPDIR and then renames it into $HOME, which fails when
+        # /tmp is a filesystem of its own, as it is on ubuntu-26.04.
+        env:
+          TMPDIR: ${{ runner.temp }}
 
       # The plain boot installs every plugin at its current pin, since repin
       # pick reads the clones. The update after the pick checks the picks out

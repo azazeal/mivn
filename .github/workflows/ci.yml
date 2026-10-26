@@ -62,6 +62,11 @@ jobs:
         with:
           neovim: true
           version: stable
+        # TODO: drop this once the action copies instead of renaming. It unpacks
+        # Neovim under $TMPDIR and then renames it into $HOME, which fails when
+        # /tmp is a filesystem of its own, as it is on ubuntu-26.04.
+        env:
+          TMPDIR: ${{ runner.temp }}
 
       # NOTE: headless Neovim prints a config error and still exits 0, so the
       # output is what gets checked, never the exit code.
