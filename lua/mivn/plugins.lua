@@ -6,12 +6,12 @@
 vim.pack.add({
   -- The basics: syntax, language servers, the file tree.
 
-  -- grammars (v0.9.3+868, 2026-10-10)
-  { src = "https://github.com/nvim-treesitter/nvim-treesitter", version = "1a4f47b03dfe92d28de7d5654c67327ef008c9e6" },
+  -- grammars (v0.9.3+878, 2026-10-24)
+  { src = "https://github.com/nvim-treesitter/nvim-treesitter", version = "a2f694478be07f89c2d03cc17858a8745a400c4b" },
   -- per-server configs, not a client (v2.12.0, 2026-09-23)
   { src = "https://github.com/neovim/nvim-lspconfig", version = "4d363f93c3581b9212a24f7a830d7590b3f050af" },
-  -- the file tree (v1.18.0, 2026-07-01)
-  { src = "https://github.com/nvim-tree/nvim-tree.lua", version = "531b807b8f0d6f75016a0ee1e0cd5ce2086e9d95" },
+  -- the file tree (v1.19.0, 2026-10-21)
+  { src = "https://github.com/nvim-tree/nvim-tree.lua", version = "9a2e0006d42f292eb3ade7dfdff201a7429a780c" },
   -- what can follow the key I just pressed (v3.17.0, 2025-02-22)
   { src = "https://github.com/folke/which-key.nvim", version = "fcbf4eea17cb299c02557d576f0d568878e354a4" },
 

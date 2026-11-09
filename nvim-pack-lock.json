@@ -41,14 +41,14 @@
       "version": "'4d363f93c3581b9212a24f7a830d7590b3f050af'"
     },
     "nvim-tree.lua": {
-      "rev": "531b807b8f0d6f75016a0ee1e0cd5ce2086e9d95",
+      "rev": "9a2e0006d42f292eb3ade7dfdff201a7429a780c",
       "src": "https://github.com/nvim-tree/nvim-tree.lua",
-      "version": "'531b807b8f0d6f75016a0ee1e0cd5ce2086e9d95'"
+      "version": "'9a2e0006d42f292eb3ade7dfdff201a7429a780c'"
     },
     "nvim-treesitter": {
-      "rev": "1a4f47b03dfe92d28de7d5654c67327ef008c9e6",
+      "rev": "a2f694478be07f89c2d03cc17858a8745a400c4b",
       "src": "https://github.com/nvim-treesitter/nvim-treesitter",
-      "version": "'1a4f47b03dfe92d28de7d5654c67327ef008c9e6'"
+      "version": "'a2f694478be07f89c2d03cc17858a8745a400c4b'"
     },
     "which-key.nvim": {
       "rev": "fcbf4eea17cb299c02557d576f0d568878e354a4",
