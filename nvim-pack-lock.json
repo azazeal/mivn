@@ -46,9 +46,9 @@
       "version": "'9a2e0006d42f292eb3ade7dfdff201a7429a780c'"
     },
     "nvim-treesitter": {
-      "rev": "0195cd62fa89950f34c0e0d648ea7897ab85d4d3",
+      "rev": "19bdfc04f40ed2ccb3340591d125f759b0406875",
       "src": "https://github.com/nvim-treesitter/nvim-treesitter",
-      "version": "'0195cd62fa89950f34c0e0d648ea7897ab85d4d3'"
+      "version": "'19bdfc04f40ed2ccb3340591d125f759b0406875'"
     },
     "which-key.nvim": {
       "rev": "fcbf4eea17cb299c02557d576f0d568878e354a4",
